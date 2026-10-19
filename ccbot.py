@@ -2027,6 +2027,79 @@ async def arrumador(interaction: discord.Interaction):
 
 
 
+PROMO_CHANNELS = {
+    "Loja CC": 1561513281049595958,
+    "PACKy": 1561513282265944104,
+    "Garimpo": 1561513283171651644,
+}
+PROMO_URLS = {
+    "Loja CC": "https://ccloja.erbysite.com/",
+    "PACKy": "https://packy.lovable.app",
+    "Garimpo": "https://garimoh.lovable.app/perfil",
+}
+
+
+class PromoLinksView(discord.ui.View):
+    def __init__(self, label: str, url: str):
+        super().__init__(timeout=None)
+        self.add_item(discord.ui.Button(
+            label=f"Acessar {label}",
+            style=discord.ButtonStyle.link,
+            url=url,
+            emoji="🔗"
+        ))
+
+
+def criar_embed_promocional(nome: str) -> discord.Embed:
+    textos = {
+        "Loja CC": (
+            "🛍️ **Sua loja em um só lugar**\\n\\n"
+            "Acesse a Loja CC para conferir os produtos e opções disponíveis.\\n"
+            "Use o botão abaixo para abrir o site oficial."
+        ),
+        "PACKy": (
+            "📦 **Encontre packs para sua produção**\\n\\n"
+            "Explore o PACKy e veja os conteúdos disponíveis para deixar seus projetos do seu jeito.\\n"
+            "Toque no botão para acessar o site."
+        ),
+        "Garimpo": (
+            "💎 **Hora de garimpar novidades**\\n\\n"
+            "Confira o Garimpo e explore o conteúdo disponível no perfil.\\n"
+            "Acesse pelo botão abaixo."
+        ),
+    }
+    embed = discord.Embed(
+        title=f"✦  {nome}",
+        description=textos[nome],
+        color=discord.Color.from_rgb(190, 45, 75)
+    )
+    embed.set_footer(text="CC BOT • Links oficiais")
+    return embed
+
+
+async def publicar_embeds_promocionais():
+    publicados = settings.setdefault("promo_embeds", {})
+    alterou = False
+    for nome, canal_id in PROMO_CHANNELS.items():
+        if publicados.get(nome):
+            continue
+        try:
+            canal = bot.get_channel(canal_id)
+            if canal is None:
+                canal = await bot.fetch_channel(canal_id)
+            mensagem = await canal.send(
+                embed=criar_embed_promocional(nome),
+                view=PromoLinksView(nome, PROMO_URLS[nome])
+            )
+            publicados[nome] = {"channel_id": canal_id, "message_id": mensagem.id}
+            alterou = True
+            log.info("Embed promocional publicado: %s no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
+        except Exception:
+            log.exception("Falha ao publicar embed promocional: %s", nome)
+    if alterou:
+        save_json(DATA_FILE, settings)
+
+
 SALES_SOURCE_CHANNEL_ID = 1561513284191125625
 SALES_COUNTER_CHANNEL_ID = 1561513273554374686
 SALES_COUNTER_PREFIX = "│💰﹒Vendas : "
@@ -2210,7 +2283,7 @@ async def on_ready():
 
         await channel.send(embed=embed)
 
-        # Atualiza a mensagem do painel já publicada, sem criar outra.
+        # Publica os três embeds promocionais novos apenas uma vez.\n        await publicar_embeds_promocionais()\n\n        # Atualiza a mensagem do painel já publicada, sem criar outra.
         try:
             samples_channel = await bot.fetch_channel(SAMPLES_PANEL_CHANNEL_ID)
             samples_message = await samples_channel.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
