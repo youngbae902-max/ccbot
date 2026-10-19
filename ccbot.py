@@ -558,10 +558,23 @@ async def venda_de_beats(interaction: discord.Interaction):
 
 
 
-class PackBasicoModal(discord.ui.Modal, title="Pack Básico"):
-    nome = discord.ui.TextInput(label="Nome do pack", max_length=100)
-    estilo = discord.ui.TextInput(label="Estilo musical", placeholder="Ex.: funk mandelão", max_length=100)
-    detalhes = discord.ui.TextInput(label="Detalhes do pedido", style=discord.TextStyle.paragraph, max_length=900)
+class PackBasicoModal(discord.ui.Modal, title="Encomendar Pack Básico"):
+    nome = discord.ui.TextInput(
+        label="Nome do pack",
+        placeholder="Ex.: Pack Mandelão do DJ X",
+        max_length=100
+    )
+    estilo = discord.ui.TextInput(
+        label="Estilo musical",
+        placeholder="Qual funk/sonoridade? Ex.: mandelão, automotivo...",
+        max_length=100
+    )
+    detalhes = discord.ui.TextInput(
+        label="O que você quer no pack?",
+        placeholder="Descreva a ideia, referências, sons desejados e o resultado que espera.",
+        style=discord.TextStyle.paragraph,
+        max_length=900
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -575,11 +588,30 @@ class PackBasicoModal(discord.ui.Modal, title="Pack Básico"):
                 await interaction.response.send_message("Não consegui abrir os adicionais. Tente novamente.", ephemeral=True)
 
 
-class PackPremiumModal(discord.ui.Modal, title="Pack Premium"):
-    nome = discord.ui.TextInput(label="Nome do pack", max_length=100)
-    estilo = discord.ui.TextInput(label="Estilo musical", max_length=100)
-    itens = discord.ui.TextInput(label="Itens desejados", placeholder="Kicks, samples, acapellas, MCs, vozes antes da virada", style=discord.TextStyle.paragraph, max_length=900)
-    quantidades = discord.ui.TextInput(label="Quantidades e organização", style=discord.TextStyle.paragraph, max_length=500, required=False)
+class PackPremiumModal(discord.ui.Modal, title="Encomendar Pack Premium"):
+    nome = discord.ui.TextInput(
+        label="Nome do pack",
+        placeholder="Dê um nome para identificar seu pack",
+        max_length=100
+    )
+    estilo = discord.ui.TextInput(
+        label="Estilo musical",
+        placeholder="Ex.: mandelão, rave, automotivo, montagem...",
+        max_length=100
+    )
+    itens = discord.ui.TextInput(
+        label="O que deve vir no pack?",
+        placeholder="Liste kicks, samples, acapellas, MCs, vozes antes da virada etc.",
+        style=discord.TextStyle.paragraph,
+        max_length=900
+    )
+    quantidades = discord.ui.TextInput(
+        label="Quantidades e organização",
+        placeholder="Quantos de cada item? Quer pastas separadas? (opcional)",
+        style=discord.TextStyle.paragraph,
+        max_length=500,
+        required=False
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -598,9 +630,21 @@ class PackAdicionais(discord.ui.Select):
             min_values=0,
             max_values=3,
             options=[
-                discord.SelectOption(label="Organização das pastas (+ R$ 10)", value="Organização das pastas (+ R$ 10)"),
-                discord.SelectOption(label="Samples personalizadas (+ R$ 10)", value="Samples personalizadas (+ R$ 10)"),
-                discord.SelectOption(label="Samples de outros packs (+ R$ 20)", value="Samples de outros packs (+ R$ 20)")
+                discord.SelectOption(
+                    label="Organização das pastas (+ R$ 10)",
+                    description="Deixa os arquivos separados e fáceis de encontrar.",
+                    value="Organização das pastas (+ R$ 10)"
+                ),
+                discord.SelectOption(
+                    label="Samples personalizadas (+ R$ 10)",
+                    description="Samples pensadas para a ideia do seu pack.",
+                    value="Samples personalizadas (+ R$ 10)"
+                ),
+                discord.SelectOption(
+                    label="Samples de outros packs (+ R$ 20)",
+                    description="Adiciona samples que vêm de outros packs.",
+                    value="Samples de outros packs (+ R$ 20)"
+                )
             ]
         )
 
@@ -665,9 +709,15 @@ class PackAdicionaisView(discord.ui.LayoutView):
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
                 "## <:tag:1561787923865665667> PACK BÁSICO — R$ 50,00\n"
-                "Inclui cerca de 3 horas de trabalho (R$ 30) + conhecimento aplicado (R$ 20).\n\n"
-                "**Adicionais opcionais:** organização +R$ 10; samples personalizadas +R$ 10; "
-                "samples de outros packs +R$ 20. Selecione os que deseja."
+                "Ideal para quem quer um pack montado a partir de uma ideia específica.\n"
+                "O valor inclui cerca de 3 horas de trabalho (R$ 30) + conhecimento aplicado (R$ 20).\n\n"
+                "**O que fazer agora:** marque os adicionais que quiser e toque em **Enviar pedido**. "
+                "Se não quiser extras, deixe tudo desmarcado.\n\n"
+                "**Adicionais (opcionais):**\n"
+                "• **Organização das pastas (+ R$ 10):** arquivos separados e organizados.\n"
+                "• **Samples personalizadas (+ R$ 10):** samples feitas para combinar com sua ideia.\n"
+                "• **Samples de outros packs (+ R$ 20):** incluir samples de outros packs.\n\n"
+                "O total é calculado automaticamente antes do pedido ser enviado."
             )),
             discord.ui.ActionRow(self.seletor),
             discord.ui.ActionRow(enviar)
@@ -708,12 +758,23 @@ class PackPersonalizadoView(discord.ui.LayoutView):
         premium.callback = self.abrir_premium
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
-                "## <:box:1561761831587160140> PACK PERSONALIZADO\n"
-                "Monte um pack exclusivo do seu jeito.\n\n"
+                "## <:box:1561761831587160140> ENCOMENDAR PACK PERSONALIZADO\n"
+                "Escolha uma opção abaixo para montar seu pedido. O bot vai orientar você em cada etapa; "
+                "não precisa saber preencher tudo antes de começar.\n\n"
                 "### <:tag:1561787923865665667> PACK BÁSICO — R$ 50,00\n"
-                "Cerca de 3 horas de trabalho + conhecimento aplicado. Adicionais opcionais.\n\n"
+                "Para encomendar um pack a partir da sua ideia. Você informa o nome, o estilo musical e "
+                "explica o que procura. Depois, pode adicionar serviços opcionais.\n"
+                "**Adicionais:** organização de pastas (+ R$ 10), samples personalizadas (+ R$ 10) "
+                "e samples de outros packs (+ R$ 20).\n\n"
                 "### <:coroa:1561788313214390364> PACK PREMIUM — R$ 100,00\n"
-                "Personalização completa com kicks, samples, acapellas, MCs, vozes antes da virada e pastas organizadas."
+                "Para uma montagem mais completa e personalizada. Você informa o nome e o estilo, "
+                "lista o que quer receber — como kicks, samples, acapellas, MCs e vozes antes da virada — "
+                "e pode explicar quantidades e como quer as pastas organizadas.\n\n"
+                "**Como encomendar:**\n"
+                "1. Escolha Básico ou Premium.\n"
+                "2. Preencha os campos com suas ideias e referências.\n"
+                "3. No Básico, selecione os adicionais se quiser.\n"
+                "4. Envie o pedido. Ele será encaminhado ao administrador, que poderá combinar os detalhes com você."
             )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
             discord.ui.ActionRow(basico, premium)
