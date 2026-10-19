@@ -1577,6 +1577,90 @@ async def antes_de_monitorar_pasta_icones():
     await bot.wait_until_ready()
 
 
+class PermissoesCategoriasView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+
+    @discord.ui.button(label="Aplicar permissões", emoji="🔒", style=discord.ButtonStyle.danger, custom_id="ccbot:aplicar_permissoes_categorias")
+    async def aplicar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        if interaction.guild is None:
+            await interaction.response.send_message("Use esta função dentro do servidor.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+        comunidade = []
+        alteradas = []
+        falhas = []
+
+        for categoria in guild.categories:
+            if categoria.name.strip().casefold() == "comunidade":
+                comunidade.append(categoria.name)
+                continue
+            try:
+                overwrites = dict(categoria.overwrites)
+                everyone = overwrites.get(guild.default_role, discord.PermissionOverwrite())
+                everyone.view_channel = True
+                everyone.use_application_commands = True
+                everyone.send_messages = False
+                everyone.send_messages_in_threads = False
+                everyone.create_public_threads = False
+                everyone.create_private_threads = False
+                overwrites[guild.default_role] = everyone
+                await categoria.edit(
+                    overwrites=overwrites,
+                    reason=f"Configuração pelo CC BOT solicitada por {interaction.user} ({interaction.user.id})"
+                )
+                alteradas.append(categoria.name)
+            except Exception as exc:
+                falhas.append(f"{categoria.name}: {type(exc).__name__}")
+
+        resumo = (
+            "🔒 **Configuração concluída**\n"
+            f"Categorias alteradas: **{len(alteradas)}**\n"
+            f"Categorias preservadas: **{', '.join(comunidade) if comunidade else 'nenhuma categoria chamada Comunidade encontrada'}**\n"
+            "Membros podem visualizar os canais, usar comandos de aplicativos e interagir com botões, "
+            "mas não podem enviar mensagens nem criar tópicos pela permissão geral."
+        )
+        if falhas:
+            resumo += "\n\n⚠️ **Falhas:**\n" + "\n".join(f"• {x}" for x in falhas[:10])
+        await interaction.edit_original_response(content=resumo, view=None)
+
+    @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.secondary, custom_id="ccbot:cancelar_permissoes_categorias")
+    async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.edit_message(content="Operação cancelada. Nenhuma permissão foi alterada.", embed=None, view=None)
+
+
+async def abrir_permissoes_categorias(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+        return
+    if interaction.guild is None:
+        await interaction.response.send_message("Use esta função dentro do servidor.", ephemeral=True)
+        return
+
+    quantidade = sum(1 for c in interaction.guild.categories if c.name.strip().casefold() != "comunidade")
+    comunidades = [c.name for c in interaction.guild.categories if c.name.strip().casefold() == "comunidade"]
+    embed = discord.Embed(
+        title="🔒 Permissões das categorias",
+        description=(
+            f"Vou alterar **{quantidade} categorias**, preservando a categoria "
+            f"**Comunidade** ({', '.join(comunidades) if comunidades else 'não encontrada'}).\n\n"
+            "Nas demais categorias, @everyone poderá **ver os canais, usar comandos de aplicativos e interagir com botões**, "
+            "mas não poderá enviar mensagens nem criar tópicos. As permissões específicas de outros cargos serão mantidas.\n\n"
+            "Confirme apenas se deseja aplicar essa mudança ao servidor."
+        ),
+        color=discord.Color.dark_grey()
+    )
+    await interaction.response.edit_message(embed=embed, view=PermissoesCategoriasView())
+
+
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
@@ -1592,6 +1676,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
                 discord.SelectOption(label="Limpar mensagens do PV", description="Apagar mensagens enviadas pelo CC BOT na sua DM", emoji="🧹", value="limpar_pv"),
                 discord.SelectOption(label="Gerenciar ícones", description="Monitorar Pinterest e publicar álbuns de fotos", emoji="🖼️", value="icones"),
+                discord.SelectOption(label="Permissões das categorias", description="Somente leitura, mantendo bots utilizáveis e Comunidade intacta", emoji="🔒", value="permissoes_categorias"),
             ]
         )
 
@@ -1631,6 +1716,8 @@ class CategoriaPainelSelect(discord.ui.Select):
                 ),
                 view=PainelPublicarView()
             )
+        elif categoria == "permissoes_categorias":
+            await abrir_permissoes_categorias(interaction)
         elif categoria == "icones":
             await interaction.response.edit_message(
                 embed=criar_embed_painel_icones(),
