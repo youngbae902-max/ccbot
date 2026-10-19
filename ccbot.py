@@ -795,6 +795,7 @@ class PackRespostaModal(discord.ui.Modal):
             await interaction.response.send_message("Este pedido pertence a outra pessoa.", ephemeral=True)
             return
         self.parent_view.salvar_resposta(str(self.resposta.value).strip())
+        await interaction.response.defer(ephemeral=True)
         await self.parent_view.mostrar_proxima()
 
 class PackPerguntasView(discord.ui.LayoutView):
@@ -944,6 +945,47 @@ class PackPerguntasView(discord.ui.LayoutView):
         except Exception:
             log.exception("Falha ao enviar pedido de pack")
             await self.painel_interaction.edit_original_response(content="❌ Não consegui enviar o pedido. Tente novamente.", view=None)
+
+
+class PackPersonalizadoView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        basico = discord.ui.Button(label="PACK BÁSICO", emoji="<:tag:1561787923865665667>", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:v2:basico")
+        premium = discord.ui.Button(label="PACK PREMIUM", emoji="<:coroa:1561788313214390364>", style=discord.ButtonStyle.success, custom_id="ccbot:pack:v2:premium")
+        basico.callback = self.abrir_basico
+        premium.callback = self.abrir_premium
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content=(
+                "## <:box:1561761831587160140> ENCOMENDAR PACK PERSONALIZADO\n"
+                "Escolha Básico ou Premium. O CC BOT fará uma pergunta por vez nesta mesma aba do painel, sem PV.\n\n"
+                "### <:tag:1561787923865665667> PACK BÁSICO — R$ 50,00\n"
+                "Responda sobre nome, estilo e ideia do pack. Depois, escolha se deseja adicionais.\n"
+                "**Adicionais:** organização de pastas (+ R$ 10), samples personalizadas (+ R$ 10) "
+                "e samples de outros packs (+ R$ 20).\n\n"
+                "### <:coroa:1561788313214390364> PACK PREMIUM — R$ 100,00\n"
+                "Responda sobre nome, estilo, itens, quantidades e organização. Pode citar kicks, samples, "
+                "acapellas, MCs e vozes antes da virada.\n\n"
+                "**Como funciona:** escolha um plano, responda uma pergunta por vez, revise e envie o pedido."
+            )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(basico, premium)
+        ))
+
+    async def abrir_basico(self, interaction: discord.Interaction):
+        try:
+            await iniciar_fluxo_pack(interaction, "Pack Básico")
+        except Exception:
+            log.exception("Falha ao abrir o fluxo Pack Básico")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("Não consegui abrir o pedido. Tente novamente.", ephemeral=True)
+
+    async def abrir_premium(self, interaction: discord.Interaction):
+        try:
+            await iniciar_fluxo_pack(interaction, "Pack Premium")
+        except Exception:
+            log.exception("Falha ao abrir o fluxo Pack Premium")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("Não consegui abrir o pedido. Tente novamente.", ephemeral=True)
 
 
 async def criar_pack_personalizado(interaction: discord.Interaction):
