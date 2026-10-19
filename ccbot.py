@@ -30,6 +30,8 @@ WELCOME_CHANNEL_ID = 1561513269754068992
 # ou necessidade técnica real. O painel de Samples existente está identificado abaixo.
 SAMPLES_PANEL_CHANNEL_ID = 1561513284811624480
 SAMPLES_PANEL_MESSAGE_ID = 1561742192656261183
+PACK_PANEL_CHANNEL_ID = 1561513286967500841
+PACK_PANEL_MESSAGE_ID = 1561787024829321287
 
 CONFIG.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -670,7 +672,7 @@ class PackAdicionaisView(discord.ui.LayoutView):
 
 class PackPersonalizadoView(discord.ui.LayoutView):
     def __init__(self):
-        super().__init__(timeout=600)
+        super().__init__(timeout=None)
         basico = discord.ui.Button(label="PACK BÁSICO", emoji="<:tag:1561787923865665667>", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:basico")
         premium = discord.ui.Button(label="PACK PREMIUM", emoji="<:coroa:1561788313214390364>", style=discord.ButtonStyle.success, custom_id="ccbot:pack:premium")
         basico.callback = self.abrir_basico
@@ -1689,6 +1691,16 @@ async def on_ready():
             log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
         except Exception:
             log.exception("Não foi possível atualizar o painel /samples existente.")
+
+        # Atualiza o painel de Pack Personalizado já publicado, sem criar outro.
+        try:
+            pack_channel = await bot.fetch_channel(PACK_PANEL_CHANNEL_ID)
+            pack_message = await pack_channel.fetch_message(PACK_PANEL_MESSAGE_ID)
+            await pack_message.edit(view=PackPersonalizadoView())
+            bot.add_view(PackPersonalizadoView(), message_id=PACK_PANEL_MESSAGE_ID)
+            log.info("Painel Pack Personalizado existente atualizado: canal=%s mensagem=%s", PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID)
+        except Exception:
+            log.exception("Não foi possível atualizar o painel Pack Personalizado existente.")
 
     except Exception as exc:
         log.exception("Falha ao iniciar ou sincronizar comandos")
