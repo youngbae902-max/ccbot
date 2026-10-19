@@ -564,10 +564,10 @@ async def painel(interaction: discord.Interaction):
         return
 
     embed = discord.Embed(
-        title="⚙️ Painel de Configurações",
+        title="⚙️・Painel de Configurações",
         description=(
             "Gerencie os módulos e as funcionalidades do **CC BOT** por aqui.\n\n"
-            "### 🎧 Gerenciamento de DJs\n"
+            "### 🎧・Gerenciamento de DJs\n"
             "Adicione os DJs que deverão aparecer no botão **Gerar Samples**.\n\n"
             "-# Novas opções de configuração poderão ser adicionadas a este painel."
         ),
