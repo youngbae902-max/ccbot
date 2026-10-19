@@ -1973,12 +1973,8 @@ async def on_ready():
     try:
         guild = discord.Object(id=1561513043886743562)
 
-        # Remove registros globais antigos para não exibir a mesma slash command
-        # junto da versão registrada no servidor.
-        global_commands = await bot.tree.fetch_commands()
-        for command in global_commands:
-            await bot.tree.delete_global_command(command.id)
-            log.info("Comando global antigo removido: /%s (id=%s)", command.name, command.id)
+        # A sincronização com a árvore global vazia remove comandos globais antigos.
+        # Os comandos ativos são registrados somente no servidor de destino.
 
         # Registra uma única cópia de cada comando no servidor de destino.
         bot.tree.clear_commands(guild=guild)
