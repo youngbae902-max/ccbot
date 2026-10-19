@@ -2053,18 +2053,18 @@ class PromoLinksView(discord.ui.View):
 def criar_embed_promocional(nome: str) -> discord.Embed:
     textos = {
         "Loja CC": (
-            "🛍️ **Sua loja em um só lugar**\\n\\n"
-            "Acesse a Loja CC para conferir os produtos e opções disponíveis.\\n"
+            "🛍️ **Sua loja em um só lugar**\n\n"
+            "Acesse a Loja CC para conferir os produtos e opções disponíveis.\n"
             "Use o botão abaixo para abrir o site oficial."
         ),
         "PACKy": (
-            "📦 **Encontre packs para sua produção**\\n\\n"
-            "Explore o PACKy e veja os conteúdos disponíveis para deixar seus projetos do seu jeito.\\n"
+            "📦 **Encontre packs para sua produção**\n\n"
+            "Explore o PACKy e veja os conteúdos disponíveis para deixar seus projetos do seu jeito.\n"
             "Toque no botão para acessar o site."
         ),
         "Garimpo": (
-            "💎 **Hora de garimpar novidades**\\n\\n"
-            "Confira o Garimpo e explore o conteúdo disponível no perfil.\\n"
+            "💎 **Hora de garimpar novidades**\n\n"
+            "Confira o Garimpo e explore o conteúdo disponível no perfil.\n"
             "Acesse pelo botão abaixo."
         ),
     }
@@ -2283,7 +2283,10 @@ async def on_ready():
 
         await channel.send(embed=embed)
 
-        # Publica os três embeds promocionais novos apenas uma vez.\n        await publicar_embeds_promocionais()\n\n        # Atualiza a mensagem do painel já publicada, sem criar outra.
+        # Publica os três embeds promocionais novos apenas uma vez.
+        await publicar_embeds_promocionais()
+
+        # Atualiza a mensagem do painel já publicada, sem criar outra.
         try:
             samples_channel = await bot.fetch_channel(SAMPLES_PANEL_CHANNEL_ID)
             samples_message = await samples_channel.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
