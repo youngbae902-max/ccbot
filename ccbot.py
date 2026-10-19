@@ -245,7 +245,7 @@ class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
 
         mcs.append(nome)
         mcs.sort(key=str.casefold)
-        save_json(MCS_FILE, mcs)
+        save_json(DJS_FILE, mcs)
         await interaction.response.send_message(f"DJ **{discord.utils.escape_markdown(nome)}** adicionado à lista.", ephemeral=True)
 
 
@@ -267,7 +267,7 @@ class AdicionarDJButton(discord.ui.Button):
 class PainelAdminView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(AdicionarMCButton())
+        self.add_item(AdicionarDJButton())
 
 
 class GerarSamplesButton(discord.ui.Button):
@@ -324,7 +324,7 @@ class GeradorSamplesView(discord.ui.LayoutView):
                         "## **PAINEL ATUALIZADO**\n"
                         "-# Confira abaixo todas as funcionalidades disponíveis e descubra tudo o que você pode fazer com o nosso painel!\n\n"
                         "### <:emoji_14:1561362005104001095> Samples No Estilo Dos Djs!\n"
-                        "Clique em **Gerar Samples** e escolha um MC cadastrado pelo administrador.\n\n"
+                        "Clique em **Gerar Samples** e escolha um DJ cadastrado pelo administrador.\n\n"
                         "### <:emoji_14:1561362005104001095> Gere __Quantas Samples Quiser!__\n"
                         "Tenha liberdade para gerar **quantas samples quiser**, de forma prática, rápida e direto pelo painel."
                     )
@@ -341,7 +341,7 @@ async def painel(interaction: discord.Interaction):
         return
 
     await interaction.response.send_message(
-        "## Painel de configuração\nAdicione os MCs que deverão aparecer no botão **Gerar Samples**.",
+        "## Painel de configuração\nAdicione os DJs que deverão aparecer no botão **Gerar Samples**.",
         view=PainelAdminView(),
         ephemeral=True
     )
