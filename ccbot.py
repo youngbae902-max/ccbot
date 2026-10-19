@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 
 BASE = Path.home() / "ccbot-repo"
@@ -19,13 +19,6 @@ BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
 ADMIN_ID = 1366109646934380614
 DEFAULT_NOTICE_CHANNEL = 1561698571525423115
 WELCOME_CHANNEL_ID = 1561513269754068992
-
-STORE_CHANNELS = {
-    1561513281049595958: ("Loja CC", "https://ccloja.erbysite.com/"),
-    1561513282265944104: ("Packy", "https://packy.lovable.app"),
-    1561513283171651644: ("Grimo", "https://garimoh.lovable.app/perfil"),
-}
-
 
 CONFIG.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -253,83 +246,43 @@ async def arrumador(interaction: discord.Interaction):
 
 
 
-@bot.tree.command(name="lojas-publicar", description="Publicar os links das lojas nos canais configurados")
-async def lojas_publicar(interaction: discord.Interaction):
-    if await deny_unauthorized(interaction):
-        return
-
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    publicados = []
-    ja_existiam = []
-    falhas = []
-
-    for channel_id, (name, url) in STORE_CHANNELS.items():
-        try:
-            channel = bot.get_channel(channel_id)
-            if channel is None:
-                channel = await bot.fetch_channel(channel_id)
-            if not isinstance(channel, discord.TextChannel):
-                falhas.append(f"{name}: o destino não é um canal de texto")
-                continue
-
-            # Evita duplicar o mesmo link caso o comando seja executado novamente.
-            encontrado = False
-            async for message in channel.history(limit=50):
-                if message.author.id == bot.user.id and any(
-                    embed.title == "Acesse" and embed.description and url in embed.description
-                    for embed in message.embeds
-                ):
-                    encontrado = True
-                    break
-
-            if encontrado:
-                ja_existiam.append(name)
-                continue
-
-            embed = discord.Embed(
-                title="Acesse",
-                description=f"[{name}]({url})",
-                color=discord.Color.from_rgb(0, 0, 0)
-            )
-            if channel.guild.icon:
-                embed.set_thumbnail(url=channel.guild.icon.url)
-            await channel.send(embed=embed)
-            publicados.append(name)
-        except Exception as exc:
-            log.exception("Falha ao publicar link de %s", name)
-            falhas.append(f"{name}: {type(exc).__name__}")
-
-    linhas = []
-    if publicados:
-        linhas.append("**Publicados agora:** " + ", ".join(publicados))
-    if ja_existiam:
-        linhas.append("**Já estavam publicados (sem duplicar):** " + ", ".join(ja_existiam))
-    if falhas:
-        linhas.append("**Falhas:** " + "; ".join(falhas))
-    if not linhas:
-        linhas.append("Nenhum canal foi processado.")
-
-    await interaction.followup.send("\\n".join(linhas), ephemeral=True)
+SALES_SOURCE_CHANNEL_ID = 1561513284191125625
+SALES_COUNTER_CHANNEL_ID = 1561513273554374686
+SALES_COUNTER_PREFIX = "│💰﹒Vendas : "
 
 
 @bot.event
-async def on_guild_channel_create(channel: discord.abc.GuildChannel):
-    if channel.id not in STORE_CHANNELS or not isinstance(channel, discord.TextChannel):
+async def on_message(message: discord.Message):
+    if message.channel.id != SALES_SOURCE_CHANNEL_ID:
         return
+
+    settings["sales_count"] = int(settings.get("sales_count", 0)) + 1
+    save_json(DATA_FILE, settings)
+    log.info("Contador de vendas atualizado: %s", settings["sales_count"])
+
+
+@tasks.loop(seconds=60)
+async def atualizar_contador_vendas():
     try:
-        guild_icon = channel.guild.icon.url if channel.guild.icon else None
-        name, url = STORE_CHANNELS[channel.id]
-        embed = discord.Embed(
-            title="Acesse",
-            description=f"[{name}]({url})",
-            color=discord.Color.from_rgb(0, 0, 0)
-        )
-        if guild_icon:
-            embed.set_thumbnail(url=guild_icon)
-        await channel.send(embed=embed)
-    except Exception as exc:
-        log.exception("Falha ao publicar embed da loja/site")
-        await notify_admin(f"Falha no embed de {channel.name}: {exc}")
+        channel = bot.get_channel(SALES_COUNTER_CHANNEL_ID)
+        if channel is None:
+            channel = await bot.fetch_channel(SALES_COUNTER_CHANNEL_ID)
+        if not isinstance(channel, discord.TextChannel):
+            log.error("O canal do contador de vendas não é um canal de texto.")
+            return
+
+        nome = f"{SALES_COUNTER_PREFIX}{int(settings.get('sales_count', 0))}"
+        if channel.name != nome:
+            await channel.edit(name=nome, reason="Atualização automática do contador de vendas")
+            log.info("Nome do contador alterado para: %s", nome)
+    except Exception:
+        log.exception("Falha ao atualizar o canal do contador de vendas")
+
+
+@atualizar_contador_vendas.before_loop
+async def antes_de_atualizar_contador_vendas():
+    await bot.wait_until_ready()
+
 
 @bot.event
 async def on_member_join(member: discord.Member):
@@ -364,6 +317,9 @@ async def on_ready():
         synced = await bot.tree.sync()
         log.info("Comandos sincronizados: %s", len(synced))
         log.info("Conectado como %s", bot.user)
+
+        if not atualizar_contador_vendas.is_running():
+            atualizar_contador_vendas.start()
 
         channel_id = settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)
         channel = bot.get_channel(int(channel_id))
