@@ -478,27 +478,24 @@ async def on_member_join(member: discord.Member):
         log.exception("Falha ao enviar mensagem de boas-vindas")
         await notify_admin(f"Falha na mensagem de boas-vindas: {exc}")
 
-# Guarda os comandos uma única vez para poder reconstruir a lista do servidor
-# mesmo depois de limpar os comandos globais do Discord.
-COMMANDS_FOR_GUILD = [command.copy() for command in bot.tree.get_commands()]
-
-
 @bot.event
 async def on_ready():
     try:
-        # Mantém uma única cópia de cada comando no servidor.
         guild = discord.Object(id=1561513043886743562)
-        bot.tree.clear_commands(guild=guild)
-        for command in COMMANDS_FOR_GUILD:
-            bot.tree.add_command(command.copy(), guild=guild, override=True)
 
-        # Apaga os comandos globais antigos para não aparecerem duplicados.
-        bot.tree.clear_commands(guild=None)
-        await bot.tree.sync()
-
-        # Publica apenas os comandos do servidor.
-        synced = await bot.tree.sync(guild=guild)
-        log.info("Comandos únicos sincronizados no servidor %s: %s", guild.id, len(synced))
+        # Sincroniza apenas uma vez por execução; evita duplicatas globais e
+        # não apaga os comandos do servidor quando o bot reconecta.
+        if not getattr(bot, "_commands_synced_once", False):
+            bot.tree.clear_commands(guild=guild)
+            bot.tree.copy_global_to(guild=guild)
+            bot.tree.clear_commands(guild=None)
+            await bot.tree.sync()
+            synced = await bot.tree.sync(guild=guild)
+            bot._commands_synced_once = True
+            log.info("Comandos únicos sincronizados no servidor %s: %s", guild.id, len(synced))
+        else:
+            synced = await bot.tree.fetch_commands(guild=guild)
+            log.info("Comandos do servidor já sincronizados: %s", len(synced))
         log.info("Conectado como %s", bot.user)
 
         if not getattr(bot, "_sales_history_counted", False):
