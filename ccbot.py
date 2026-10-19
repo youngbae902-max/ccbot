@@ -75,6 +75,7 @@ if not isinstance(mcs, list):
 
 intents = discord.Intents.default()
 intents.members = True
+intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 def is_admin(interaction: discord.Interaction):
@@ -225,11 +226,19 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
         )
 
         def mensagem_valida(message: discord.Message):
-            return (
+            valida = (
                 message.author.id == interaction.user.id
                 and message.channel.id == interaction.channel_id
                 and bool(message.attachments)
             )
+            if valida:
+                log.info(
+                    "Anexo recebido para venda de beat: user=%s channel=%s arquivos=%s",
+                    message.author.id,
+                    message.channel.id,
+                    len(message.attachments)
+                )
+            return valida
 
         try:
             mensagem = await bot.wait_for("message", check=mensagem_valida, timeout=180)
