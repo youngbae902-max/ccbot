@@ -890,20 +890,20 @@ class PackPerguntasView(discord.ui.LayoutView):
             itens = [sim, nao]
         else:
             total = 50 + sum(preco for _, preco in self.extras_escolhidos) if self.plano == "Pack Personalizado" else 100
-            extras = "\\n".join(f"• {n} — R$ {p},00" for n, p in self.extras_escolhidos) or "• Nenhum adicional"
-            resumo = "\\n".join(f"**{k}:** {v}" for k, v in self.respostas.items())
+            extras = "\n".join(f"• {n} — R$ {p},00" for n, p in self.extras_escolhidos) or "• Nenhum adicional"
+            resumo = "\n".join(f"**{k}:** {v}" for k, v in self.respostas.items())
             conteudo = (
-                "## 🧾 RECIBO DO PEDIDO\\n"
-                "━━━━━━━━━━━━━━━━━━━━\\n"
-                f"**Plano:** {self.plano}\\n\\n"
-                "### 💰 VALOR ESTIMADO\\n"
-                f"## R$ {total},00\\n"
-                "━━━━━━━━━━━━━━━━━━━━\\n"
-                "### Adicionais\\n"
-                f"{extras}\\n\\n"
-                "### Detalhes do pedido\\n"
-                f"{resumo}\\n\\n"
-                "━━━━━━━━━━━━━━━━━━━━\\n"
+                "## 🧾 RECIBO DO PEDIDO\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                f"**Plano:** {self.plano}\n\n"
+                "### 💰 VALOR ESTIMADO\n"
+                f"## R$ {total},00\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "### Adicionais\n"
+                f"{extras}\n\n"
+                "### Detalhes do pedido\n"
+                f"{resumo}\n\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
                 "Confira os dados acima. Se estiver tudo certo, toque em **Enviar pedido**."
             )
             enviar = discord.ui.Button(label="Enviar pedido", emoji="📨", style=discord.ButtonStyle.success, custom_id="ccbot:pack:finalizar")
