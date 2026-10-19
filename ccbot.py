@@ -512,9 +512,9 @@ class TestarBoasVindasButton(discord.ui.Button):
             embed = discord.Embed(
                 title="Seja bem-vindo(a)",
                 description=(
-                    "**Eaee, suave? Seja bem-vindo ao nosso server!**\\n\\n"
-                    f"Esperamos que você curta a comunidade, {member.mention}.\\n\\n"
-                    "**Veja as regras do nosso server:**\\n"
+                    "**Eaee, suave? Seja bem-vindo ao nosso server!**\n\n"
+                    f"Esperamos que você curta a comunidade, {member.mention}.\n\n"
+                    "**Veja as regras do nosso server:**\n"
                     "[▢𝂽﹒regras](https://discord.com/channels/1561513043886743562/1561513274737168414)"
                 ),
                 color=discord.Color.green()
