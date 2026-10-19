@@ -866,19 +866,39 @@ class ConfirmarDJButton(discord.ui.Button):
                 ephemeral=True
             )
             return
-        await interaction.response.edit_message(
-            view=discord.ui.LayoutView(
+
+        # Confirma a interação imediatamente para evitar "o aplicativo não respondeu".
+        try:
+            await interaction.response.defer()
+            view_confirmacao = discord.ui.LayoutView(timeout=300)
+            view_confirmacao.add_item(
                 discord.ui.Container(
                     discord.ui.TextDisplay(
                         content=(
                             "## 🎧 DJ SELECIONADO\n"
                             f"**{discord.utils.escape_markdown(nome)}**\n\n"
-                            "A seleção foi recebida. A geração automática dos arquivos de áudio ainda precisa ser integrada."
+                            "✅ Sua escolha foi confirmada.\n"
+                            "A geração automática dos arquivos de áudio ainda não está integrada."
                         )
                     )
                 )
             )
-        )
+            await interaction.edit_original_response(view=view_confirmacao)
+        except Exception as exc:
+            log.exception("Falha ao confirmar DJ selecionado: %s", nome)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "Não consegui confirmar esse DJ. Tente selecionar novamente.",
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.followup.send(
+                        "Não consegui concluir a confirmação do DJ. Tente novamente.",
+                        ephemeral=True
+                    )
+            except Exception:
+                log.exception("Falha ao informar o usuário sobre o erro na confirmação do DJ")
 
 
 class ListaDJsView(discord.ui.LayoutView):
