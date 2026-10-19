@@ -594,9 +594,12 @@ async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
         embed.set_footer(text="CC BOT • Pack Personalizado")
 
         await administrador.send(embed=embed)
-        await interaction.followup.send(
-            f"✅ Pedido de **{plano}** enviado por mensagem privada ao administrador! Valor estimado: **R$ {valor},00**.",
-            ephemeral=True
+        # Substitui a tela privada atual pela confirmação, em vez de criar
+        # outra resposta efêmera separada.
+        await interaction.edit_original_response(
+            content=f"✅ Pedido de **{plano}** enviado! Valor estimado: **R$ {valor},00**. O administrador entrará em contato.",
+            embed=None,
+            view=None
         )
     except discord.Forbidden:
         log.exception("O administrador bloqueou mensagens privadas do bot.")
@@ -702,12 +705,33 @@ class PackPersonalizadoView(discord.ui.LayoutView):
                 await interaction.response.send_message("Não consegui abrir o formulário premium. Execute /pack-personalizado novamente.", ephemeral=True)
 
 
-@bot.tree.command(name="pack-personalizado", description="Solicitar um pack básico ou premium personalizado")
-async def pack_personalizado(interaction: discord.Interaction):
-    if interaction.guild is None:
-        await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
+@bot.tree.command(name="criar-pack-personalizado", description="Publicar o painel público de Pack Personalizado")
+async def criar_pack_personalizado(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode publicar esse painel.", ephemeral=True)
         return
-    await interaction.response.send_message(view=PackPersonalizadoView(), ephemeral=True)
+    if interaction.guild is None or not isinstance(interaction.channel, (discord.TextChannel, discord.Thread)):
+        await interaction.response.send_message("Use este comando em um canal de texto do servidor.", ephemeral=True)
+        return
+
+    try:
+        # O painel inicial é público, igual ao painel /samples.
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        mensagem = await interaction.channel.send(view=PackPersonalizadoView())
+        await interaction.edit_original_response(
+            content=f"✅ Painel de Pack Personalizado publicado em {interaction.channel.mention}.",
+            view=None
+        )
+        log.info("Painel Pack Personalizado publicado: canal=%s mensagem=%s", mensagem.channel.id, mensagem.id)
+    except Exception as exc:
+        log.exception("Falha ao publicar painel Pack Personalizado")
+        if interaction.response.is_done():
+            await interaction.edit_original_response(
+                content=f"❌ Não consegui publicar o painel ({type(exc).__name__}). Verifique as permissões do bot.",
+                view=None
+            )
+        else:
+            await interaction.response.send_message("Não consegui publicar o painel. Verifique as permissões do bot.", ephemeral=True)
 
 
 @bot.tree.command(name="status", description="Verificar se o CC BOT está funcionando")
