@@ -109,6 +109,32 @@ async def notify_admin(message):
         log.exception("Não foi possível enviar aviso ao administrador.")
 
 
+async def enviar_pedido_admin(mensagem, embed=None):
+    """Envia cada pedido tanto ao PV do administrador quanto ao canal de avisos."""
+    erros = []
+    try:
+        administrador = bot.get_user(ADMIN_ID) or await bot.fetch_user(ADMIN_ID)
+        await administrador.send(content=mensagem[:1900] if mensagem else None, embed=embed)
+    except Exception as exc:
+        erros.append(f"PV: {type(exc).__name__}")
+        log.exception("Não foi possível enviar pedido por PV ao administrador.")
+
+    try:
+        canal_id = int(settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL))
+        canal = bot.get_channel(canal_id)
+        if canal is None:
+            canal = await bot.fetch_channel(canal_id)
+        await canal.send(content=mensagem[:1900] if mensagem else None, embed=embed)
+    except Exception as exc:
+        erros.append(f"canal de avisos: {type(exc).__name__}")
+        log.exception("Não foi possível enviar pedido ao canal de avisos.")
+
+    if len(erros) == 2:
+        raise RuntimeError("Falha no envio do pedido para PV e canal de avisos: " + "; ".join(erros))
+    if erros:
+        log.warning("Pedido enviado parcialmente; falha em %s", ", ".join(erros))
+
+
 
 class Config(app_commands.Group):
     def __init__(self):
@@ -488,8 +514,8 @@ class ComprarBeatButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         try:
-            await notify_admin(
-                f"Pedido de compra de beat\nBeat: {self.nome}\nValor: {self.preco}\n"
+            await enviar_pedido_admin(
+                f"🛒 **Pedido de compra de beat**\nBeat: {self.nome}\nValor: {self.preco}\n"
                 f"Comprador: {interaction.user} (ID {interaction.user.id})\n"
                 f"Servidor: {interaction.guild.name if interaction.guild else 'DM'}"
             )
@@ -578,11 +604,7 @@ class PackAdicionais(discord.ui.Select):
 
 async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
     try:
-        # Os pedidos são enviados diretamente por mensagem privada ao administrador.
-        administrador = bot.get_user(ADMIN_ID)
-        if administrador is None:
-            administrador = await bot.fetch_user(ADMIN_ID)
-
+        # O pedido é enviado ao PV do administrador e ao canal de avisos.
         embed = discord.Embed(
             title="📦 Novo pedido • Pack Personalizado",
             description=f"**Plano:** {plano}\n**Valor estimado:** R$ {valor},00",
@@ -595,7 +617,7 @@ async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
             embed.add_field(name=titulo[:256], value=(str(texto).strip() or "Não informado")[:1024], inline=False)
         embed.set_footer(text="CC BOT • Pack Personalizado")
 
-        await administrador.send(embed=embed)
+        await enviar_pedido_admin(None, embed=embed)
         # Substitui a tela privada atual pela confirmação, em vez de criar
         # outra resposta efêmera separada.
         await interaction.edit_original_response(
