@@ -248,9 +248,20 @@ async def on_ready():
         synced = await bot.tree.sync()
         log.info("Comandos sincronizados: %s", len(synced))
         log.info("Conectado como %s", bot.user)
+
+        channel_id = settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)
+        channel = bot.get_channel(int(channel_id))
+        if channel is None:
+            channel = await bot.fetch_channel(int(channel_id))
+
+        await channel.send(
+            f"🟢 **CC BOT iniciado com sucesso!**\\n"
+            f"Bot: {bot.user.mention}\\n"
+            f"Comandos sincronizados: {len(synced)}"
+        )
     except Exception as exc:
-        log.exception("Falha ao sincronizar comandos")
-        await notify_admin(f"Falha ao sincronizar comandos: {exc}")
+        log.exception("Falha ao iniciar ou sincronizar comandos")
+        await notify_admin(f"Falha ao iniciar o CC BOT: {exc}")
 
 @bot.event
 async def on_app_command_error(interaction, error):
