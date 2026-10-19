@@ -254,11 +254,22 @@ async def on_ready():
         if channel is None:
             channel = await bot.fetch_channel(int(channel_id))
 
-        await channel.send(
-            f"🟢 **CC BOT iniciado com sucesso!**\\n"
-            f"Bot: {bot.user.mention}\\n"
-            f"Comandos sincronizados: {len(synced)}"
+        embed = discord.Embed(
+            title="CC BOT iniciado com sucesso!",
+            description=(
+                "🟢 **Status:** Online\n"
+                f"🤖 **Bot:** {bot.user.mention}\n"
+                f"⚙️ **Comandos sincronizados:** {len(synced)}"
+            ),
+            color=discord.Color.green(),
+            timestamp=discord.utils.utcnow()
         )
+        embed.set_image(
+            url="https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUycGtoZjFxZmdvcXdvMDlxZTZrZHBjZ3h6b20xaHVsbGJjY2R2NG1neSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/IsIyvk7zftw4H2C1Kz/giphy.gif"
+        )
+        embed.set_footer(text="CC BOT • Sistema de inicialização")
+        await channel.send(embed=embed)
+
     except Exception as exc:
         log.exception("Falha ao iniciar ou sincronizar comandos")
         await notify_admin(f"Falha ao iniciar o CC BOT: {exc}")
