@@ -194,6 +194,61 @@ BEAT_AUDIO_EXTENSIONS = {
 }
 
 
+class ConfirmarPublicacaoBeatView(discord.ui.View):
+    def __init__(self, canal, nome, descricao, estilo, preco, audio):
+        super().__init__(timeout=180)
+        self.canal = canal
+        self.nome = nome
+        self.descricao = descricao
+        self.estilo = estilo
+        self.preco = preco
+        self.audio = audio
+
+    @discord.ui.button(label="Confirmar", emoji="✅", style=discord.ButtonStyle.success)
+    async def confirmar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode confirmar a publicação.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=f"🎧 {self.nome}",
+            description=self.descricao,
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Estilo", value=self.estilo, inline=True)
+        embed.add_field(name="Valor", value=self.preco, inline=True)
+        embed.set_footer(text="CC BOT • Venda de Beats")
+
+        view = VendaBeatView(
+            nome=self.nome,
+            preco=self.preco,
+            preview_url=self.audio.url
+        )
+        try:
+            await self.canal.send(embed=embed, view=view)
+            await interaction.response.edit_message(
+                content="✅ Beat publicado com sucesso.",
+                view=None
+            )
+        except Exception:
+            log.exception("Falha ao publicar beat confirmado")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "Não consegui publicar o beat. Verifique os logs do bot.",
+                    ephemeral=True
+                )
+
+    @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.danger)
+    async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode cancelar esta publicação.", ephemeral=True)
+            return
+        await interaction.response.edit_message(
+            content="❌ Publicação cancelada. O embed do beat não foi enviado.",
+            view=None
+        )
+
+
 class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
     nome = discord.ui.TextInput(label="Nome do beat", placeholder="Ex.: Noite de Baile", max_length=100)
     descricao = discord.ui.TextInput(label="Descrição", placeholder="Descreva o beat", style=discord.TextStyle.paragraph, max_length=1000)
@@ -269,22 +324,24 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             return
 
         preco = f"R$ {valor_numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        embed = discord.Embed(
-            title=f"🎧 {self.nome.value.strip()}",
-            description=self.descricao.value.strip(),
-            color=discord.Color.green()
-        )
-        embed.add_field(name="Estilo", value=self.estilo.value.strip(), inline=True)
-        embed.add_field(name="Valor", value=preco, inline=True)
-        embed.set_footer(text="CC BOT • Venda de Beats")
-
-        view = VendaBeatView(
+        view = ConfirmarPublicacaoBeatView(
+            canal=canal,
             nome=self.nome.value.strip(),
+            descricao=self.descricao.value.strip(),
+            estilo=self.estilo.value.strip(),
             preco=preco,
-            preview_url=audio.url
+            audio=audio
         )
-        await canal.send(embed=embed, view=view)
-        await interaction.followup.send("Beat publicado com sucesso neste canal.", ephemeral=True)
+        await canal.send(
+            f"{interaction.user.mention} **É esse o arquivo mesmo?**\n"
+            f"Arquivo: `{audio.filename}`\n"
+            "Clique em **Confirmar** para publicar o embed ou **Cancelar** para descartar.",
+            view=view
+        )
+        await interaction.followup.send(
+            "Confira o arquivo enviado e confirme ou cancele a publicação no canal.",
+            ephemeral=True
+        )
 
 
 class OuvirPreviaBeatButton(discord.ui.Button):
