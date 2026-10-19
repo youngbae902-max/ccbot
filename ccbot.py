@@ -190,7 +190,7 @@ async def status(interaction: discord.Interaction):
 
 class GerarSamplesButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="Gerar Samples", style=discord.ButtonStyle.primary, custom_id="ccbot:gerar_samples")
+        super().__init__(label="Gerar Samples", emoji="<:emoji_1:1561748306818891857>", style=discord.ButtonStyle.success, custom_id="ccbot:gerar_samples")
 
     async def callback(self, interaction: discord.Interaction):
         if not is_admin(interaction):
