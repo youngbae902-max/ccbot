@@ -258,9 +258,9 @@ class GeradorSamplesView(discord.ui.LayoutView):
                 discord.ui.Section(
                     discord.ui.TextDisplay(
                         content=(
-                            "### <:emoji_9:1561335899957100555>  GERADOR DE SAMPLES\\n"
-                            "**Tenha acesso a novas possibilidades para suas produções!**\\n"
-                            "-# Novo Gerador de Samples da atualidade\\n"
+                            "### <:emoji_9:1561335899957100555>  GERADOR DE SAMPLES\n"
+                            "**Tenha acesso a novas possibilidades para suas produções!**\n"
+                            "-# Novo Gerador de Samples da atualidade\n"
                         )
                     ),
                     accessory=discord.ui.Thumbnail(
