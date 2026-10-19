@@ -529,7 +529,7 @@ class GeradorSamplesView(discord.ui.LayoutView):
                 discord.ui.Section(
                     discord.ui.TextDisplay(
                         content=(
-                            "### <:emoji_9:1561335899957100555>  GERADOR DE SAMPLES\n"
+                            "### <:box:1561761831587160140>  GERADOR DE SAMPLES\n"
                             "**Tenha acesso a novas possibilidades para suas produções!**\n"
                             "-# Novo Gerador de Samples da atualidade\n"
                         )
@@ -546,9 +546,9 @@ class GeradorSamplesView(discord.ui.LayoutView):
                     content=(
                         "## **PAINEL ATUALIZADO**\n"
                         "-# Confira abaixo todas as funcionalidades disponíveis e descubra tudo o que você pode fazer com o nosso painel!\n\n"
-                        "### <:emoji_14:1561362005104001095> Samples No Estilo Dos Djs!\n"
+                        "### <:box_1:1561761829502459964> Samples No Estilo Dos Djs!\n"
                         "Clique em **Gerar Samples** e escolha um DJ cadastrado pelo administrador.\n\n"
-                        "### <:emoji_14:1561362005104001095> Gere __Quantas Samples Quiser!__\n"
+                        "### <:box_1:1561761829502459964> Gere __Quantas Samples Quiser!__\n"
                         "Tenha liberdade para gerar **quantas samples quiser**, de forma prática, rápida e direto pelo painel."
                     )
                 ),
