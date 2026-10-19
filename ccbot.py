@@ -352,17 +352,27 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
                     pass
 
         try:
+            await interaction.edit_original_response(
+                content=f"✅ Áudio reconhecido: `{audio.filename}`. Baixando e preparando a confirmação..."
+            )
             safe_name = Path(audio.filename).name.replace("/", "_")
             preview_path = BEAT_PREVIEWS_DIR / f"{uuid.uuid4().hex}_{safe_name}"
-            await audio.save(str(preview_path))
+            await asyncio.wait_for(audio.save(str(preview_path)), timeout=45)
             try:
                 await mensagem.delete()
             except (discord.Forbidden, discord.HTTPException):
                 pass
-        except Exception:
+        except asyncio.TimeoutError:
+            log.error("Timeout ao baixar a prévia do beat: %s", audio.filename)
+            await interaction.edit_original_response(
+                content="⏳ O Discord demorou demais para baixar esse áudio. Tente enviar o arquivo novamente como anexo de áudio (MP3, WAV ou OGG).",
+                view=None
+            )
+            return
+        except Exception as exc:
             log.exception("Falha ao salvar a prévia do beat")
             await interaction.edit_original_response(
-                content="❌ Não consegui guardar o áudio. Execute /venda-de-beats e tente novamente.",
+                content=f"❌ Reconheci o áudio, mas não consegui salvá-lo ({type(exc).__name__}). Tente enviar novamente.",
                 view=None
             )
             return
