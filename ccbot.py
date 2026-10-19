@@ -227,14 +227,55 @@ async def status(interaction: discord.Interaction):
         ephemeral=True
     )
 
-@bot.tree.command(name="samples", description="Estado do módulo de geração de samples")
+class GeradorSamplesView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(
+            discord.ui.Container(
+                discord.ui.MediaGallery(
+                    discord.MediaGalleryItem(
+                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561721929583566858/605081.jpg?ex=6ad76263&is=6ad610e3&hm=23259b8d57737e9607039f616c91ceea22a3e99d47e000691c14e7115ac69edd&"
+                    )
+                ),
+                discord.ui.Separator(
+                    visible=True,
+                    spacing=discord.SeparatorSpacing.large
+                ),
+                discord.ui.Section(
+                    discord.ui.TextDisplay(
+                        content=(
+                            "### <:emoji_9:1561335899957100555>  GERADOR DE SAMPLES\\n"
+                            "**Tenha acesso a novas possibilidades para suas produções!**\\n"
+                            "-# Novo Gerador de Samples da atualidade\\n"
+                        )
+                    ),
+                    accessory=discord.ui.Thumbnail(
+                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
+                    )
+                ),
+                discord.ui.Separator(
+                    visible=True,
+                    spacing=discord.SeparatorSpacing.large
+                ),
+                discord.ui.TextDisplay(
+                    content=(
+                        "## **PAINEL ATUALIZADO**\\n"
+                        "-# Confira abaixo todas as funcionalidades disponíveis e descubra tudo o que você pode fazer com o nosso painel!\\n\\n"
+                        "### <:emoji_14:1561362005104001095> Samples No Estilo Dos Djs!\\n"
+                        "Escolha o estilo de sample que combina com o seu beat! Gere samples inspiradas em artistas como **DJ ARANA, DAOZE, MP7** e muito mais!\\n\\n"
+                        "### <:emoji_14:1561362005104001095> Gere __Quantas Samples Quiser!__\\n"
+                        "Tenha liberdade para gerar **quantas samples quiser**, de forma prática, rápida e direto pelo painel."
+                    )
+                )
+            )
+        )
+
+
+@bot.tree.command(name="samples", description="Publicar o painel do Gerador de Samples")
 async def samples(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
-    await interaction.response.send_message(
-        "O módulo está reservado na estrutura. Falta integrar a lógica real do gerador.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(view=GeradorSamplesView())
 
 @bot.tree.command(name="arrumador", description="Estado do módulo Arrumador de Projetos")
 async def arrumador(interaction: discord.Interaction):
