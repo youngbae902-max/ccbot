@@ -90,17 +90,16 @@ async def notify_admin(message):
 
 class Modelos(app_commands.Group):
     def __init__(self):
-        super().__init__(name="modelos", description="Publicar modelos nos canais")
+        super().__init__(name="modelos", description="Publicar modelos no canal atual")
 
-    async def publicar(self, interaction, chave, canal=None):
+    async def publicar(self, interaction, chave):
         if await deny_unauthorized(interaction):
             return
 
-        # Se o usuário não escolher um canal, publica no canal onde usou o comando.
-        destino = canal or interaction.channel
+        destino = interaction.channel
         if destino is None or not hasattr(destino, "send"):
             await interaction.response.send_message(
-                "Não consegui identificar um canal válido para publicar.",
+                "Não consegui identificar o canal atual.",
                 ephemeral=True
             )
             return
@@ -116,7 +115,8 @@ class Modelos(app_commands.Group):
         try:
             await destino.send(texto)
             await interaction.response.send_message(
-                f"Modelo publicado em {destino.mention}.", ephemeral=True
+                f"Modelo publicado no canal atual: {destino.mention}.",
+                ephemeral=True
             )
         except discord.Forbidden:
             await interaction.response.send_message(
@@ -125,30 +125,27 @@ class Modelos(app_commands.Group):
             )
         except discord.HTTPException as exc:
             log.exception("Falha ao publicar modelo %s", chave)
-            await interaction.response.send_message(
-                "Não consegui publicar o modelo nesse canal.",
-                ephemeral=True
-            )
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "Não consegui publicar o modelo nesse canal.",
+                    ephemeral=True
+                )
 
-    @app_commands.command(name="gerador-sample", description="Publicar o modelo do Gerador de Sample")
-    @app_commands.describe(canal="Opcional: escolha outro canal; vazio = canal atual")
-    async def gerador_sample(self, interaction: discord.Interaction, canal: discord.TextChannel = None):
-        await self.publicar(interaction, "gerador-sample", canal)
+    @app_commands.command(name="gerador-sample", description="Publicar o modelo do Gerador de Sample no canal atual")
+    async def gerador_sample(self, interaction: discord.Interaction):
+        await self.publicar(interaction, "gerador-sample")
 
-    @app_commands.command(name="pack-personalizado", description="Publicar o modelo de Pack Personalizado")
-    @app_commands.describe(canal="Opcional: escolha outro canal; vazio = canal atual")
-    async def pack_personalizado(self, interaction: discord.Interaction, canal: discord.TextChannel = None):
-        await self.publicar(interaction, "pack-personalizado", canal)
+    @app_commands.command(name="pack-personalizado", description="Publicar o modelo de Pack Personalizado no canal atual")
+    async def pack_personalizado(self, interaction: discord.Interaction):
+        await self.publicar(interaction, "pack-personalizado")
 
-    @app_commands.command(name="comprar-beats", description="Publicar o modelo de Comprar Beats")
-    @app_commands.describe(canal="Opcional: escolha outro canal; vazio = canal atual")
-    async def comprar_beats(self, interaction: discord.Interaction, canal: discord.TextChannel = None):
-        await self.publicar(interaction, "comprar-beats", canal)
+    @app_commands.command(name="comprar-beats", description="Publicar o modelo de Comprar Beats no canal atual")
+    async def comprar_beats(self, interaction: discord.Interaction):
+        await self.publicar(interaction, "comprar-beats")
 
-    @app_commands.command(name="arrumador-projeto", description="Publicar o modelo do Arrumador de Projeto")
-    @app_commands.describe(canal="Opcional: escolha outro canal; vazio = canal atual")
-    async def arrumador_projeto(self, interaction: discord.Interaction, canal: discord.TextChannel = None):
-        await self.publicar(interaction, "arrumador-projeto", canal)
+    @app_commands.command(name="arrumador-projeto", description="Publicar o modelo do Arrumador de Projeto no canal atual")
+    async def arrumador_projeto(self, interaction: discord.Interaction):
+        await self.publicar(interaction, "arrumador-projeto")
 
 bot.tree.add_command(Modelos())
 
