@@ -409,21 +409,43 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             return
 
         preco = f"R$ {valor_numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        view = ConfirmarPublicacaoBeatView(
-            canal=canal,
-            nome=self.nome.value.strip(),
-            descricao=self.descricao.value.strip(),
-            estilo=self.estilo.value.strip(),
-            preco=preco,
-            preview_path=preview_path
+        nome_beat = self.nome.value.strip()
+        descricao_beat = self.descricao.value.strip()
+        estilo_beat = self.estilo.value.strip()
+
+        embed = discord.Embed(
+            title=f"🎧 {nome_beat}",
+            description=descricao_beat or "Sem descrição.",
+            color=discord.Color.green()
         )
-        await interaction.edit_original_response(
-            content=f"**É esse o arquivo mesmo?**\nArquivo: `{audio.filename}`\n"
-            "Confira o áudio anexado abaixo. Só você verá esta confirmação.",
-            attachments=[],
-            file=discord.File(preview_path, filename=audio.filename),
-            view=view
+        embed.add_field(name="Estilo", value=estilo_beat or "Não informado", inline=True)
+        embed.add_field(name="Valor", value=preco, inline=True)
+        embed.add_field(
+            name="Prévia",
+            value="Clique em **Ouvir prévia** para escutar o áudio.",
+            inline=False
         )
+        embed.set_footer(text="CC BOT • Venda de Beats")
+
+        try:
+            view = VendaBeatView(
+                nome=nome_beat,
+                preco=preco,
+                preview_path=preview_path
+            )
+            await canal.send(embed=embed, view=view)
+            await interaction.edit_original_response(
+                content=f"✅ Beat **{nome_beat}** publicado em {canal.mention}.",
+                view=None,
+                attachments=[]
+            )
+            log.info("Beat publicado automaticamente: nome=%r canal=%s", nome_beat, canal.id)
+        except Exception as exc:
+            log.exception("Falha ao publicar beat automaticamente")
+            await interaction.edit_original_response(
+                content=f"❌ O áudio foi salvo, mas não consegui publicar o beat ({type(exc).__name__}). Verifique as permissões do bot no canal.",
+                view=None
+            )
 
 
 class OuvirPreviaBeatButton(discord.ui.Button):
