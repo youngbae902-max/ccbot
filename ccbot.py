@@ -486,12 +486,65 @@ class ExcluirDJButton(discord.ui.Button):
         await interaction.response.send_message(view=ExcluirDJView(), ephemeral=True)
 
 
+class TestarBoasVindasButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Testar boas-vindas",
+            emoji="👋",
+            style=discord.ButtonStyle.primary,
+            custom_id="ccbot:testar_boas_vindas"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message(
+                "Apenas o administrador pode testar as boas-vindas.",
+                ephemeral=True
+            )
+            return
+
+        try:
+            channel = bot.get_channel(WELCOME_CHANNEL_ID)
+            if channel is None:
+                channel = await bot.fetch_channel(WELCOME_CHANNEL_ID)
+
+            member = interaction.user
+            embed = discord.Embed(
+                title="Seja bem-vindo(a)",
+                description=(
+                    "**Eaee, suave? Seja bem-vindo ao nosso server!**\\n\\n"
+                    f"Esperamos que você curta a comunidade, {member.mention}.\\n\\n"
+                    "**Veja as regras do nosso server:**\\n"
+                    "[▢𝂽﹒regras](https://discord.com/channels/1561513043886743562/1561513274737168414)"
+                ),
+                color=discord.Color.green()
+            )
+            embed.set_author(
+                name=member.display_name,
+                icon_url=member.display_avatar.url
+            )
+            embed.set_thumbnail(url=member.display_avatar.url)
+            await channel.send(embed=embed)
+            await interaction.response.send_message(
+                f"Teste enviado em <#{WELCOME_CHANNEL_ID}>.",
+                ephemeral=True
+            )
+        except Exception as exc:
+            log.exception("Falha no teste de boas-vindas")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    f"Não consegui enviar o teste: {exc}",
+                    ephemeral=True
+                )
+
+
 class PainelAdminView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(AdicionarDJButton())
         self.add_item(AlterarDJButton())
         self.add_item(ExcluirDJButton())
+        self.add_item(TestarBoasVindasButton())
 
 
 class GerarSamplesButton(discord.ui.Button):
