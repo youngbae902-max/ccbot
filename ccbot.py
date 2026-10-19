@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import zipfile
+import uuid
 from pathlib import Path
 from datetime import datetime
 
@@ -17,6 +18,7 @@ MODELS_FILE = CONFIG / "modelos.json"
 DJS_FILE = CONFIG / "djs.json"
 TOKEN_FILE = Path("/sdcard/Download/CC/token.txt")
 BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
+BEAT_PREVIEWS_DIR = BASE / "data" / "beat_previews"
 
 ADMIN_ID = 1366109646934380614
 DEFAULT_NOTICE_CHANNEL = 1561698571525423115
@@ -31,6 +33,7 @@ SAMPLES_PANEL_MESSAGE_ID = 1561742192656261183
 
 CONFIG.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+BEAT_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -195,14 +198,14 @@ BEAT_AUDIO_EXTENSIONS = {
 
 
 class ConfirmarPublicacaoBeatView(discord.ui.View):
-    def __init__(self, canal, nome, descricao, estilo, preco, audio):
+    def __init__(self, canal, nome, descricao, estilo, preco, preview_path):
         super().__init__(timeout=180)
         self.canal = canal
         self.nome = nome
         self.descricao = descricao
         self.estilo = estilo
         self.preco = preco
-        self.audio = audio
+        self.preview_path = Path(preview_path)
 
     @discord.ui.button(label="Confirmar", emoji="✅", style=discord.ButtonStyle.success)
     async def confirmar(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -222,7 +225,7 @@ class ConfirmarPublicacaoBeatView(discord.ui.View):
         view = VendaBeatView(
             nome=self.nome,
             preco=self.preco,
-            preview_url=self.audio.url
+            preview_path=self.preview_path
         )
         try:
             await self.canal.send(embed=embed, view=view)
@@ -243,6 +246,10 @@ class ConfirmarPublicacaoBeatView(discord.ui.View):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode cancelar esta publicação.", ephemeral=True)
             return
+        try:
+            self.preview_path.unlink(missing_ok=True)
+        except OSError:
+            log.exception("Não foi possível apagar a prévia de um beat cancelado")
         await interaction.response.edit_message(
             content="❌ Publicação cancelada. O embed do beat não foi enviado.",
             view=None
@@ -323,6 +330,19 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
                 pass
             return
 
+        try:
+            safe_name = Path(audio.filename).name.replace("/", "_")
+            preview_path = BEAT_PREVIEWS_DIR / f"{uuid.uuid4().hex}_{safe_name}"
+            await audio.save(str(preview_path))
+            await mensagem.delete()
+        except Exception:
+            log.exception("Falha ao salvar a prévia ou apagar a mensagem original")
+            await interaction.followup.send(
+                "Não consegui guardar a prévia com segurança. A publicação foi interrompida.",
+                ephemeral=True
+            )
+            return
+
         preco = f"R$ {valor_numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         view = ConfirmarPublicacaoBeatView(
             canal=canal,
@@ -330,28 +350,30 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             descricao=self.descricao.value.strip(),
             estilo=self.estilo.value.strip(),
             preco=preco,
-            audio=audio
-        )
-        await canal.send(
-            f"{interaction.user.mention} **É esse o arquivo mesmo?**\n"
-            f"Arquivo: `{audio.filename}`\n"
-            "Clique em **Confirmar** para publicar o embed ou **Cancelar** para descartar.",
-            view=view
+            preview_path=preview_path
         )
         await interaction.followup.send(
-            "Confira o arquivo enviado e confirme ou cancele a publicação no canal.",
+            f"É esse o arquivo mesmo? Nome: {audio.filename}\n"
+            "A mensagem original com o arquivo foi apagada. Confirme para publicar ou cancele.",
+            view=view,
             ephemeral=True
         )
 
 
 class OuvirPreviaBeatButton(discord.ui.Button):
-    def __init__(self, preview_url: str):
+    def __init__(self, preview_path):
         super().__init__(label="Ouvir prévia", emoji="🎧", style=discord.ButtonStyle.primary)
-        self.preview_url = preview_url
+        self.preview_path = Path(preview_path)
 
     async def callback(self, interaction: discord.Interaction):
+        if not self.preview_path.is_file():
+            await interaction.response.send_message(
+                "A prévia não está disponível no armazenamento do bot.", ephemeral=True
+            )
+            return
         await interaction.response.send_message(
-            f"🎧 **Prévia do beat:** {self.preview_url}",
+            content="Prévia do beat",
+            file=discord.File(self.preview_path),
             ephemeral=True
         )
 
@@ -383,9 +405,9 @@ class ComprarBeatButton(discord.ui.Button):
 
 
 class VendaBeatView(discord.ui.View):
-    def __init__(self, nome: str, preco: str, preview_url: str):
+    def __init__(self, nome: str, preco: str, preview_path):
         super().__init__(timeout=None)
-        self.add_item(OuvirPreviaBeatButton(preview_url))
+        self.add_item(OuvirPreviaBeatButton(preview_path))
         self.add_item(ComprarBeatButton(nome, preco))
 
 
