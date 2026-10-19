@@ -173,7 +173,6 @@ class Config(app_commands.Group):
             ephemeral=True
         )
 
-bot.tree.add_command(Config())
 
 class Backup(app_commands.Group):
     def __init__(self):
@@ -227,7 +226,6 @@ class Backup(app_commands.Group):
                 ephemeral=True
             )
 
-bot.tree.add_command(Backup())
 
 BEAT_AUDIO_EXTENSIONS = {
     ".mp3", ".wav", ".ogg", ".oga", ".opus", ".m4a", ".aac",
@@ -1245,7 +1243,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 discord.SelectOption(label="Gerenciar DJs", description="Adicionar, alterar ou excluir DJs", emoji="🎧", value="djs"),
                 discord.SelectOption(label="Boas-vindas", description="Testar a mensagem de entrada", emoji="👋", value="boas_vindas"),
                 discord.SelectOption(label="Emojis, backup e avisos", description="Importar emojis, criar backup e definir canal de avisos", emoji="🧰", value="ferramentas"),
-                discord.SelectOption(label="Publicar painéis", description="Samples, acapellas, arrumador e venda de beats", emoji="📋", value="publicar"),
+                discord.SelectOption(label="Publicar painéis", description="Samples, acapellas, arrumador, beats e pack personalizado", emoji="📋", value="publicar"),
                 discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
             ]
         )
