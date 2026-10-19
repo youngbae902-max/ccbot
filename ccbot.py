@@ -738,7 +738,6 @@ class PackPersonalizadoView(discord.ui.LayoutView):
                 await interaction.response.send_message("Não consegui abrir o formulário premium. Execute /pack-personalizado novamente.", ephemeral=True)
 
 
-@bot.tree.command(name="criar-pack-personalizado", description="Publicar o painel público de Pack Personalizado")
 async def criar_pack_personalizado(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador pode publicar esse painel.", ephemeral=True)
@@ -1336,6 +1335,7 @@ class PublicarPainelButton(discord.ui.Button):
             "acapellas": painel_acapellas,
             "samples": samples,
             "beats": venda_de_beats,
+            "pack": criar_pack_personalizado,
         }
         await handlers[self.action](interaction)
 
@@ -1348,6 +1348,7 @@ class PainelPublicarView(discord.ui.View):
         self.add_item(PublicarPainelButton("Acapellas", "🎙️", "acapellas"))
         self.add_item(PublicarPainelButton("Samples", "🎧", "samples"))
         self.add_item(PublicarPainelButton("Venda de beats", "💿", "beats"))
+        self.add_item(PublicarPainelButton("Pack personalizado", "📦", "pack"))
         self.add_item(VoltarPainelButton())
 
 
