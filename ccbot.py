@@ -229,10 +229,8 @@ class ConfirmarPublicacaoBeatView(discord.ui.View):
         )
         try:
             await self.canal.send(embed=embed, view=view)
-            await interaction.response.edit_message(
-                content="✅ Beat publicado com sucesso.",
-                view=None
-            )
+            await interaction.response.defer()
+            await interaction.delete_original_response()
         except Exception:
             log.exception("Falha ao publicar beat confirmado")
             if not interaction.response.is_done():
@@ -282,22 +280,36 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
 
         await interaction.response.defer(ephemeral=True, thinking=True)
         canal = interaction.channel
-        await canal.send(
-            f"{interaction.user.mention} **Mande um áudio para ser a prévia do BEAT.**\n"
-            "Aceito arquivos de áudio. Você tem 3 minutos para enviar a prévia neste canal."
-        )
+        try:
+            await interaction.followup.send(
+                "🎧 **Envie o arquivo de áudio por mensagem privada para o CC BOT.**\n"
+                "Só você verá esta instrução. Você tem 3 minutos para enviar o arquivo no privado do bot.",
+                ephemeral=True
+            )
+            dm = await interaction.user.create_dm()
+            await dm.send(
+                "🎧 **Mande um áudio para ser a prévia do BEAT.**\n"
+                "Este chat é privado entre você e o bot. Você tem 3 minutos para enviar o arquivo."
+            )
+        except Exception:
+            log.exception("Não foi possível abrir DM para receber prévia do beat")
+            await interaction.followup.send(
+                "Não consegui abrir sua mensagem privada. Ative DMs deste servidor e execute /venda-de-beats novamente.",
+                ephemeral=True
+            )
+            return
 
         def mensagem_valida(message: discord.Message):
             valida = (
                 message.author.id == interaction.user.id
-                and message.channel.id == interaction.channel_id
+                and message.guild is None
+                and message.channel.id == dm.id
                 and bool(message.attachments)
             )
             if valida:
                 log.info(
-                    "Anexo recebido para venda de beat: user=%s channel=%s arquivos=%s",
+                    "Áudio de prévia recebido por DM: user=%s arquivos=%s",
                     message.author.id,
-                    message.channel.id,
                     len(message.attachments)
                 )
             return valida
@@ -309,6 +321,10 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
                 "Tempo esgotado. Execute /venda-de-beats novamente para tentar cadastrar o beat.",
                 ephemeral=True
             )
+            try:
+                await dm.send("⏰ Tempo esgotado. Execute /venda-de-beats novamente.")
+            except discord.HTTPException:
+                pass
             return
 
         audio = None
@@ -353,8 +369,9 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             preview_path=preview_path
         )
         await interaction.followup.send(
-            f"É esse o arquivo mesmo? Nome: {audio.filename}\n"
-            "A mensagem original com o arquivo foi apagada. Confirme para publicar ou cancele.",
+            f"**É esse o arquivo mesmo?**\nArquivo: `{audio.filename}`\n"
+            "Confira o áudio anexado abaixo. Só você verá esta confirmação.",
+            file=discord.File(preview_path, filename=audio.filename),
             view=view,
             ephemeral=True
         )
