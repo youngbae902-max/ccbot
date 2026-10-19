@@ -522,6 +522,164 @@ async def venda_de_beats(interaction: discord.Interaction):
     await interaction.response.send_modal(BeatInfoModal())
 
 
+
+class PackBasicoModal(discord.ui.Modal, title="Pack Básico"):
+    nome = discord.ui.TextInput(label="Nome do pack", max_length=100)
+    estilo = discord.ui.TextInput(label="Estilo musical", placeholder="Ex.: funk mandelão", max_length=100)
+    detalhes = discord.ui.TextInput(label="Detalhes do pedido", style=discord.TextStyle.paragraph, max_length=900)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            view=PackAdicionaisView(interaction.user.id, str(self.nome), str(self.estilo), str(self.detalhes)),
+            ephemeral=True
+        )
+
+
+class PackPremiumModal(discord.ui.Modal, title="Pack Premium"):
+    nome = discord.ui.TextInput(label="Nome do pack", max_length=100)
+    estilo = discord.ui.TextInput(label="Estilo musical", max_length=100)
+    itens = discord.ui.TextInput(label="Itens desejados", placeholder="Kicks, samples, acapellas, MCs, vozes antes da virada", style=discord.TextStyle.paragraph, max_length=900)
+    quantidades = discord.ui.TextInput(label="Quantidades e organização", style=discord.TextStyle.paragraph, max_length=500, required=False)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await enviar_pedido_pack(
+            interaction, "Pack Premium", 100,
+            {"Nome": str(self.nome), "Estilo": str(self.estilo), "Itens": str(self.itens),
+             "Quantidades/organização": str(self.quantidades) or "A combinar"},
+            []
+        )
+
+
+class PackAdicionais(discord.ui.Select):
+    def __init__(self):
+        super().__init__(
+            placeholder="Adicionais opcionais",
+            min_values=0,
+            max_values=3,
+            options=[
+                discord.SelectOption(label="Organização das pastas (+ R$ 10)", value="Organização das pastas (+ R$ 10)"),
+                discord.SelectOption(label="Samples personalizadas (+ R$ 10)", value="Samples personalizadas (+ R$ 10)"),
+                discord.SelectOption(label="Samples de outros packs (+ R$ 20)", value="Samples de outros packs (+ R$ 20)")
+            ]
+        )
+
+
+async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
+    canal_id = int(settings.get("pack_orders_channel", settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)))
+    canal = bot.get_channel(canal_id)
+    if canal is None:
+        try:
+            canal = await bot.fetch_channel(canal_id)
+        except Exception:
+            log.exception("Canal de pedidos do pack não encontrado")
+            await interaction.followup.send("Não encontrei o canal de pedidos. Avise o administrador.", ephemeral=True)
+            return
+
+    embed = discord.Embed(
+        title="📦 Novo pedido • Pack Personalizado",
+        description=f"**Plano:** {plano}\n**Valor estimado:** R$ {valor},00",
+        color=discord.Color.blurple()
+    )
+    embed.add_field(name="Cliente", value=f"{interaction.user.mention} (ID {interaction.user.id})", inline=True)
+    embed.add_field(name="Adicionais", value=", ".join(adicionais) if adicionais else "Nenhum", inline=False)
+    for titulo, texto in detalhes.items():
+        embed.add_field(name=titulo[:256], value=(texto.strip() or "Não informado")[:1024], inline=False)
+    embed.set_footer(text="CC BOT • Pack Personalizado")
+
+    try:
+        await canal.send(embed=embed)
+        await interaction.followup.send(
+            f"✅ Pedido de **{plano}** enviado! Valor estimado: **R$ {valor},00**. O administrador entrará em contato.",
+            ephemeral=True
+        )
+    except Exception as exc:
+        log.exception("Falha ao enviar pedido de pack")
+        await interaction.followup.send(f"Não consegui enviar o pedido ({type(exc).__name__}).", ephemeral=True)
+
+
+class PackAdicionaisView(discord.ui.LayoutView):
+    def __init__(self, owner_id, nome, estilo, detalhes):
+        super().__init__(timeout=600)
+        self.owner_id = owner_id
+        self.nome = nome
+        self.estilo = estilo
+        self.detalhes = detalhes
+        self.seletor = PackAdicionais()
+        enviar = discord.ui.Button(label="Enviar pedido", emoji="📨", style=discord.ButtonStyle.success, custom_id="ccbot:pack:enviar")
+        enviar.callback = self.enviar
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content=(
+                "## 🧩 PACK BÁSICO — R$ 50,00\n"
+                "Inclui cerca de 3 horas de trabalho (R$ 30) + conhecimento aplicado (R$ 20).\n\n"
+                "**Adicionais opcionais:** organização +R$ 10; samples personalizadas +R$ 10; "
+                "samples de outros packs +R$ 20. Selecione os que deseja."
+            )),
+            discord.ui.ActionRow(self.seletor),
+            discord.ui.ActionRow(enviar)
+        ))
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("Este pedido pertence a outra pessoa.", ephemeral=True)
+            return False
+        return True
+
+    async def enviar(self, interaction):
+        extras = list(self.seletor.values)
+        valor = 50
+        for item in extras:
+            if "Organização" in item or "personalizadas" in item:
+                valor += 10
+            elif "outros packs" in item:
+                valor += 20
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await enviar_pedido_pack(
+            interaction, "Pack Básico", valor,
+            {"Nome do pack": self.nome, "Estilo musical": self.estilo, "Detalhes": self.detalhes},
+            extras
+        )
+        try:
+            await interaction.edit_original_response(view=None)
+        except discord.HTTPException:
+            pass
+
+
+class PackPersonalizadoView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        basico = discord.ui.Button(label="PACK BÁSICO", emoji="🧩", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:basico")
+        premium = discord.ui.Button(label="PACK PREMIUM", emoji="💎", style=discord.ButtonStyle.success, custom_id="ccbot:pack:premium")
+        basico.callback = self.abrir_basico
+        premium.callback = self.abrir_premium
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content=(
+                "## 📦 PACK PERSONALIZADO\n"
+                "Monte um pack exclusivo do seu jeito.\n\n"
+                "### 🧩 PACK BÁSICO — R$ 50,00\n"
+                "Cerca de 3 horas de trabalho + conhecimento aplicado. Adicionais opcionais.\n\n"
+                "### 💎 PACK PREMIUM — R$ 100,00\n"
+                "Personalização completa com kicks, samples, acapellas, MCs, vozes antes da virada e pastas organizadas."
+            )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(basico, premium)
+        ))
+
+    async def abrir_basico(self, interaction):
+        await interaction.response.send_modal(PackBasicoModal())
+
+    async def abrir_premium(self, interaction):
+        await interaction.response.send_modal(PackPremiumModal())
+
+
+@bot.tree.command(name="pack-personalizado", description="Solicitar um pack básico ou premium personalizado")
+async def pack_personalizado(interaction: discord.Interaction):
+    if interaction.guild is None:
+        await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
+        return
+    await interaction.response.send_message(view=PackPersonalizadoView(), ephemeral=True)
+
+
 @bot.tree.command(name="status", description="Verificar se o CC BOT está funcionando")
 async def status(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
