@@ -21,7 +21,7 @@ MODELS_FILE = CONFIG / "modelos.json"
 DJS_FILE = CONFIG / "djs.json"
 TOKEN_FILE = Path("/sdcard/Download/CC/token.txt")
 BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
-BEAT_PREVIEWS_DIR = BASE / "data" / "beat_previews"
+BEAT_PREVIEWS_DIR = Path("/sdcard/Download/CC/BeatPreviews")
 
 ADMIN_ID = 1366109646934380614
 DEFAULT_NOTICE_CHANNEL = 1561698571525423115
