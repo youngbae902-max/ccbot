@@ -18,6 +18,7 @@ BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
 
 ADMIN_ID = 1366109646934380614
 DEFAULT_NOTICE_CHANNEL = 1561698571525423115
+WELCOME_CHANNEL_ID = 1561513269754068992
 
 CONFIG.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -57,6 +58,7 @@ models = load_json(MODELS_FILE, {
 })
 
 intents = discord.Intents.default()
+intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 def is_admin(interaction: discord.Interaction):
@@ -241,6 +243,34 @@ async def arrumador(interaction: discord.Interaction):
         "O módulo está reservado na estrutura. Falta integrar a lógica real do arrumador.",
         ephemeral=True
     )
+
+
+@bot.event
+async def on_member_join(member: discord.Member):
+    try:
+        channel = bot.get_channel(WELCOME_CHANNEL_ID)
+        if channel is None:
+            channel = await bot.fetch_channel(WELCOME_CHANNEL_ID)
+
+        embed = discord.Embed(
+            title="Seja bem-vindo(a)",
+            description=(
+                f"**Eaee, suave? Seja bem-vindo ao nosso server!**\n\n"
+                f"Esperamos que você curta a comunidade, {member.mention}.\n\n"
+                "**Veja as regras do nosso server:**\n"
+                f"[▢𝂽﹒regras](https://discord.com/channels/1561513043886743562/1561513274737168414)"
+            ),
+            color=discord.Color.green()
+        )
+        embed.set_author(
+            name=member.display_name,
+            icon_url=member.display_avatar.url
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        await channel.send(embed=embed)
+    except Exception as exc:
+        log.exception("Falha ao enviar mensagem de boas-vindas")
+        await notify_admin(f"Falha na mensagem de boas-vindas: {exc}")
 
 @bot.event
 async def on_ready():
