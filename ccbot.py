@@ -575,31 +575,43 @@ class PackAdicionais(discord.ui.Select):
 
 
 async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
-    canal_id = int(settings.get("pack_orders_channel", settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)))
     try:
-        canal = bot.get_channel(canal_id)
-        if canal is None:
-            canal = await bot.fetch_channel(canal_id)
+        # Os pedidos são enviados diretamente por mensagem privada ao administrador.
+        administrador = bot.get_user(ADMIN_ID)
+        if administrador is None:
+            administrador = await bot.fetch_user(ADMIN_ID)
+
         embed = discord.Embed(
             title="📦 Novo pedido • Pack Personalizado",
             description=f"**Plano:** {plano}\n**Valor estimado:** R$ {valor},00",
             color=discord.Color.blurple()
         )
-        embed.add_field(name="Cliente", value=f"{interaction.user.mention} (ID {interaction.user.id})", inline=True)
+        embed.add_field(name="Cliente", value=f"{interaction.user} (ID {interaction.user.id})", inline=False)
+        embed.add_field(name="Servidor", value=interaction.guild.name if interaction.guild else "Não informado", inline=False)
         embed.add_field(name="Adicionais", value=", ".join(adicionais) if adicionais else "Nenhum", inline=False)
         for titulo, texto in detalhes.items():
             embed.add_field(name=titulo[:256], value=(str(texto).strip() or "Não informado")[:1024], inline=False)
         embed.set_footer(text="CC BOT • Pack Personalizado")
-        await canal.send(embed=embed)
+
+        await administrador.send(embed=embed)
         await interaction.followup.send(
-            f"✅ Pedido de **{plano}** enviado! Valor estimado: **R$ {valor},00**. O administrador entrará em contato.",
+            f"✅ Pedido de **{plano}** enviado por mensagem privada ao administrador! Valor estimado: **R$ {valor},00**.",
             ephemeral=True
         )
-    except Exception as exc:
-        log.exception("Falha ao enviar pedido de pack")
+    except discord.Forbidden:
+        log.exception("O administrador bloqueou mensagens privadas do bot.")
         try:
             await interaction.followup.send(
-                f"Não consegui enviar o pedido ({type(exc).__name__}). Avise o administrador.",
+                "Não consegui enviar o pedido por PV. Ative as mensagens diretas do servidor para receber pedidos do bot e tente novamente.",
+                ephemeral=True
+            )
+        except Exception:
+            pass
+    except Exception as exc:
+        log.exception("Falha ao enviar pedido de pack por PV")
+        try:
+            await interaction.followup.send(
+                f"Não consegui enviar o pedido por PV ({type(exc).__name__}). Avise o administrador.",
                 ephemeral=True
             )
         except Exception:
