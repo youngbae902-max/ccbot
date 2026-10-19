@@ -469,12 +469,15 @@ async def on_member_join(member: discord.Member):
 @bot.event
 async def on_ready():
     try:
-        # Remove os comandos globais antigos para não duplicar os comandos do servidor.
+        # Copia os comandos registrados para o servidor e publica uma única versão lá.
+        guild = discord.Object(id=1561513043886743562)
+        bot.tree.copy_global_to(guild=guild)
+
+        # Remove as versões globais antigas do Discord sem apagar os comandos locais.
         bot.tree.clear_commands(guild=None)
         await bot.tree.sync()
 
-        # Mantém uma única versão dos comandos neste servidor.
-        guild = discord.Object(id=1561513043886743562)
+        # Registra os comandos no servidor para aparecerem imediatamente.
         synced = await bot.tree.sync(guild=guild)
         log.info("Comandos sincronizados no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
