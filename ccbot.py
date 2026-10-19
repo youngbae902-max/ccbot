@@ -633,7 +633,7 @@ class PackAdicionaisView(discord.ui.LayoutView):
                 valor += 10
             elif "outros packs" in item:
                 valor += 20
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.response.edit_message(view=None)
         await enviar_pedido_pack(
             interaction, "Pack Básico", valor,
             {"Nome do pack": self.nome, "Estilo musical": self.estilo, "Detalhes": self.detalhes},
