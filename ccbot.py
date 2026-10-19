@@ -1944,25 +1944,36 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
                 if canal is None or categoria is None:
                     erros.append(f"Canal/categoria ausente: canal {canal_id}, categoria {categoria_id}")
                     continue
-                if canal.category_id != categoria_id or canal.position != posicao:
+                if canal.category_id != categoria_id:
                     await canal.edit(
                         category=categoria,
-                        position=posicao,
                         reason="Organização confirmada pelo painel administrativo do CC BOT"
                     )
                     alteracoes += 1
 
-            # Remover apenas categorias antigas vazias; nenhum canal é apagado.
-            for categoria_id in (1561513262405648404, 1561513266960666654):
-                categoria = categorias.get(categoria_id)
-                if categoria is None:
-                    continue
-                atuais = await guild.fetch_channels()
-                if any(getattr(c, "category_id", None) == categoria_id for c in atuais):
-                    erros.append(f"A categoria antiga {categoria.name} não foi removida porque ainda contém canais.")
-                    continue
-                await categoria.delete(reason="Categoria vazia após reorganização confirmada pelo administrador")
-                alteracoes += 1
+            # Categorias antigas são mantidas; nenhuma categoria é apagada automaticamente.
+
+            # Reordena canais e categorias globalmente, mantendo as categorias antigas.
+            canais_finais = await guild.fetch_channels()
+            por_id = {c.id: c for c in canais_finais}
+            ordem_categorias = [1561513258211352626, 1561513260501569576, 1561513261424447609, 1561513263286452275, 1561513265006116877, 1561513258970521743]
+            filhos_por_categoria = {
+                1561513258211352626: [1561513268021821460, 1561698571525423115],
+                1561513260501569576: [1561513269754068992, 1561513274737168414, 1561513277207347310, 1561513277882634404, 1561837934649409696],
+                1561513261424447609: [1561513281049595958, 1561513282265944104, 1561513283171651644],
+                1561513263286452275: [1561513284811624480, 1561513286967500841, 1561513288297353286, 1561513289438199878, 1561513284191125625],
+                1561513265006116877: [1561513291703128106, 1561513297155592253, 1561513293124739173, 1561513290473934998, 1561513293934362705, 1561513295352037507],
+                1561513258970521743: [1561513270819692606, 1561513273554374686, 1561513275403800709],
+            }
+            ordem_final = []
+            for categoria_id in ordem_categorias:
+                if categoria_id in por_id:
+                    ordem_final.append(por_id[categoria_id])
+                ordem_final.extend(por_id[cid] for cid in filhos_por_categoria[categoria_id] if cid in por_id)
+            for posicao_global, canal in enumerate(ordem_final):
+                if canal.position != posicao_global:
+                    await canal.edit(position=posicao_global, reason="Ordem final confirmada pelo administrador")
+                    alteracoes += 1
 
             texto = f"✅ Organização concluída. Alterações realizadas: **{alteracoes}**."
             if erros:
@@ -2011,7 +2022,7 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
             "• Mover duvidas, icon, packs-gratis e projetos-gratis para **COMUNIDADE**.\n"
             "• Mover vendas para **MERCADO**.\n"
             "• Ordenar os canais dentro das categorias.\n"
-            "• Remover apenas as categorias antigas ref's e CC © se estiverem vazias.\n\n"
+            "• Manter as categorias antigas vazias, sem apagar categorias.\n\n"
             "**Não serão apagados canais nem alteradas permissões de cargos.**\n\n"
             "⚠️ **Atenção:** ao mover canais, permissões herdadas da categoria de destino podem mudar quem consegue ver ou escrever. Depois, confira principalmente chat-geral, duvidas e os canais de publicação.\n\n"
             "Confirme somente se quiser aplicar essas mudanças agora."
