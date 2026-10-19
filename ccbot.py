@@ -478,20 +478,27 @@ async def on_member_join(member: discord.Member):
         log.exception("Falha ao enviar mensagem de boas-vindas")
         await notify_admin(f"Falha na mensagem de boas-vindas: {exc}")
 
+# Guarda os comandos uma única vez para poder reconstruir a lista do servidor
+# mesmo depois de limpar os comandos globais do Discord.
+COMMANDS_FOR_GUILD = [command.copy() for command in bot.tree.get_commands()]
+
+
 @bot.event
 async def on_ready():
     try:
-        # Copia os comandos registrados para o servidor e publica uma única versão lá.
+        # Mantém uma única cópia de cada comando no servidor.
         guild = discord.Object(id=1561513043886743562)
-        bot.tree.copy_global_to(guild=guild)
+        bot.tree.clear_commands(guild=guild)
+        for command in COMMANDS_FOR_GUILD:
+            bot.tree.add_command(command.copy(), guild=guild, override=True)
 
-        # Remove as versões globais antigas do Discord sem apagar os comandos locais.
+        # Apaga os comandos globais antigos para não aparecerem duplicados.
         bot.tree.clear_commands(guild=None)
         await bot.tree.sync()
 
-        # Registra os comandos no servidor para aparecerem imediatamente.
+        # Publica apenas os comandos do servidor.
         synced = await bot.tree.sync(guild=guild)
-        log.info("Comandos sincronizados no servidor %s: %s", guild.id, len(synced))
+        log.info("Comandos únicos sincronizados no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
 
         if not getattr(bot, "_sales_history_counted", False):
