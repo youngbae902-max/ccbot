@@ -871,8 +871,8 @@ async def fluxo_perguntas_pack(usuario: discord.User, guild, plano: str):
 class PackPersonalizadoView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
-        basico = discord.ui.Button(label="PACK BÁSICO", emoji="<:tag:1561787923865665667>", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:basico")
-        premium = discord.ui.Button(label="PACK PREMIUM", emoji="<:coroa:1561788313214390364>", style=discord.ButtonStyle.success, custom_id="ccbot:pack:premium")
+        basico = discord.ui.Button(label="PACK BÁSICO", emoji="<:tag:1561787923865665667>", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:v2:basico")
+        premium = discord.ui.Button(label="PACK PREMIUM", emoji="<:coroa:1561788313214390364>", style=discord.ButtonStyle.success, custom_id="ccbot:pack:v2:premium")
         basico.callback = self.abrir_basico
         premium.callback = self.abrir_premium
         self.add_item(discord.ui.Container(
