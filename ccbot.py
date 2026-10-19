@@ -504,14 +504,27 @@ class OuvirPreviaBeatButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         if not self.preview_path.is_file():
             await interaction.response.send_message(
-                "A prévia não está disponível no armazenamento do bot.", ephemeral=True
+                "A prévia não está disponível no armazenamento do bot. O administrador precisa cadastrar o beat novamente.",
+                ephemeral=True
             )
             return
-        await interaction.response.send_message(
-            content="Prévia do beat",
-            file=discord.File(self.preview_path),
-            ephemeral=True
-        )
+        try:
+            # Reconhece a interação imediatamente; enviar áudio pode demorar.
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            await interaction.followup.send(
+                content="🎧 **Prévia do beat** — toque no áudio anexado para ouvir.",
+                file=discord.File(self.preview_path, filename=self.preview_path.name),
+                ephemeral=True
+            )
+        except Exception:
+            log.exception("Falha ao enviar a prévia do beat: %s", self.preview_path)
+            try:
+                await interaction.followup.send(
+                    "❌ Não consegui enviar o áudio da prévia. O arquivo pode estar grande demais ou indisponível.",
+                    ephemeral=True
+                )
+            except Exception:
+                log.exception("Falha ao informar erro da prévia do beat")
 
 
 class ComprarBeatButton(discord.ui.Button):
@@ -800,12 +813,12 @@ class PackRespostaModal(discord.ui.Modal):
                 await interaction.response.send_message("Escreva uma resposta antes de continuar.", ephemeral=True)
                 return
             self.parent_view.salvar_resposta(texto)
-            # A interação do modal tem seu próprio token. Respondemos nela com a próxima
-            # etapa e usamos esse novo token para atualizar as etapas seguintes.
+            # O envio do modal não deve editar a resposta de uma interação antiga.
+            # Criamos a próxima etapa como resposta efêmera; os botões seguintes
+            # atualizam diretamente a mensagem em que foram clicados.
             await self.parent_view.avancar_estado()
             self.parent_view.rebuild()
             await interaction.response.send_message(view=self.parent_view, ephemeral=True)
-            self.parent_view.painel_interaction = interaction
         except Exception:
             log.exception("Falha ao processar resposta do modal Pack Personalizado")
             try:
@@ -931,13 +944,16 @@ class PackPerguntasView(discord.ui.LayoutView):
 
     async def responder_extra_sim(self, interaction):
         nome, preco, _ = PACK_EXTRAS[self.extras_indice]
-        self.extras_escolhidos.append((nome, preco))
-        await interaction.response.defer()
-        await self.mostrar_proxima()
+        if not any(n == nome for n, _ in self.extras_escolhidos):
+            self.extras_escolhidos.append((nome, preco))
+        await self.avancar_estado()
+        self.rebuild()
+        await interaction.response.edit_message(view=self)
 
     async def responder_extra_nao(self, interaction):
-        await interaction.response.defer()
-        await self.mostrar_proxima()
+        await self.avancar_estado()
+        self.rebuild()
+        await interaction.response.edit_message(view=self)
 
     async def voltar(self, interaction):
         if self.fase == "revisao":
@@ -979,10 +995,13 @@ class PackPerguntasView(discord.ui.LayoutView):
             self.add_item(discord.ui.Container(discord.ui.TextDisplay(
                 content=f"## ✅ PEDIDO ENVIADO\nSeu pedido de **{self.plano}** foi enviado ao administrador.\n**Valor estimado:** R$ {total},00"
             )))
-            await self.painel_interaction.edit_original_response(view=self)
+            await interaction.edit_original_response(view=self)
         except Exception:
             log.exception("Falha ao enviar pedido de pack")
-            await self.painel_interaction.edit_original_response(content="❌ Não consegui enviar o pedido. Tente novamente.", view=None)
+            try:
+                await interaction.edit_original_response(content="❌ Não consegui enviar o pedido. Tente novamente.", view=None)
+            except Exception:
+                log.exception("Falha ao atualizar a confirmação do pedido de pack")
 
 
 class PackPersonalizadoView(discord.ui.LayoutView):
