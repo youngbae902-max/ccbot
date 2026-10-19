@@ -13,7 +13,7 @@ BASE = Path.home() / "ccbot-repo"
 CONFIG = BASE / "config"
 DATA_FILE = CONFIG / "config.json"
 MODELS_FILE = CONFIG / "modelos.json"
-MCS_FILE = CONFIG / "mcs.json"
+DJS_FILE = CONFIG / "djs.json"
 TOKEN_FILE = Path("/sdcard/Download/CC/token.txt")
 BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
 
@@ -66,11 +66,11 @@ models = load_json(MODELS_FILE, {
     "arrumador-projeto": ""
 })
 
-# A lista só contém MCs cadastrados pelo administrador no comando /painel.
-mcs = load_json(MCS_FILE, [])
+# A lista só contém DJs cadastrados pelo administrador no comando /painel.
+mcs = load_json(DJS_FILE, [])
 if not isinstance(mcs, list):
     mcs = []
-    save_json(MCS_FILE, mcs)
+    save_json(DJS_FILE, mcs)
 
 intents = discord.Intents.default()
 intents.members = True
@@ -195,18 +195,18 @@ async def status(interaction: discord.Interaction):
         ephemeral=True
     )
 
-class ListaMCsSelect(discord.ui.Select):
+class ListaDJsSelect(discord.ui.Select):
     def __init__(self):
         options = [
             discord.SelectOption(label=nome[:100], value=nome)
             for nome in mcs[:25]
         ]
         super().__init__(
-            placeholder="Escolha um MC...",
+            placeholder="Escolha um DJ...",
             min_values=1,
             max_values=1,
             options=options,
-            custom_id="ccbot:selecionar_mc"
+            custom_id="ccbot:selecionar_dj"
         )
 
     async def callback(self, interaction: discord.Interaction):
@@ -215,23 +215,23 @@ class ListaMCsSelect(discord.ui.Select):
         await interaction.response.defer()
 
 
-class ListaMCsView(discord.ui.View):
+class ListaDJsView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(ListaMCsSelect())
+        self.add_item(ListaDJsSelect())
 
 
-class AdicionarMCModal(discord.ui.Modal, title="Adicionar MC"):
+class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
     nome = discord.ui.TextInput(
-        label="Nome do MC",
-        placeholder="Digite o nome que aparecerá na lista",
+        label="Nome do DJ",
+        placeholder="Digite o nome do DJ que aparecerá na lista",
         min_length=1,
         max_length=100
     )
 
     async def on_submit(self, interaction: discord.Interaction):
         if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode adicionar MCs.", ephemeral=True)
+            await interaction.response.send_message("Apenas o administrador pode adicionar DJs.", ephemeral=True)
             return
 
         nome = str(self.nome).strip()
@@ -240,28 +240,28 @@ class AdicionarMCModal(discord.ui.Modal, title="Adicionar MC"):
             return
 
         if any(item.casefold() == nome.casefold() for item in mcs):
-            await interaction.response.send_message("Esse MC já está cadastrado.", ephemeral=True)
+            await interaction.response.send_message("Esse DJ já está cadastrado.", ephemeral=True)
             return
 
         mcs.append(nome)
         mcs.sort(key=str.casefold)
         save_json(MCS_FILE, mcs)
-        await interaction.response.send_message(f"MC **{discord.utils.escape_markdown(nome)}** adicionado à lista.", ephemeral=True)
+        await interaction.response.send_message(f"DJ **{discord.utils.escape_markdown(nome)}** adicionado à lista.", ephemeral=True)
 
 
-class AdicionarMCButton(discord.ui.Button):
+class AdicionarDJButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
-            label="Adicionar MCs",
+            label="Adicionar DJs",
             style=discord.ButtonStyle.success,
-            custom_id="ccbot:adicionar_mcs"
+            custom_id="ccbot:adicionar_djs"
         )
 
     async def callback(self, interaction: discord.Interaction):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode usar esse painel.", ephemeral=True)
             return
-        await interaction.response.send_modal(AdicionarMCModal())
+        await interaction.response.send_modal(AdicionarDJModal())
 
 
 class PainelAdminView(discord.ui.View):
@@ -277,14 +277,14 @@ class GerarSamplesButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         if not mcs:
             await interaction.response.send_message(
-                "Ainda não há MCs cadastrados.",
+                "Ainda não há DJs cadastrados.",
                 ephemeral=True
             )
             return
 
         await interaction.response.send_message(
-            "Escolha um MC:",
-            view=ListaMCsView(),
+            "Escolha um DJ:",
+            view=ListaDJsView(),
             ephemeral=True
         )
 
