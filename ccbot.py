@@ -771,6 +771,29 @@ async def on_member_join(member: discord.Member):
         await notify_admin(f"Falha na mensagem de boas-vindas: {exc}")
 
 @bot.event
+async def on_member_remove(member: discord.Member):
+    try:
+        channel = bot.get_channel(WELCOME_CHANNEL_ID)
+        if channel is None:
+            channel = await bot.fetch_channel(WELCOME_CHANNEL_ID)
+
+        embed = discord.Embed(
+            description=f"**{member.mention} saiu.. sentiremos sua falta**",
+            color=discord.Color.red()
+        )
+        embed.set_author(
+            name=member.display_name,
+            icon_url=member.display_avatar.url
+        )
+        embed.set_image(
+            url="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561765993662128148/image0.gif?ex=6ad78b6d&is=6ad639ed&hm=4836ba7ca7239062be07eb91699e555bb5a5d35ebb19b6e112b24241bdefbd83&"
+        )
+        await channel.send(embed=embed)
+    except Exception as exc:
+        log.exception("Falha ao enviar mensagem de saída")
+        await notify_admin(f"Falha na mensagem de saída: {exc}")
+
+@bot.event
 async def on_ready():
     try:
         guild = discord.Object(id=1561513043886743562)
