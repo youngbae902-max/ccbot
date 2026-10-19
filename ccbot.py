@@ -633,7 +633,7 @@ class PackAdicionaisView(discord.ui.LayoutView):
         enviar.callback = self.enviar
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
-                "## 🧩 PACK BÁSICO — R$ 50,00\n"
+                "## <:tag:1561787923865665667> PACK BÁSICO — R$ 50,00\n"
                 "Inclui cerca de 3 horas de trabalho (R$ 30) + conhecimento aplicado (R$ 20).\n\n"
                 "**Adicionais opcionais:** organização +R$ 10; samples personalizadas +R$ 10; "
                 "samples de outros packs +R$ 20. Selecione os que deseja."
@@ -671,17 +671,17 @@ class PackAdicionaisView(discord.ui.LayoutView):
 class PackPersonalizadoView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=600)
-        basico = discord.ui.Button(label="PACK BÁSICO", emoji="🧩", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:basico")
-        premium = discord.ui.Button(label="PACK PREMIUM", emoji="💎", style=discord.ButtonStyle.success, custom_id="ccbot:pack:premium")
+        basico = discord.ui.Button(label="PACK BÁSICO", emoji="<:tag:1561787923865665667>", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:basico")
+        premium = discord.ui.Button(label="PACK PREMIUM", emoji="<:coroa:1561788313214390364>", style=discord.ButtonStyle.success, custom_id="ccbot:pack:premium")
         basico.callback = self.abrir_basico
         premium.callback = self.abrir_premium
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
-                "## 📦 PACK PERSONALIZADO\n"
+                "## <:box:1561761831587160140> PACK PERSONALIZADO\n"
                 "Monte um pack exclusivo do seu jeito.\n\n"
-                "### 🧩 PACK BÁSICO — R$ 50,00\n"
+                "### <:tag:1561787923865665667> PACK BÁSICO — R$ 50,00\n"
                 "Cerca de 3 horas de trabalho + conhecimento aplicado. Adicionais opcionais.\n\n"
-                "### 💎 PACK PREMIUM — R$ 100,00\n"
+                "### <:coroa:1561788313214390364> PACK PREMIUM — R$ 100,00\n"
                 "Personalização completa com kicks, samples, acapellas, MCs, vozes antes da virada e pastas organizadas."
             )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
