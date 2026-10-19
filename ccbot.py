@@ -336,9 +336,9 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
         instrucoes = discord.Embed(
             title="🎧 Envio da prévia do beat",
             description=(
-                "Envie **o arquivo de áudio neste canal** para continuar o cadastro.\\n\\n"
-                "・ Aceito: MP3, WAV, OGG, M4A e outros formatos de áudio.\\n"
-                "・ Você tem **3 minutos** para enviar o arquivo.\\n"
+                "Envie **o arquivo de áudio neste canal** para continuar o cadastro.\n\n"
+                "・ Aceito: MP3, WAV, OGG, M4A e outros formatos de áudio.\n"
+                "・ Você tem **3 minutos** para enviar o arquivo.\n"
                 "・ Assim que o áudio for recebido, o beat será publicado automaticamente."
             ),
             color=discord.Color.blurple()
@@ -1522,8 +1522,8 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             await interaction.user.send(
-                "**🧰 Arrumador de Projetos**\\n"
-                "Recebi sua descrição. Agora envie aqui nesta conversa privada o arquivo **.ZIP** do projeto.\\n"
+                "**🧰 Arrumador de Projetos**\n"
+                "Recebi sua descrição. Agora envie aqui nesta conversa privada o arquivo **.ZIP** do projeto.\n"
                 "Envie somente um ZIP válido. Você tem **10 minutos**."
             )
         except discord.Forbidden:
@@ -1597,9 +1597,9 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
 
             nome_seguro = Path(anexo.filename).name.replace("/", "_").replace(chr(92), "_")
             resumo = (
-                "🧰 **Novo pedido — Arrumador de Projetos**\\n"
-                f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\\n"
-                f"**Pedido de mudança:**\\n{self.mudancas.value}\\n"
+                "🧰 **Novo pedido — Arrumador de Projetos**\n"
+                f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\n"
+                f"**Pedido de mudança:**\n{self.mudancas.value}\n"
                 f"**Arquivo:** `{nome_seguro}`"
             )
             erros = []
@@ -1635,7 +1635,7 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
 
             await interaction.user.send(
                 "✅ Seu pedido e o ZIP foram encaminhados para análise."
-                + (f"\\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
+                + (f"\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
             )
             return
 
