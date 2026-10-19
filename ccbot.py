@@ -13,6 +13,7 @@ BASE = Path.home() / "ccbot-repo"
 CONFIG = BASE / "config"
 DATA_FILE = CONFIG / "config.json"
 MODELS_FILE = CONFIG / "modelos.json"
+MCS_FILE = CONFIG / "mcs.json"
 TOKEN_FILE = Path("/sdcard/Download/CC/token.txt")
 BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
 
@@ -64,6 +65,12 @@ models = load_json(MODELS_FILE, {
     "comprar-beats": "",
     "arrumador-projeto": ""
 })
+
+# A lista só contém MCs cadastrados pelo administrador no comando /painel.
+mcs = load_json(MCS_FILE, [])
+if not isinstance(mcs, list):
+    mcs = []
+    save_json(MCS_FILE, mcs)
 
 intents = discord.Intents.default()
 intents.members = True
@@ -188,16 +195,96 @@ async def status(interaction: discord.Interaction):
         ephemeral=True
     )
 
+class ListaMCsSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label=nome[:100], value=nome)
+            for nome in mcs[:25]
+        ]
+        super().__init__(
+            placeholder="Escolha um MC...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="ccbot:selecionar_mc"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        # O próximo passo do fluxo ainda não foi implementado.
+        # A seleção é recebida sem exibir uma nova mensagem.
+        await interaction.response.defer()
+
+
+class ListaMCsView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(ListaMCsSelect())
+
+
+class AdicionarMCModal(discord.ui.Modal, title="Adicionar MC"):
+    nome = discord.ui.TextInput(
+        label="Nome do MC",
+        placeholder="Digite o nome que aparecerá na lista",
+        min_length=1,
+        max_length=100
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode adicionar MCs.", ephemeral=True)
+            return
+
+        nome = str(self.nome).strip()
+        if not nome:
+            await interaction.response.send_message("Digite um nome válido.", ephemeral=True)
+            return
+
+        if any(item.casefold() == nome.casefold() for item in mcs):
+            await interaction.response.send_message("Esse MC já está cadastrado.", ephemeral=True)
+            return
+
+        mcs.append(nome)
+        mcs.sort(key=str.casefold)
+        save_json(MCS_FILE, mcs)
+        await interaction.response.send_message(f"MC **{discord.utils.escape_markdown(nome)}** adicionado à lista.", ephemeral=True)
+
+
+class AdicionarMCButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Adicionar MCs",
+            style=discord.ButtonStyle.success,
+            custom_id="ccbot:adicionar_mcs"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar esse painel.", ephemeral=True)
+            return
+        await interaction.response.send_modal(AdicionarMCModal())
+
+
+class PainelAdminView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(AdicionarMCButton())
+
+
 class GerarSamplesButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label="Gerar Samples", emoji="<:emoji_1:1561748306818891857>", style=discord.ButtonStyle.success, custom_id="ccbot:gerar_samples")
 
     async def callback(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message("Esse botão está disponível apenas para o administrador.", ephemeral=True)
+        if not mcs:
+            await interaction.response.send_message(
+                "Ainda não há MCs cadastrados.",
+                ephemeral=True
+            )
             return
+
         await interaction.response.send_message(
-            "O botão está no painel, mas a lógica de geração ainda precisa ser integrada.",
+            "Escolha um MC:",
+            view=ListaMCsView(),
             ephemeral=True
         )
 
@@ -245,6 +332,19 @@ class GeradorSamplesView(discord.ui.LayoutView):
                 discord.ui.ActionRow(GerarSamplesButton())
             )
         )
+
+
+@bot.tree.command(name="painel", description="Abrir o painel de configuração do CC BOT")
+async def painel(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode abrir esse painel.", ephemeral=True)
+        return
+
+    await interaction.response.send_message(
+        "## Painel de configuração\nAdicione os MCs que deverão aparecer no botão **Gerar Samples**.",
+        view=PainelAdminView(),
+        ephemeral=True
+    )
 
 
 @bot.tree.command(name="samples", description="Publicar o painel do Gerador de Samples")
