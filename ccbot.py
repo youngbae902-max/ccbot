@@ -564,6 +564,10 @@ class PackAdicionais(discord.ui.Select):
             ]
         )
 
+    async def callback(self, interaction: discord.Interaction):
+        # Confirma a interação do menu para evitar "A aplicação não respondeu".
+        await interaction.response.defer()
+
 
 async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
     canal_id = int(settings.get("pack_orders_channel", settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)))
