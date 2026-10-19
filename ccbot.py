@@ -1397,26 +1397,54 @@ class PainelManutencaoView(discord.ui.View):
 
 def criar_embed_painel():
     embed = discord.Embed(
-        title="<:box:1561761831587160140> Central administrativa do **CC BOT**",
+        title="▰  CC BOT  •  CENTRAL ADMINISTRATIVA",
         description=(
-            "Selecione uma área para abrir suas opções.\n\n"
-            "### 🎧 Gerenciamento de DJs\n"
-            "Adicione, altere ou remova os DJs do gerador.\n\n"
-            "### 👋 Boas-vindas\n"
-            "Teste a mensagem de entrada do servidor.\n\n"
-            "### 🧰 Emojis, backup e avisos\n"
-            "Crie backups e configure o canal de avisos.\n\n"
-            "### 📋 Publicar painéis\n"
-            "Acesse Adicionar emojis, Arrumador, Acapellas, Samples e Venda de beats.\n\n"
-            "### 🛠️ Testes e manutenção\n"
-            "Confira se o bot está online e respondendo.\n\n"
-            "-# A central será ampliada conforme novas ferramentas administrativas forem criadas."
+            "> **Seu servidor. Suas ferramentas. Um só lugar.**\n"
+            "Selecione uma categoria no menu abaixo para abrir os controles.\n"
+            "As funções existentes foram mantidas e organizadas por área."
         ),
-        color=discord.Color.green()
+        color=discord.Color.from_rgb(22, 24, 29),
+        timestamp=discord.utils.utcnow()
     )
-    embed.set_footer(text="CC BOT • Central administrativa")
+    embed.set_author(
+        name="CC BOT  /  PAINEL DE CONTROLE",
+        icon_url=bot.user.display_avatar.url if bot.user else discord.Embed.Empty
+    )
+    embed.add_field(
+        name="🎧  DJs & SAMPLES",
+        value="Gerencie os DJs disponíveis no gerador de samples.",
+        inline=True
+    )
+    embed.add_field(
+        name="👋  BOAS-VINDAS",
+        value="Confira e teste a mensagem de entrada do servidor.",
+        inline=True
+    )
+    embed.add_field(
+        name="🧰  FERRAMENTAS",
+        value="Adicione emojis, crie backups e escolha o canal de avisos.",
+        inline=True
+    )
+    embed.add_field(
+        name="📦  PUBLICAÇÃO",
+        value="Samples · Acapellas · Arrumador · Venda de beats · Pack personalizado",
+        inline=True
+    )
+    embed.add_field(
+        name="🛠️  SISTEMA",
+        value="Verifique a resposta do bot e consulte a latência.",
+        inline=True
+    )
+    embed.add_field(
+        name="⚙️  ACESSO RÁPIDO",
+        value="Use o seletor abaixo. As opções administrativas são restritas ao proprietário configurado.",
+        inline=True
+    )
+    embed.set_thumbnail(
+        url="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561721929583566858/605081.jpg?ex=6ad76263&is=6ad610e3&hm=23259b8d57737e9607039f616c91ceea22a3e99d47e000691c14e7115ac69edd&"
+    )
+    embed.set_footer(text="CC BOT  •  ADMIN CONSOLE  •  Todas as funções em um só painel")
     return embed
-
 
 class GerarSamplesButton(discord.ui.Button):
     def __init__(self):
