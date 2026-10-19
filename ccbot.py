@@ -571,7 +571,7 @@ async def venda_de_beats(interaction: discord.Interaction):
 
 
 
-class PackBasicoModal(discord.ui.Modal, title="Encomendar Pack Básico"):
+class PackBasicoModal(discord.ui.Modal, title="Encomendar Pack Personalizado"):
     nome = discord.ui.TextInput(
         label="Nome do pack",
         placeholder="Ex.: Pack Mandelão do DJ X",
@@ -596,7 +596,7 @@ class PackBasicoModal(discord.ui.Modal, title="Encomendar Pack Básico"):
                 ephemeral=True
             )
         except Exception as exc:
-            log.exception("Falha ao abrir adicionais do Pack Básico")
+            log.exception("Falha ao abrir adicionais do Pack Personalizado")
             if not interaction.response.is_done():
                 await interaction.response.send_message("Não consegui abrir os adicionais. Tente novamente.", ephemeral=True)
 
@@ -721,7 +721,7 @@ class PackAdicionaisView(discord.ui.LayoutView):
         enviar.callback = self.enviar
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
-                "## <:tag:1561787923865665667> PACK BÁSICO — R$ 50,00\n"
+                "## <:tag:1561787923865665667> PACK PERSONALIZADO — R$ 50,00\n"
                 "Ideal para quem quer um pack montado a partir de uma ideia específica.\n"
                 "O valor inclui cerca de 3 horas de trabalho (R$ 30) + conhecimento aplicado (R$ 20).\n\n"
                 "**O que fazer agora:** marque os adicionais que quiser e toque em **Enviar pedido**. "
@@ -752,7 +752,7 @@ class PackAdicionaisView(discord.ui.LayoutView):
                 valor += 20
         await interaction.response.defer(ephemeral=True, thinking=True)
         await enviar_pedido_pack(
-            interaction, "Pack Básico", valor,
+            interaction, "Pack Personalizado", valor,
             {"Nome do pack": self.nome, "Estilo musical": self.estilo, "Detalhes": self.detalhes},
             extras
         )
@@ -763,7 +763,7 @@ class PackAdicionaisView(discord.ui.LayoutView):
 
 
 PACK_QUESTIONS = {
-    "Pack Básico": [
+    "Pack Personalizado": [
         ("Nome do pack", "Qual nome você quer dar ao pack?", "Pode ser o nome do DJ ou uma ideia que identifique o projeto."),
         ("Estilo musical", "Qual estilo musical você quer?", "Ex.: mandelão, automotivo, rave, montagem ou mistura."),
         ("Ideia e detalhes", "Como você imagina esse pack?", "Conte quais sons, referências e elementos não podem faltar.")
@@ -865,7 +865,7 @@ class PackPerguntasView(discord.ui.LayoutView):
         if self.fase == "perguntas":
             perguntas = PACK_QUESTIONS[self.plano]
             titulo, pergunta, dica = perguntas[self.indice]
-            total = len(perguntas) + (len(PACK_EXTRAS) if self.plano == "Pack Básico" else 0)
+            total = len(perguntas) + (len(PACK_EXTRAS) if self.plano == "Pack Personalizado" else 0)
             numero = self.indice + 1
             conteudo = (
                 f"## PERGUNTA {numero}/{total}\n"
@@ -878,7 +878,7 @@ class PackPerguntasView(discord.ui.LayoutView):
         elif self.fase == "extras":
             nome, preco, pergunta = PACK_EXTRAS[self.extras_indice]
             conteudo = (
-                f"## 📦 PACK BÁSICO — ADICIONAIS\n"
+                f"## 📦 PACK PERSONALIZADO — ADICIONAIS\n"
                 f"**Adicional {self.extras_indice + 1} de {len(PACK_EXTRAS)}**\n\n"
                 f"### {pergunta}\n"
                 f"Valor adicional: **R$ {preco},00**\n\nEscolha uma opção abaixo."
@@ -889,7 +889,7 @@ class PackPerguntasView(discord.ui.LayoutView):
             nao.callback = self.responder_extra_nao
             itens = [sim, nao]
         else:
-            total = 50 + sum(preco for _, preco in self.extras_escolhidos) if self.plano == "Pack Básico" else 100
+            total = 50 + sum(preco for _, preco in self.extras_escolhidos) if self.plano == "Pack Personalizado" else 100
             extras = ", ".join(f"{n} (+ R$ {p})" for n, p in self.extras_escolhidos) or "Nenhum"
             resumo = "\n".join(f"**{k}:** {v}" for k, v in self.respostas.items())
             conteudo = (
@@ -930,7 +930,7 @@ class PackPerguntasView(discord.ui.LayoutView):
         if self.fase == "perguntas":
             self.indice += 1
             if self.indice >= len(PACK_QUESTIONS[self.plano]):
-                if self.plano == "Pack Básico":
+                if self.plano == "Pack Personalizado":
                     self.fase = "extras"
                 else:
                     self.fase = "revisao"
@@ -959,7 +959,7 @@ class PackPerguntasView(discord.ui.LayoutView):
 
     async def voltar(self, interaction):
         if self.fase == "revisao":
-            if self.plano == "Pack Básico":
+            if self.plano == "Pack Personalizado":
                 self.fase = "extras"
                 self.extras_indice = len(PACK_EXTRAS) - 1
             else:
@@ -978,7 +978,7 @@ class PackPerguntasView(discord.ui.LayoutView):
 
     async def finalizar(self, interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
-        total = 50 + sum(preco for _, preco in self.extras_escolhidos) if self.plano == "Pack Básico" else 100
+        total = 50 + sum(preco for _, preco in self.extras_escolhidos) if self.plano == "Pack Personalizado" else 100
         embed = discord.Embed(
             title="📦 Novo pedido • Pack Personalizado",
             description=f"**Plano:** {self.plano}\n**Valor estimado:** R$ {total},00",
@@ -1009,12 +1009,12 @@ class PackPerguntasView(discord.ui.LayoutView):
 class PackPersonalizadoView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
-        basico = discord.ui.Button(label="PACK BÁSICO", emoji="<:tag:1561787923865665667>", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:v2:basico")
+        basico = discord.ui.Button(label="PACK PERSONALIZADO", emoji="<:tag:1561787923865665667>", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:v2:basico")
         basico.callback = self.abrir_basico
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
                 "## <:box:1561761831587160140> ENCOMENDAR PACK PERSONALIZADO\n"
-                "### <:tag:1561787923865665667> PACK BÁSICO — R$ 50,00\n"
+                "### <:tag:1561787923865665667> PACK PERSONALIZADO — R$ 50,00\n"
                 "Responda sobre nome, estilo e ideia do pack. Depois, escolha se deseja adicionais.\n"
                 "**Adicionais:** organização de pastas (+ R$ 10), samples personalizadas (+ R$ 10) "
                 "e samples de outros packs (+ R$ 20).\n\n"
@@ -1026,9 +1026,9 @@ class PackPersonalizadoView(discord.ui.LayoutView):
 
     async def abrir_basico(self, interaction: discord.Interaction):
         try:
-            await iniciar_fluxo_pack(interaction, "Pack Básico")
+            await iniciar_fluxo_pack(interaction, "Pack Personalizado")
         except Exception:
-            log.exception("Falha ao abrir o fluxo Pack Básico")
+            log.exception("Falha ao abrir o fluxo Pack Personalizado")
             if not interaction.response.is_done():
                 await interaction.response.send_message("Não consegui abrir o pedido. Tente novamente.", ephemeral=True)
 
