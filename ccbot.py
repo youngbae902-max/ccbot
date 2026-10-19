@@ -220,7 +220,7 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
         await interaction.response.defer(ephemeral=True, thinking=True)
         canal = interaction.channel
         await canal.send(
-            f"{interaction.user.mention} **Mande um áudio para ser a prévia do BEAT.**\\n"
+            f"{interaction.user.mention} **Mande um áudio para ser a prévia do BEAT.**\n"
             "Aceito arquivos de áudio. Você tem 3 minutos para enviar a prévia neste canal."
         )
 
@@ -299,8 +299,8 @@ class ComprarBeatButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         try:
             await notify_admin(
-                f"Pedido de compra de beat\\nBeat: {self.nome}\\nValor: {self.preco}\\n"
-                f"Comprador: {interaction.user} (ID {interaction.user.id})\\n"
+                f"Pedido de compra de beat\nBeat: {self.nome}\nValor: {self.preco}\n"
+                f"Comprador: {interaction.user} (ID {interaction.user.id})\n"
                 f"Servidor: {interaction.guild.name if interaction.guild else 'DM'}"
             )
             await interaction.response.send_message(
