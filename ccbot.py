@@ -203,11 +203,11 @@ class ListaDJsSelect(discord.ui.Select):
         nomes = mcs[inicio:inicio + 25]
         options = [
             discord.SelectOption(
-                label=nome[:100],
-                value=nome,
-                default=(nome == view.selected_dj)
+                label=str(nome)[:100] or "DJ sem nome",
+                value=str(inicio + indice),
+                default=(str(nome) == view.selected_dj)
             )
-            for nome in nomes
+            for indice, nome in enumerate(nomes)
         ]
         super().__init__(
             placeholder="Selecione um DJ...",
@@ -218,11 +218,29 @@ class ListaDJsSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        self.parent_view.selected_dj = self.values[0]
-        await interaction.response.edit_message(view=ListaDJsView(
-            page=self.parent_view.page,
-            selected_dj=self.parent_view.selected_dj
-        ))
+        try:
+            indice = int(self.values[0])
+            if indice < 0 or indice >= len(mcs):
+                await interaction.response.send_message(
+                    "Essa opção de DJ não está mais disponível. Abra a lista novamente.",
+                    ephemeral=True
+                )
+                return
+
+            self.parent_view.selected_dj = str(mcs[indice])
+            await interaction.response.edit_message(
+                view=ListaDJsView(
+                    page=self.parent_view.page,
+                    selected_dj=self.parent_view.selected_dj
+                )
+            )
+        except Exception as exc:
+            log.exception("Falha ao selecionar DJ")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    f"Não consegui selecionar esse DJ: {exc}",
+                    ephemeral=True
+                )
 
 
 class NavegarDJsButton(discord.ui.Button):
