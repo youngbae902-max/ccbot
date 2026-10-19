@@ -313,37 +313,56 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
                 )
             return valida
 
-        try:
-            mensagem = await bot.wait_for("message", check=mensagem_valida, timeout=180)
-        except asyncio.TimeoutError:
-            await interaction.followup.send(
-                "Tempo esgotado. Execute /venda-de-beats novamente para tentar cadastrar o beat.",
-                ephemeral=True
-            )
-            try:
-                await dm.send("⏰ Tempo esgotado. Execute /venda-de-beats novamente.")
-            except discord.HTTPException:
-                pass
-            return
-
+        prazo_final = asyncio.get_running_loop().time() + 180
         audio = None
-        for arquivo in mensagem.attachments:
-            nome_arquivo = arquivo.filename.lower()
-            tipo = (arquivo.content_type or "").lower()
-            if tipo.startswith("audio/") or Path(nome_arquivo).suffix in BEAT_AUDIO_EXTENSIONS:
-                audio = arquivo
-                break
+        mensagem = None
 
-        if audio is None:
-            await interaction.followup.send(
-                "Esse arquivo não parece ser um áudio. Envie um arquivo de áudio e tente novamente com /venda-de-beats.",
-                ephemeral=True
-            )
+        while audio is None:
+            restante = prazo_final - asyncio.get_running_loop().time()
+            if restante <= 0:
+                await interaction.followup.send(
+                    "Tempo esgotado. Execute /venda-de-beats novamente para tentar cadastrar o beat.",
+                    ephemeral=True
+                )
+                try:
+                    await dm.send("⏰ Tempo esgotado. Execute /venda-de-beats novamente.")
+                except discord.HTTPException:
+                    pass
+                return
+
             try:
-                await mensagem.delete()
-            except discord.HTTPException:
-                pass
-            return
+                mensagem = await bot.wait_for(
+                    "message", check=mensagem_valida, timeout=restante
+                )
+            except asyncio.TimeoutError:
+                await interaction.followup.send(
+                    "Tempo esgotado. Execute /venda-de-beats novamente para tentar cadastrar o beat.",
+                    ephemeral=True
+                )
+                try:
+                    await dm.send("⏰ Tempo esgotado. Execute /venda-de-beats novamente.")
+                except discord.HTTPException:
+                    pass
+                return
+
+            for arquivo in mensagem.attachments:
+                nome_arquivo = Path(arquivo.filename).name.lower()
+                tipo = (arquivo.content_type or "").lower()
+                if tipo.startswith("audio/") or Path(nome_arquivo).suffix in BEAT_AUDIO_EXTENSIONS:
+                    audio = arquivo
+                    break
+
+            if audio is None:
+                try:
+                    await dm.send(
+                        "⚠️ Não reconheci esse arquivo como áudio. Envie um arquivo MP3, WAV, OGG, M4A ou outro formato de áudio compatível. Você ainda tem até completar os 3 minutos."
+                    )
+                except discord.HTTPException:
+                    pass
+                try:
+                    await mensagem.delete()
+                except discord.HTTPException:
+                    pass
 
         try:
             safe_name = Path(audio.filename).name.replace("/", "_")
