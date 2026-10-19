@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import random
 import zipfile
 from pathlib import Path
 from datetime import datetime
@@ -358,7 +359,15 @@ async def on_ready():
             color=discord.Color.green(),
             timestamp=discord.utils.utcnow()
         )
-        embed.set_footer(text="CC BOT • Sistema de inicialização")
+        startup_gifs = [
+            "https://tenor.com/pt-BR/view/kawaii-anime-gif-10810372730164302546",
+            "https://tenor.com/pt-BR/view/kamiina-botan-botan-kamiina-botan-kamiina-fully-blossoms-when-drunk-kamiina-botan-yoeru-sugata-wa-yuri-no-hana-gif-859430710536466529",
+            "https://tenor.com/pt-BR/view/kamiina-botan-botan-kamiina-botan-kamiina-fully-blossoms-when-drunk-kamiina-botan-yoeru-sugata-wa-yuri-no-hana-gif-612078962742355794",
+        ]
+        # Links de página do Tenor não são URLs diretas do arquivo GIF;
+        # publicamos o link sorteado no embed, sem set_image.
+        embed.description += "\\n\\n🎞️ **GIF aleatório:** " + random.choice(startup_gifs)
+                embed.set_footer(text="CC BOT • Sistema de inicialização")
         await channel.send(embed=embed)
 
     except Exception as exc:
