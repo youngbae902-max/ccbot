@@ -1,4 +1,5 @@
 import os
+import random
 import asyncio
 import json
 import logging
@@ -25,6 +26,13 @@ BEAT_PREVIEWS_DIR = BASE / "data" / "beat_previews"
 ADMIN_ID = 1366109646934380614
 DEFAULT_NOTICE_CHANNEL = 1561698571525423115
 WELCOME_CHANNEL_ID = 1561513269754068992
+
+# GIFs públicos diretos para variar a imagem do aviso de inicialização.
+STARTUP_GIFS = [
+    "https://cdn-anibox.pages.dev/dance/4.gif",
+    "https://cdn-anibox.pages.dev/pat/10.gif",
+    "https://cdn-anibox.pages.dev/hug/1.gif",
+]
 
 # REGRA PERMANENTE DE MANUTENÇÃO:
 # Ao alterar painéis do Discord, edite a mensagem já publicada sempre que possível.
@@ -2008,6 +2016,7 @@ async def on_ready():
             color=discord.Color.green(),
             timestamp=discord.utils.utcnow()
         )
+        embed.set_image(url=random.choice(STARTUP_GIFS))
         embed.set_footer(text="CC BOT • Sistema de inicialização")
 
         # Mantém apenas a mensagem de inicialização mais recente do próprio bot.
