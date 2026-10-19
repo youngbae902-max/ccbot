@@ -1661,6 +1661,79 @@ async def abrir_permissoes_categorias(interaction: discord.Interaction):
     await interaction.response.edit_message(embed=embed, view=PermissoesCategoriasView())
 
 
+TRABALHOS_ON_CHANNEL_ID = 1561837934649409696
+
+
+class TrabalhosOnView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+
+    @discord.ui.button(label="Publicar e marcar todos", emoji="📣", style=discord.ButtonStyle.success, custom_id="ccbot:publicar_trabalhos_on")
+    async def publicar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            canal = bot.get_channel(TRABALHOS_ON_CHANNEL_ID)
+            if canal is None:
+                canal = await bot.fetch_channel(TRABALHOS_ON_CHANNEL_ID)
+            if not isinstance(canal, discord.TextChannel):
+                raise TypeError("O canal configurado não é um canal de texto.")
+
+            embed = discord.Embed(
+                title="🟢  TRABALHOS ESTÃO ON!",
+                description=(
+                    "Os trabalhos estão **abertos e disponíveis**!\n\n"
+                    "Precisa de algum serviço? Confira as opções e abra seu pedido pelos painéis do servidor.\n\n"
+                    "✦ **Estamos atendendo.**"
+                ),
+                color=discord.Color.from_rgb(0, 0, 0),
+                timestamp=discord.utils.utcnow()
+            )
+            embed.set_footer(text="CC • Central de trabalhos")
+            mensagem = await canal.send(
+                content="@everyone",
+                embed=embed,
+                allowed_mentions=discord.AllowedMentions(everyone=True)
+            )
+            await interaction.edit_original_response(
+                content=f"✅ Aviso publicado em <#{canal.id}> e enviado com menção a todos.\nMensagem: https://discord.com/channels/{interaction.guild_id}/{canal.id}/{mensagem.id}",
+                embed=None,
+                view=None
+            )
+        except Exception as exc:
+            log.exception("Falha ao publicar aviso Trabalhos ON")
+            await interaction.edit_original_response(
+                content=f"❌ Não consegui publicar o aviso. Confira se o bot tem permissão para enviar mensagens, embeds e mencionar @everyone. Erro: {type(exc).__name__}",
+                embed=None,
+                view=None
+            )
+
+    @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.secondary, custom_id="ccbot:cancelar_trabalhos_on")
+    async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.edit_message(content="Publicação cancelada. Nenhum aviso foi enviado.", embed=None, view=None)
+
+
+async def abrir_trabalhos_on(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+        return
+    embed = discord.Embed(
+        title="📣 Aviso: Trabalhos ON",
+        description=(
+            f"Vou publicar um embed no canal <#{TRABALHOS_ON_CHANNEL_ID}> informando que os trabalhos estão abertos.\n\n"
+            "**A publicação marcará @everyone**, notificando todos os membros conforme as configurações deles.\n\n"
+            "Confirme apenas quando quiser enviar o aviso."
+        ),
+        color=discord.Color.from_rgb(0, 0, 0)
+    )
+    await interaction.response.edit_message(embed=embed, view=TrabalhosOnView())
+
+
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
@@ -1677,6 +1750,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 discord.SelectOption(label="Limpar mensagens do PV", description="Apagar mensagens enviadas pelo CC BOT na sua DM", emoji="🧹", value="limpar_pv"),
                 discord.SelectOption(label="Gerenciar ícones", description="Monitorar Pinterest e publicar álbuns de fotos", emoji="🖼️", value="icones"),
                 discord.SelectOption(label="Permissões das categorias", description="Somente leitura, mantendo bots utilizáveis e Comunidade intacta", emoji="🔒", value="permissoes_categorias"),
+                discord.SelectOption(label="Trabalhos ON", description="Publicar aviso no canal e marcar todos", emoji="📣", value="trabalhos_on"),
             ]
         )
 
@@ -1718,6 +1792,8 @@ class CategoriaPainelSelect(discord.ui.Select):
             )
         elif categoria == "permissoes_categorias":
             await abrir_permissoes_categorias(interaction)
+        elif categoria == "trabalhos_on":
+            await abrir_trabalhos_on(interaction)
         elif categoria == "icones":
             await interaction.response.edit_message(
                 embed=criar_embed_painel_icones(),
