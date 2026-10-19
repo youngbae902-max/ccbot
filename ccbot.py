@@ -1510,6 +1510,58 @@ async def samples(interaction: discord.Interaction):
         return
     await interaction.response.send_message(view=GeradorSamplesView())
 
+@bot.tree.command(name="painel-acapellas", description="Enviar o painel de busca de acapellas")
+async def painel_acapellas(interaction: discord.Interaction):
+    if await deny_unauthorized(interaction):
+        return
+
+    canal_id = 1561794460617277511
+    try:
+        canal = bot.get_channel(canal_id)
+        if canal is None:
+            canal = await bot.fetch_channel(canal_id)
+        if not isinstance(canal, discord.TextChannel):
+            await interaction.response.send_message(
+                "O canal configurado não é um canal de texto.", ephemeral=True
+            )
+            return
+
+        embed = discord.Embed(
+            title="🎙️ ACAPELLAS DE MCs FAMOSOS",
+            description=(
+                "**Problemas em achar acapellas de MCs famosos?**\n"
+                "Seus problemas acabaram! 🔥\n\n"
+                "Clique no botão abaixo e procure **acapellas de graça**."
+            ),
+            color=discord.Color.red()
+        )
+        embed.set_footer(text="CC BOT • Busca de Acapellas")
+
+        view = discord.ui.View(timeout=None)
+        view.add_item(discord.ui.Button(
+            label="ENTRAR",
+            emoji="🔎",
+            style=discord.ButtonStyle.link,
+            url="https://packy.lovable.app/mcs"
+        ))
+
+        await canal.send(embed=embed, view=view)
+        await interaction.response.send_message(
+            f"✅ Painel de acapellas enviado para {canal.mention}.", ephemeral=True
+        )
+    except Exception as exc:
+        log.exception("Falha ao enviar painel de acapellas")
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                "❌ Não consegui enviar o painel. Confira as permissões do bot no canal.",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "❌ Não consegui enviar o painel. Confira as permissões do bot no canal.",
+                ephemeral=True
+            )
+
 class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
     mudancas = discord.ui.TextInput(
         label="O que você quer mudar no projeto?",
