@@ -257,12 +257,29 @@ async def on_message(message: discord.Message):
     if message.channel.id != SALES_SOURCE_CHANNEL_ID:
         return
 
-    settings["sales_count"] = max(1, int(settings.get("sales_count", 0)) + 1)
+    # Conta toda mensagem nova no canal monitorado, inclusive mensagens sem texto.
+    settings["sales_count"] = int(settings.get("sales_count", 0)) + 1
     save_json(DATA_FILE, settings)
-    log.info("Contador de vendas atualizado: %s", settings["sales_count"])
+    log.info("Mensagem nova; contador de vendas: %s", settings["sales_count"])
 
 
-@tasks.loop(seconds=60)
+async def contar_mensagens_do_canal():
+    channel = bot.get_channel(SALES_SOURCE_CHANNEL_ID)
+    if channel is None:
+        channel = await bot.fetch_channel(SALES_SOURCE_CHANNEL_ID)
+    if not isinstance(channel, discord.TextChannel):
+        raise TypeError("O canal monitorado não é um canal de texto.")
+
+    total = 0
+    async for _message in channel.history(limit=None, oldest_first=True):
+        total += 1
+
+    settings["sales_count"] = total
+    save_json(DATA_FILE, settings)
+    log.info("Contagem inicial concluída: %s mensagens", total)
+
+
+@tasks.loop(seconds=10)
 async def atualizar_contador_vendas():
     try:
         channel = bot.get_channel(SALES_COUNTER_CHANNEL_ID)
@@ -272,7 +289,7 @@ async def atualizar_contador_vendas():
             log.error("O canal do contador de vendas não é um canal de texto.")
             return
 
-        nome = f"{SALES_COUNTER_PREFIX}{max(1, int(settings.get('sales_count', 0)))}"
+        nome = f"{SALES_COUNTER_PREFIX}{int(settings.get('sales_count', 0))}"
         if channel.name != nome:
             await channel.edit(name=nome, reason="Atualização automática do contador de vendas")
             log.info("Nome do contador alterado para: %s", nome)
@@ -318,6 +335,10 @@ async def on_ready():
         synced = await bot.tree.sync()
         log.info("Comandos sincronizados: %s", len(synced))
         log.info("Conectado como %s", bot.user)
+
+        if not getattr(bot, "_sales_history_counted", False):
+            await contar_mensagens_do_canal()
+            bot._sales_history_counted = True
 
         if not atualizar_contador_vendas.is_running():
             atualizar_contador_vendas.start()
