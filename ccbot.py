@@ -1869,6 +1869,161 @@ async def analisar_hierarquia(interaction: discord.Interaction):
         )
 
 
+
+HIERARQUIA_CATEGORIAS = {
+    "admin": {"id": 1561513258211352626, "nome": "ADMINISTRAÇÃO", "posicao": 0},
+    "welcome": {"id": 1561513260501569576, "nome": "INÍCIO", "posicao": 1},
+    "lojas": {"id": 1561513261424447609, "nome": "LOJAS", "posicao": 2},
+    "mercado": {"id": 1561513263286452275, "nome": "MERCADO", "posicao": 3},
+    "comunidade": {"id": 1561513265006116877, "nome": "COMUNIDADE", "posicao": 4},
+    "estatisticas": {"id": 1561513258970521743, "nome": "ESTATÍSTICAS", "posicao": 5},
+}
+
+HIERARQUIA_MOVER_CANAIS = [
+    (1561513291703128106, 1561513265006116877, 0),  # chat-geral
+    (1561513297155592253, 1561513265006116877, 1),  # duvidas
+    (1561513293124739173, 1561513265006116877, 2),  # divulgação
+    (1561513290473934998, 1561513265006116877, 3),  # icon
+    (1561513293934362705, 1561513265006116877, 4),  # packs-gratis
+    (1561513295352037507, 1561513265006116877, 5),  # projetos-gratis
+    (1561513284811624480, 1561513263286452275, 0),  # gerador-de-samples
+    (1561513286967500841, 1561513263286452275, 1),  # pack-personalizado
+    (1561513288297353286, 1561513263286452275, 2),  # comprar-beats
+    (1561513289438199878, 1561513263286452275, 3),  # arrumador-de-projeto
+    (1561513284191125625, 1561513263286452275, 4),  # vendas
+]
+
+
+class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
+    def __init__(self, guild_id: int):
+        super().__init__(timeout=180)
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="Aplicar organização", emoji="✅", style=discord.ButtonStyle.success)
+    async def aplicar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode confirmar.", ephemeral=True)
+            return
+        if interaction.guild is None or interaction.guild.id != self.guild_id:
+            await interaction.response.send_message("Use esta confirmação no servidor correto.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+        erros = []
+        alteracoes = 0
+        try:
+            me = guild.me
+            if me is None or not me.guild_permissions.manage_channels:
+                await interaction.edit_original_response(
+                    content="❌ O CC BOT precisa da permissão **Gerenciar canais** para reorganizar a hierarquia.",
+                    view=None
+                )
+                return
+
+            atuais = await guild.fetch_channels()
+            categorias = {c.id: c for c in atuais if isinstance(c, discord.CategoryChannel)}
+            canais = {c.id: c for c in atuais if not isinstance(c, discord.CategoryChannel)}
+
+            for item in sorted(HIERARQUIA_CATEGORIAS.values(), key=lambda x: x["posicao"]):
+                categoria = categorias.get(item["id"])
+                if categoria is None:
+                    erros.append(f"Categoria ausente: {item['nome']} (ID {item['id']})")
+                    continue
+                if categoria.name != item["nome"] or categoria.position != item["posicao"]:
+                    await categoria.edit(
+                        name=item["nome"],
+                        position=item["posicao"],
+                        reason="Organização confirmada pelo painel administrativo do CC BOT"
+                    )
+                    alteracoes += 1
+
+            for canal_id, categoria_id, posicao in HIERARQUIA_MOVER_CANAIS:
+                canal = canais.get(canal_id)
+                categoria = categorias.get(categoria_id)
+                if canal is None or categoria is None:
+                    erros.append(f"Canal/categoria ausente: canal {canal_id}, categoria {categoria_id}")
+                    continue
+                if canal.category_id != categoria_id or canal.position != posicao:
+                    await canal.edit(
+                        category=categoria,
+                        position=posicao,
+                        reason="Organização confirmada pelo painel administrativo do CC BOT"
+                    )
+                    alteracoes += 1
+
+            # Remover apenas categorias antigas vazias; nenhum canal é apagado.
+            for categoria_id in (1561513262405648404, 1561513266960666654):
+                categoria = categorias.get(categoria_id)
+                if categoria is None:
+                    continue
+                atuais = await guild.fetch_channels()
+                if any(getattr(c, "category_id", None) == categoria_id for c in atuais):
+                    erros.append(f"A categoria antiga {categoria.name} não foi removida porque ainda contém canais.")
+                    continue
+                await categoria.delete(reason="Categoria vazia após reorganização confirmada pelo administrador")
+                alteracoes += 1
+
+            texto = f"✅ Organização concluída. Alterações realizadas: **{alteracoes}**."
+            if erros:
+                texto += "\n\n⚠️ Alguns itens precisam de revisão:\n" + "\n".join(f"• {e}" for e in erros[:8])
+            texto += "\n\nNão alterei permissões de cargos ou canais. Revise o acesso herdado das novas categorias."
+            await interaction.edit_original_response(content=texto, view=None)
+            log.info("Organização de hierarquia concluída: guild=%s alterações=%s erros=%s", guild.id, alteracoes, len(erros))
+        except discord.Forbidden:
+            log.exception("Permissão insuficiente durante a organização da hierarquia")
+            await interaction.edit_original_response(
+                content="❌ O Discord negou uma alteração. Verifique **Gerenciar canais** e a posição do cargo do bot. Algumas etapas podem já ter sido aplicadas; gere um novo relatório para conferir.",
+                view=None
+            )
+        except Exception as exc:
+            log.exception("Falha ao organizar a hierarquia")
+            await interaction.edit_original_response(
+                content=f"❌ A organização parou em {type(exc).__name__}. Algumas etapas podem já ter sido aplicadas; gere um novo relatório para conferir.",
+                view=None
+            )
+
+    @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.danger)
+    async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode cancelar.", ephemeral=True)
+            return
+        await interaction.response.edit_message(
+            content="Organização cancelada. Nenhuma alteração foi feita.",
+            embed=None,
+            view=None
+        )
+
+
+async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode usar esta função.", ephemeral=True)
+        return
+    if interaction.guild is None:
+        await interaction.response.send_message("Abra esta função dentro do servidor.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🧭 Confirmar organização da hierarquia",
+        description=(
+            "**O que será feito:**\n"
+            "• Renomear e ordenar as categorias principais.\n"
+            "• Mover duvidas, icon, packs-gratis e projetos-gratis para **COMUNIDADE**.\n"
+            "• Mover vendas para **MERCADO**.\n"
+            "• Ordenar os canais dentro das categorias.\n"
+            "• Remover apenas as categorias antigas ref's e CC © se estiverem vazias.\n\n"
+            "**Não serão apagados canais nem alteradas permissões de cargos.**\n\n"
+            "⚠️ **Atenção:** ao mover canais, permissões herdadas da categoria de destino podem mudar quem consegue ver ou escrever. Depois, confira principalmente chat-geral, duvidas e os canais de publicação.\n\n"
+            "Confirme somente se quiser aplicar essas mudanças agora."
+        ),
+        color=discord.Color.orange()
+    )
+    await interaction.response.edit_message(
+        embed=embed,
+        view=ConfirmarOrganizacaoHierarquiaView(interaction.guild.id)
+    )
+
+
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
@@ -1887,6 +2042,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 discord.SelectOption(label="Permissões das categorias", description="Somente leitura, mantendo bots utilizáveis e Comunidade intacta", emoji="🔒", value="permissoes_categorias"),
                 discord.SelectOption(label="Trabalhos ON", description="Publicar aviso no canal e marcar todos", emoji="📣", value="trabalhos_on"),
                 discord.SelectOption(label="Analisar hierarquia", description="Enviar categorias, canais, cargos e permissões no PV", emoji="🧭", value="analisar_hierarquia"),
+                discord.SelectOption(label="Organizar hierarquia", description="Reordenar categorias e canais com confirmação", emoji="🗂️", value="organizar_hierarquia"),
             ]
         )
 
@@ -1932,6 +2088,8 @@ class CategoriaPainelSelect(discord.ui.Select):
             await abrir_trabalhos_on(interaction)
         elif categoria == "analisar_hierarquia":
             await analisar_hierarquia(interaction)
+        elif categoria == "organizar_hierarquia":
+            await abrir_organizacao_hierarquia(interaction)
         elif categoria == "icones":
             await interaction.response.edit_message(
                 embed=criar_embed_painel_icones(),
