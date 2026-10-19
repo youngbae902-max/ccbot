@@ -469,9 +469,12 @@ async def on_member_join(member: discord.Member):
 @bot.event
 async def on_ready():
     try:
-        # Sincronização por servidor: os comandos aparecem imediatamente neste Discord.
+        # Remove os comandos globais antigos para não duplicar os comandos do servidor.
+        bot.tree.clear_commands(guild=None)
+        await bot.tree.sync()
+
+        # Mantém uma única versão dos comandos neste servidor.
         guild = discord.Object(id=1561513043886743562)
-        bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
         log.info("Comandos sincronizados no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
