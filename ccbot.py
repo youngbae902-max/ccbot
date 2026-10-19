@@ -24,6 +24,7 @@ BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
 BEAT_PREVIEWS_DIR = Path("/sdcard/Download/CC/BeatPreviews")
 
 ADMIN_ID = 1366109646934380614
+ORDERS_CHANNEL_ID = 1561513284191125625
 DEFAULT_NOTICE_CHANNEL = 1561698571525423115
 WELCOME_CHANNEL_ID = 1561513269754068992
 
@@ -120,29 +121,15 @@ async def notify_admin(message):
 
 
 async def enviar_pedido_admin(mensagem, embed=None):
-    """Envia cada pedido tanto ao PV do administrador quanto ao canal de avisos."""
-    erros = []
+    """Envia pedidos somente ao canal central de pedidos, nunca ao PV."""
     try:
-        administrador = bot.get_user(ADMIN_ID) or await bot.fetch_user(ADMIN_ID)
-        await administrador.send(content=mensagem[:1900] if mensagem else None, embed=embed)
-    except Exception as exc:
-        erros.append(f"PV: {type(exc).__name__}")
-        log.exception("Não foi possível enviar pedido por PV ao administrador.")
-
-    try:
-        canal_id = int(settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL))
-        canal = bot.get_channel(canal_id)
+        canal = bot.get_channel(ORDERS_CHANNEL_ID)
         if canal is None:
-            canal = await bot.fetch_channel(canal_id)
+            canal = await bot.fetch_channel(ORDERS_CHANNEL_ID)
         await canal.send(content=mensagem[:1900] if mensagem else None, embed=embed)
-    except Exception as exc:
-        erros.append(f"canal de avisos: {type(exc).__name__}")
-        log.exception("Não foi possível enviar pedido ao canal de avisos.")
-
-    if len(erros) == 2:
-        raise RuntimeError("Falha no envio do pedido para PV e canal de avisos: " + "; ".join(erros))
-    if erros:
-        log.warning("Pedido enviado parcialmente; falha em %s", ", ".join(erros))
+    except Exception:
+        log.exception("Não foi possível enviar pedido ao canal central %s.", ORDERS_CHANNEL_ID)
+        raise
 
 
 
@@ -1183,6 +1170,12 @@ class ConfirmarDJButton(discord.ui.Button):
         # Confirma a interação imediatamente para evitar "o aplicativo não respondeu".
         try:
             await interaction.response.defer()
+            await enviar_pedido_admin(
+                f"🎧 **Pedido do gerador de samples**\n"
+                f"DJ selecionado: {nome}\n"
+                f"Solicitante: {interaction.user} (ID {interaction.user.id})\n"
+                f"Servidor: {interaction.guild.name if interaction.guild else 'DM'}"
+            )
             view_confirmacao = discord.ui.LayoutView(timeout=300)
             view_confirmacao.add_item(
                 discord.ui.Container(
@@ -1190,7 +1183,7 @@ class ConfirmarDJButton(discord.ui.Button):
                         content=(
                             "## 🎧 DJ SELECIONADO\n"
                             f"**{discord.utils.escape_markdown(nome)}**\n\n"
-                            "✅ Sua escolha foi confirmada.\n"
+                            "✅ Sua escolha foi confirmada e enviada para processamento.\n"
                             "A geração automática dos arquivos de áudio ainda não está integrada."
                         )
                     )
