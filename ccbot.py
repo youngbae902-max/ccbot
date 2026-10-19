@@ -20,6 +20,13 @@ ADMIN_ID = 1366109646934380614
 DEFAULT_NOTICE_CHANNEL = 1561698571525423115
 WELCOME_CHANNEL_ID = 1561513269754068992
 
+# REGRA PERMANENTE DE MANUTENÇÃO:
+# Ao alterar painéis do Discord, edite a mensagem já publicada sempre que possível.
+# Não publique outro embed/painel nem duplique mensagens sem pedido explícito do administrador
+# ou necessidade técnica real. O painel de Samples existente está identificado abaixo.
+SAMPLES_PANEL_CHANNEL_ID = 1561513284811624480
+SAMPLES_PANEL_MESSAGE_ID = 1561742192656261183
+
 CONFIG.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -393,8 +400,8 @@ async def on_ready():
 
         # Atualiza a mensagem do painel já publicada, sem criar outra.
         try:
-            samples_channel = await bot.fetch_channel(1561513284811624480)
-            samples_message = await samples_channel.fetch_message(1561742192656261183)
+            samples_channel = await bot.fetch_channel(SAMPLES_PANEL_CHANNEL_ID)
+            samples_message = await samples_channel.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
             await samples_message.edit(view=GeradorSamplesView())
             bot.add_view(GeradorSamplesView())
             log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
