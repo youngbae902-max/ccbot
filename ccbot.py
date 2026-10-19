@@ -281,10 +281,9 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
         await interaction.response.defer(ephemeral=True, thinking=True)
         canal = interaction.channel
         try:
-            await interaction.followup.send(
-                "🎧 **Envie o arquivo de áudio por mensagem privada para o CC BOT.**\n"
-                "Só você verá esta instrução. Você tem 3 minutos para enviar o arquivo no privado do bot.",
-                ephemeral=True
+            await interaction.edit_original_response(
+                content="🎧 **Envie o arquivo de áudio por mensagem privada para o CC BOT.**\n"
+                "Só você verá esta instrução. Você tem 3 minutos para enviar o arquivo no privado do bot."
             )
             dm = await interaction.user.create_dm()
             await dm.send(
@@ -368,12 +367,12 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             preco=preco,
             preview_path=preview_path
         )
-        await interaction.followup.send(
-            f"**É esse o arquivo mesmo?**\nArquivo: `{audio.filename}`\n"
+        await interaction.edit_original_response(
+            content=f"**É esse o arquivo mesmo?**\nArquivo: `{audio.filename}`\n"
             "Confira o áudio anexado abaixo. Só você verá esta confirmação.",
+            attachments=[],
             file=discord.File(preview_path, filename=audio.filename),
-            view=view,
-            ephemeral=True
+            view=view
         )
 
 
