@@ -253,6 +253,65 @@ async def arrumador(interaction: discord.Interaction):
 
 
 
+@bot.tree.command(name="lojas-publicar", description="Publicar os links das lojas nos canais configurados")
+async def lojas_publicar(interaction: discord.Interaction):
+    if await deny_unauthorized(interaction):
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    publicados = []
+    ja_existiam = []
+    falhas = []
+
+    for channel_id, (name, url) in STORE_CHANNELS.items():
+        try:
+            channel = bot.get_channel(channel_id)
+            if channel is None:
+                channel = await bot.fetch_channel(channel_id)
+            if not isinstance(channel, discord.TextChannel):
+                falhas.append(f"{name}: o destino não é um canal de texto")
+                continue
+
+            # Evita duplicar o mesmo link caso o comando seja executado novamente.
+            encontrado = False
+            async for message in channel.history(limit=50):
+                if message.author.id == bot.user.id and any(
+                    embed.title == "Acesse" and embed.description and url in embed.description
+                    for embed in message.embeds
+                ):
+                    encontrado = True
+                    break
+
+            if encontrado:
+                ja_existiam.append(name)
+                continue
+
+            embed = discord.Embed(
+                title="Acesse",
+                description=f"[{name}]({url})",
+                color=discord.Color.from_rgb(0, 0, 0)
+            )
+            if channel.guild.icon:
+                embed.set_thumbnail(url=channel.guild.icon.url)
+            await channel.send(embed=embed)
+            publicados.append(name)
+        except Exception as exc:
+            log.exception("Falha ao publicar link de %s", name)
+            falhas.append(f"{name}: {type(exc).__name__}")
+
+    linhas = []
+    if publicados:
+        linhas.append("**Publicados agora:** " + ", ".join(publicados))
+    if ja_existiam:
+        linhas.append("**Já estavam publicados (sem duplicar):** " + ", ".join(ja_existiam))
+    if falhas:
+        linhas.append("**Falhas:** " + "; ".join(falhas))
+    if not linhas:
+        linhas.append("Nenhum canal foi processado.")
+
+    await interaction.followup.send("\\n".join(linhas), ephemeral=True)
+
+
 @bot.event
 async def on_guild_channel_create(channel: discord.abc.GuildChannel):
     if channel.id not in STORE_CHANNELS or not isinstance(channel, discord.TextChannel):
