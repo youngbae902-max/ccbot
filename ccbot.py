@@ -1510,7 +1510,35 @@ async def samples(interaction: discord.Interaction):
         return
     await interaction.response.send_message(view=GeradorSamplesView())
 
-@bot.tree.command(name="painel-acapellas", description="Enviar o painel de busca de acapellas")
+class AcapellasActivityButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="ENTRAR",
+            emoji="🔎",
+            style=discord.ButtonStyle.primary,
+            custom_id="ccbot:acapellas_launch_activity"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            # Abre a Activity configurada no Developer Portal dentro do Discord.
+            await interaction.response.launch_activity()
+        except discord.HTTPException:
+            log.exception("Falha ao lançar Activity de acapellas")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ Não consegui abrir a Activity. Confira se Atividades está ativado e se o mapeamento de URL está válido.",
+                    ephemeral=True
+                )
+
+
+class AcapellasActivityView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(AcapellasActivityButton())
+
+
+@bot.tree.command(name="painel-acapellas", description="Publicar o painel de busca de acapellas")
 async def painel_acapellas(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
@@ -1537,28 +1565,20 @@ async def painel_acapellas(interaction: discord.Interaction):
         )
         embed.set_footer(text="CC BOT • Busca de Acapellas")
 
-        view = discord.ui.View(timeout=None)
-        view.add_item(discord.ui.Button(
-            label="ENTRAR",
-            emoji="🔎",
-            style=discord.ButtonStyle.link,
-            url="https://packy.lovable.app/mcs"
-        ))
-
-        await canal.send(embed=embed, view=view)
+        await canal.send(embed=embed, view=AcapellasActivityView())
         await interaction.response.send_message(
-            f"✅ Painel de acapellas enviado para {canal.mention}.", ephemeral=True
+            f"✅ Painel de acapellas publicado em {canal.mention} com botão de Activity.", ephemeral=True
         )
     except Exception as exc:
-        log.exception("Falha ao enviar painel de acapellas")
+        log.exception("Falha ao publicar painel de acapellas")
         if interaction.response.is_done():
             await interaction.followup.send(
-                "❌ Não consegui enviar o painel. Confira as permissões do bot no canal.",
+                "❌ Não consegui publicar o painel. Confira as permissões do bot no canal.",
                 ephemeral=True
             )
         else:
             await interaction.response.send_message(
-                "❌ Não consegui enviar o painel. Confira as permissões do bot no canal.",
+                "❌ Não consegui publicar o painel. Confira as permissões do bot no canal.",
                 ephemeral=True
             )
 
@@ -2003,6 +2023,9 @@ async def on_ready():
             log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
         except Exception:
             log.exception("Não foi possível atualizar o painel /samples existente.")
+
+        bot.add_view(AcapellasActivityView())
+        log.info("View persistente do painel de acapellas registrada.")
 
         bot.add_view(ArrumadorPainelView())
         log.info("View persistente do painel Arrumador registrada.")
