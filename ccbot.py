@@ -181,6 +181,20 @@ async def status(interaction: discord.Interaction):
         ephemeral=True
     )
 
+class GerarSamplesButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Gerar Samples", style=discord.ButtonStyle.primary, custom_id="ccbot:gerar_samples")
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Esse botão está disponível apenas para o administrador.", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            "O botão está no painel, mas a lógica de geração ainda precisa ser integrada.",
+            ephemeral=True
+        )
+
+
 class GeradorSamplesView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
@@ -220,7 +234,8 @@ class GeradorSamplesView(discord.ui.LayoutView):
                         "### <:emoji_14:1561362005104001095> Gere __Quantas Samples Quiser!__\n"
                         "Tenha liberdade para gerar **quantas samples quiser**, de forma prática, rápida e direto pelo painel."
                     )
-                )
+                ),
+                discord.ui.ActionRow(GerarSamplesButton())
             )
         )
 
@@ -375,6 +390,16 @@ async def on_ready():
         )
         embed.set_footer(text="CC BOT • Sistema de inicialização")
         await channel.send(embed=embed)
+
+        # Atualiza a mensagem do painel já publicada, sem criar outra.
+        try:
+            samples_channel = await bot.fetch_channel(1561513284811624480)
+            samples_message = await samples_channel.fetch_message(1561742192656261183)
+            await samples_message.edit(view=GeradorSamplesView())
+            bot.add_view(GeradorSamplesView())
+            log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
+        except Exception:
+            log.exception("Não foi possível atualizar o painel /samples existente.")
 
     except Exception as exc:
         log.exception("Falha ao iniciar ou sincronizar comandos")
