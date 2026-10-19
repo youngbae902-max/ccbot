@@ -774,7 +774,7 @@ async def iniciar_fluxo_pack(interaction: discord.Interaction, plano: str):
     if interaction.guild is None:
         await interaction.response.send_message("Use este painel dentro do servidor.", ephemeral=True)
         return
-    fluxo = PackPerguntasView(interaction.user.id, plano, interaction.guild.id)
+    fluxo = PackPerguntasView(interaction.user.id, plano, interaction.guild.id, interaction)
     await interaction.response.send_message(view=fluxo, ephemeral=True)
 
 class PackRespostaModal(discord.ui.Modal):
@@ -795,13 +795,13 @@ class PackRespostaModal(discord.ui.Modal):
             await interaction.response.send_message("Este pedido pertence a outra pessoa.", ephemeral=True)
             return
         self.parent_view.salvar_resposta(str(self.resposta.value).strip())
-        await interaction.response.defer()
-        await self.parent_view.mostrar_proxima(interaction)
+        await self.parent_view.mostrar_proxima()
 
 class PackPerguntasView(discord.ui.LayoutView):
-    def __init__(self, owner_id: int, plano: str, guild_id: int):
+    def __init__(self, owner_id: int, plano: str, guild_id: int, painel_interaction):
         super().__init__(timeout=900)
         self.owner_id = owner_id
+        self.painel_interaction = painel_interaction
         self.plano = plano
         self.guild_id = guild_id
         self.respostas = {}
@@ -875,7 +875,7 @@ class PackPerguntasView(discord.ui.LayoutView):
         titulo, pergunta, dica = PACK_QUESTIONS[self.plano][self.indice]
         await interaction.response.send_modal(PackRespostaModal(self, titulo, pergunta, dica))
 
-    async def mostrar_proxima(self, interaction):
+    async def mostrar_proxima(self):
         if self.fase == "perguntas":
             self.indice += 1
             if self.indice >= len(PACK_QUESTIONS[self.plano]):
@@ -888,17 +888,17 @@ class PackPerguntasView(discord.ui.LayoutView):
             if self.extras_indice >= len(PACK_EXTRAS):
                 self.fase = "revisao"
         self.rebuild()
-        await interaction.edit_original_response(view=self)
+        await self.painel_interaction.edit_original_response(view=self)
 
     async def responder_extra_sim(self, interaction):
         nome, preco, _ = PACK_EXTRAS[self.extras_indice]
         self.extras_escolhidos.append((nome, preco))
         await interaction.response.defer()
-        await self.mostrar_proxima(interaction)
+        await self.mostrar_proxima()
 
     async def responder_extra_nao(self, interaction):
         await interaction.response.defer()
-        await self.mostrar_proxima(interaction)
+        await self.mostrar_proxima()
 
     async def voltar(self, interaction):
         if self.fase == "revisao":
@@ -940,10 +940,10 @@ class PackPerguntasView(discord.ui.LayoutView):
             self.add_item(discord.ui.Container(discord.ui.TextDisplay(
                 content=f"## ✅ PEDIDO ENVIADO\nSeu pedido de **{self.plano}** foi enviado ao administrador.\n**Valor estimado:** R$ {total},00"
             )))
-            await interaction.edit_original_response(view=self)
+            await self.painel_interaction.edit_original_response(view=self)
         except Exception:
             log.exception("Falha ao enviar pedido de pack")
-            await interaction.edit_original_response(content="❌ Não consegui enviar o pedido. Tente novamente.", view=None)
+            await self.painel_interaction.edit_original_response(content="❌ Não consegui enviar o pedido. Tente novamente.", view=None)
 
 
 async def criar_pack_personalizado(interaction: discord.Interaction):
