@@ -210,16 +210,27 @@ class ConfirmarPublicacaoBeatView(discord.ui.View):
     @discord.ui.button(label="Confirmar", emoji="✅", style=discord.ButtonStyle.success)
     async def confirmar(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode confirmar a publicação.", ephemeral=True)
+            await interaction.response.send_message(
+                "Apenas o administrador pode confirmar a publicação.",
+                ephemeral=True
+            )
             return
+
+        # Responde primeiro à interação para evitar que ela expire durante a publicação.
+        await interaction.response.defer(ephemeral=True, thinking=True)
 
         embed = discord.Embed(
             title=f"🎧 {self.nome}",
-            description=self.descricao,
+            description=self.descricao or "Sem descrição.",
             color=discord.Color.green()
         )
-        embed.add_field(name="Estilo", value=self.estilo, inline=True)
+        embed.add_field(name="Estilo", value=self.estilo or "Não informado", inline=True)
         embed.add_field(name="Valor", value=self.preco, inline=True)
+        embed.add_field(
+            name="Prévia",
+            value="Clique em **Ouvir prévia** para escutar o áudio.",
+            inline=False
+        )
         embed.set_footer(text="CC BOT • Venda de Beats")
 
         view = VendaBeatView(
@@ -228,16 +239,22 @@ class ConfirmarPublicacaoBeatView(discord.ui.View):
             preview_path=self.preview_path
         )
         try:
-            await self.canal.send(embed=embed, view=view)
-            await interaction.response.defer()
-            await interaction.delete_original_response()
-        except Exception:
+            mensagem_publicada = await self.canal.send(embed=embed, view=view)
+            log.info(
+                "Beat publicado com sucesso: nome=%r canal=%s mensagem=%s",
+                self.nome, self.canal.id, mensagem_publicada.id
+            )
+            await interaction.edit_original_response(
+                content=f"✅ Beat **{self.nome}** publicado em {self.canal.mention}.",
+                view=None,
+                attachments=[]
+            )
+        except Exception as exc:
             log.exception("Falha ao publicar beat confirmado")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "Não consegui publicar o beat. Verifique os logs do bot.",
-                    ephemeral=True
-                )
+            await interaction.edit_original_response(
+                content=f"❌ Não consegui publicar o beat ({type(exc).__name__}). Verifique as permissões do bot no canal.",
+                view=None
+            )
 
     @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.danger)
     async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
