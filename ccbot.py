@@ -564,10 +564,9 @@ async def painel(interaction: discord.Interaction):
         return
 
     embed = discord.Embed(
-        title="<:box:1561493252727902298>・Painel de Configurações",
+        title="<:box:1561761831587160140> Gerencie os módulos e as funcionalidades do **CC BOT** por aqui.",
         description=(
-            "Gerencie os módulos e as funcionalidades do **CC BOT** por aqui.\n\n"
-            "### <:customer_service_headset:1561493064709570057>・Gerenciamento de DJs\n"
+            "### <:customer_service_headset:1561761835181674536>・Gerenciamento de DJs\n"
             "Adicione os DJs que deverão aparecer no botão **Gerar Samples**.\n\n"
             "-# Novas opções de configuração poderão ser adicionadas a este painel."
         ),
