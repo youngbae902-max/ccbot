@@ -7,6 +7,7 @@ import io
 import uuid
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import urlparse
 
 import discord
 from discord.ext import commands, tasks
@@ -1522,9 +1523,13 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             await interaction.user.send(
-                "**🧰 Arrumador de Projetos**\n"
-                "Recebi sua descrição. Agora envie aqui nesta conversa privada o arquivo **.ZIP** do projeto.\n"
-                "Envie somente um ZIP válido. Você tem **10 minutos**."
+                "**🧰 Arrumador de Projetos**\\n"
+                "Recebi sua descrição. Envie o ZIP aqui no PV se o Discord permitir.\\n\\n"
+                "**Se o arquivo for grande e o Discord pedir Nitro:**\\n"
+                "1. Envie o ZIP para o Google Drive.\\n"
+                "2. No Drive, abra **Compartilhar** e mude o acesso para **Qualquer pessoa com o link** (leitor).\\n"
+                "3. Cole o link aqui nesta conversa privada.\\n\\n"
+                "Aceito anexos ZIP ou links do Google Drive, Dropbox, OneDrive e WeTransfer. Você tem **10 minutos**."
             )
         except discord.Forbidden:
             await interaction.followup.send(
@@ -1534,15 +1539,20 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
             return
 
         await interaction.followup.send(
-            "Te enviei uma mensagem privada para você anexar o ZIP do projeto.",
+            "Te enviei as instruções no PV. Se o ZIP for grande demais para o Discord, pode mandar um link de compartilhamento.",
             ephemeral=True
         )
 
-        def arquivo_do_usuario(message: discord.Message):
+        hosts_permitidos = (
+            "drive.google.com", "docs.google.com", "dropbox.com", "www.dropbox.com",
+            "1drv.ms", "onedrive.live.com", "wetransfer.com", "www.wetransfer.com"
+        )
+
+        def mensagem_do_usuario(message: discord.Message):
             return (
                 message.author.id == interaction.user.id
                 and isinstance(message.channel, discord.DMChannel)
-                and bool(message.attachments)
+                and (bool(message.attachments) or bool(message.content.strip()))
             )
 
         limite = asyncio.get_running_loop().time() + 600
@@ -1559,7 +1569,7 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
 
             try:
                 mensagem_zip = await bot.wait_for(
-                    "message", check=arquivo_do_usuario, timeout=restante
+                    "message", check=mensagem_do_usuario, timeout=restante
                 )
             except asyncio.TimeoutError:
                 try:
@@ -1574,11 +1584,68 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
                 (a for a in mensagem_zip.attachments if Path(a.filename).suffix.lower() == ".zip"),
                 None
             )
+
             if anexo is None:
-                await interaction.user.send("⚠️ Não encontrei um arquivo .zip nessa mensagem. Envie o ZIP do projeto.")
+                texto = mensagem_zip.content.strip()
+                urls = [parte.strip("<>") for parte in texto.split() if parte.startswith(("https://", "http://"))]
+                url_valida = None
+                for url in urls:
+                    parsed = urlparse(url)
+                    host = (parsed.hostname or "").lower()
+                    if parsed.scheme == "https" and any(
+                        host == permitido or host.endswith("." + permitido)
+                        for permitido in hosts_permitidos
+                    ):
+                        url_valida = url
+                        break
+
+                if url_valida:
+                    resumo = (
+                        "🧰 **Novo pedido — Arrumador de Projetos**\\n"
+                        f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\\n"
+                        f"**Pedido de mudança:**\\n{self.mudancas.value}\\n"
+                        "**Arquivo:** enviado por link externo (não anexado ao Discord)\\n"
+                        f"**Link do arquivo:** {url_valida}\\n"
+                        "⚠️ Confira se o link está acessível; o bot não consegue validar o conteúdo do arquivo hospedado."
+                    )
+                    erros = []
+                    try:
+                        admin = bot.get_user(ADMIN_ID) or await bot.fetch_user(ADMIN_ID)
+                        await admin.send(resumo)
+                    except Exception:
+                        erros.append("PV do administrador")
+                        log.exception("Falha ao enviar link do Arrumador por PV.")
+
+                    try:
+                        canal_id = int(settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL))
+                        canal = bot.get_channel(canal_id)
+                        if canal is None:
+                            canal = await bot.fetch_channel(canal_id)
+                        await canal.send(resumo)
+                    except Exception:
+                        erros.append("canal de avisos")
+                        log.exception("Falha ao enviar link do Arrumador ao canal de avisos.")
+
+                    if len(erros) == 2:
+                        await interaction.user.send(
+                            "❌ Não consegui encaminhar seu pedido. Avise o administrador e tente novamente mais tarde."
+                        )
+                    else:
+                        await interaction.user.send(
+                            "✅ Seu pedido e o link do arquivo foram encaminhados para análise."
+                            + (f"\\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
+                        )
+                    return
+
+                await interaction.user.send(
+                    "⚠️ Não encontrei um anexo .ZIP nem um link compatível. Envie o ZIP ou um link HTTPS do Google Drive, Dropbox, OneDrive ou WeTransfer."
+                )
                 continue
+
             if anexo.size > 24 * 1024 * 1024:
-                await interaction.user.send("⚠️ O ZIP ultrapassa o limite de 24 MB deste fluxo. Envie um arquivo menor.")
+                await interaction.user.send(
+                    "⚠️ Esse anexo ultrapassa o limite deste fluxo. Para não precisar de Nitro, envie o ZIP ao Google Drive, habilite **Qualquer pessoa com o link** e cole o link aqui."
+                )
                 continue
 
             try:
@@ -1597,9 +1664,9 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
 
             nome_seguro = Path(anexo.filename).name.replace("/", "_").replace(chr(92), "_")
             resumo = (
-                "🧰 **Novo pedido — Arrumador de Projetos**\n"
-                f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\n"
-                f"**Pedido de mudança:**\n{self.mudancas.value}\n"
+                "🧰 **Novo pedido — Arrumador de Projetos**\\n"
+                f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\\n"
+                f"**Pedido de mudança:**\\n{self.mudancas.value}\\n"
                 f"**Arquivo:** `{nome_seguro}`"
             )
             erros = []
@@ -1635,7 +1702,7 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
 
             await interaction.user.send(
                 "✅ Seu pedido e o ZIP foram encaminhados para análise."
-                + (f"\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
+                + (f"\\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
             )
             return
 
