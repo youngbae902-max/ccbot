@@ -356,7 +356,8 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
 
             try:
                 await interaction.edit_original_response(
-                    content=f"📥 Recebi **{mensagem.attachments[0].filename}** no canal. Verificando o formato..."
+                    content=f"📥 Recebi **{mensagem.attachments[0].filename}** no canal. Verificando o formato...",
+                    embed=None
                 )
             except discord.HTTPException:
                 pass
@@ -379,7 +380,8 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
 
         try:
             await interaction.edit_original_response(
-                content=f"✅ Áudio reconhecido: `{audio.filename}`. Baixando o arquivo..."
+                content=f"✅ Áudio reconhecido: `{audio.filename}`. Baixando o arquivo...",
+                embed=None
             )
             safe_name = Path(audio.filename).name.replace("/", "_").replace("\\", "_")
             preview_path = BEAT_PREVIEWS_DIR / f"{uuid.uuid4().hex}_{safe_name}"
@@ -391,7 +393,8 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
                 raise ValueError("O Discord retornou um arquivo de áudio vazio.")
 
             await interaction.edit_original_response(
-                content=f"📦 Áudio baixado ({len(dados_audio) // 1024} KB). Salvando e preparando a confirmação..."
+                content=f"📦 Áudio baixado ({len(dados_audio) // 1024} KB). Salvando...",
+                embed=None
             )
             await asyncio.wait_for(
                 asyncio.to_thread(preview_path.write_bytes, dados_audio),
