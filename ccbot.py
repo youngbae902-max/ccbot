@@ -340,8 +340,20 @@ async def painel(interaction: discord.Interaction):
         await interaction.response.send_message("Apenas o administrador pode abrir esse painel.", ephemeral=True)
         return
 
+    embed = discord.Embed(
+        title="⚙️ Painel de Configurações",
+        description=(
+            "Gerencie os módulos e as funcionalidades do **CC BOT** por aqui.\n\n"
+            "### 🎧 Gerenciamento de DJs\n"
+            "Adicione os DJs que deverão aparecer no botão **Gerar Samples**.\n\n"
+            "-# Novas opções de configuração poderão ser adicionadas a este painel."
+        ),
+        color=discord.Color.green()
+    )
+    embed.set_footer(text="CC BOT • Painel de Configurações")
+
     await interaction.response.send_message(
-        "## Painel de configuração\nAdicione os DJs que deverão aparecer no botão **Gerar Samples**.",
+        embed=embed,
         view=PainelAdminView(),
         ephemeral=True
     )
