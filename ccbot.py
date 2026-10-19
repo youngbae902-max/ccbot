@@ -1734,6 +1734,141 @@ async def abrir_trabalhos_on(interaction: discord.Interaction):
     await interaction.response.edit_message(embed=embed, view=TrabalhosOnView())
 
 
+
+def formatar_permissoes_overwrite(canal):
+    linhas = []
+    for alvo, overwrite in canal.overwrites.items():
+        allow, deny = overwrite.pair()
+        permitidas = [nome for nome, valor in allow if valor]
+        negadas = [nome for nome, valor in deny if valor]
+        tipo = "cargo" if isinstance(alvo, discord.Role) else "membro"
+        nome_alvo = f"@everyone ({alvo.id})" if isinstance(alvo, discord.Role) and alvo.is_default() else f"{alvo.name} ({alvo.id})"
+        linhas.append(f"    - {tipo}: {nome_alvo}")
+        linhas.append(f"      permite: {', '.join(permitidas) if permitidas else 'nenhuma explicitamente'}")
+        linhas.append(f"      nega: {', '.join(negadas) if negadas else 'nenhuma explicitamente'}")
+    return linhas
+
+
+def gerar_relatorio_hierarquia(guild, canais):
+    agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    linhas = [
+        "RELATÓRIO DE HIERARQUIA — CC BOT",
+        f"Servidor: {guild.name} (ID: {guild.id})",
+        f"Gerado em: {agora}",
+        f"Categorias: {sum(isinstance(c, discord.CategoryChannel) for c in canais)}",
+        f"Canais totais: {sum(not isinstance(c, discord.CategoryChannel) for c in canais)}",
+        f"Cargos: {len(guild.roles)}",
+        "",
+        "=" * 72,
+        "1. ESTRUTURA DE CATEGORIAS E CANAIS",
+        "=" * 72,
+    ]
+
+    categorias = sorted(
+        (c for c in canais if isinstance(c, discord.CategoryChannel)),
+        key=lambda c: c.position
+    )
+    canais_sem_categoria = []
+    for categoria in categorias:
+        linhas.append("")
+        linhas.append(f"[CATEGORIA] {categoria.name} | ID: {categoria.id} | posição: {categoria.position}")
+        linhas.extend(formatar_permissoes_overwrite(categoria))
+        filhos = sorted(
+            (c for c in canais if not isinstance(c, discord.CategoryChannel) and c.category_id == categoria.id),
+            key=lambda c: (c.position, c.name.casefold())
+        )
+        if not filhos:
+            linhas.append("  (sem canais)")
+        for canal in filhos:
+            tipo = type(canal).__name__
+            extra = ""
+            if isinstance(canal, discord.TextChannel):
+                extra = f" | NSFW: {canal.nsfw} | lento: {canal.slowmode_delay}s"
+            elif isinstance(canal, discord.VoiceChannel):
+                extra = f" | bitrate: {canal.bitrate} | limite: {canal.user_limit}"
+            linhas.append(f"  [{tipo}] {canal.name} | ID: {canal.id} | posição: {canal.position}{extra}")
+            linhas.extend(formatar_permissoes_overwrite(canal))
+    canais_sem_categoria = sorted(
+        (c for c in canais if not isinstance(c, discord.CategoryChannel) and c.category_id is None),
+        key=lambda c: (c.position, c.name.casefold())
+    )
+    if canais_sem_categoria:
+        linhas.append("")
+        linhas.append("[CANAIS SEM CATEGORIA]")
+        for canal in canais_sem_categoria:
+            linhas.append(f"  [{type(canal).__name__}] {canal.name} | ID: {canal.id} | posição: {canal.position}")
+            linhas.extend(formatar_permissoes_overwrite(canal))
+
+    linhas.extend(["", "=" * 72, "2. CARGOS E PERMISSÕES GERAIS", "=" * 72, ""])
+    for cargo in sorted(guild.roles, key=lambda r: r.position, reverse=True):
+        perms = [nome for nome, ativo in cargo.permissions if ativo]
+        linhas.append(
+            f"[CARGO] {cargo.name} | ID: {cargo.id} | posição: {cargo.position} | "
+            f"membros: {len(cargo.members)} | gerenciado pelo Discord/bot: {cargo.managed} | "
+            f"exibido separado: {cargo.hoist} | mencionável: {cargo.mentionable}"
+        )
+        linhas.append(f"  permissões gerais: {', '.join(perms) if perms else 'nenhuma'}")
+        linhas.append("")
+
+    linhas.extend([
+        "=" * 72,
+        "3. NOTAS PARA A ANÁLISE",
+        "=" * 72,
+        "- Permissões de categoria podem ser sobrescritas por permissões específicas do canal.",
+        "- Cargos com permissões gerais elevadas podem manter acesso mesmo quando @everyone é limitado.",
+        "- A ordem dos cargos afeta a hierarquia e quais cargos o bot consegue gerenciar.",
+        "- Este relatório é somente leitura; nenhuma categoria, canal, cargo ou permissão foi alterado.",
+    ])
+    return "\n".join(linhas)
+
+
+async def analisar_hierarquia(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode usar esta função.", ephemeral=True)
+        return
+    if interaction.guild is None:
+        await interaction.response.send_message("Abra esta função dentro do servidor.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        guild = interaction.guild
+        # Busca a lista atual do Discord para não depender apenas do cache local.
+        canais = await guild.fetch_channels()
+        relatorio = gerar_relatorio_hierarquia(guild, canais)
+        arquivo = discord.File(
+            io.BytesIO(relatorio.encode("utf-8")),
+            filename=f"hierarquia_{guild.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        )
+        administrador = bot.get_user(ADMIN_ID) or await bot.fetch_user(ADMIN_ID)
+        await administrador.send(
+            content=(
+                f"📋 **Relatório de hierarquia de {guild.name}**\\n"
+                f"Categorias: **{sum(isinstance(c, discord.CategoryChannel) for c in canais)}** • "
+                f"Canais: **{sum(not isinstance(c, discord.CategoryChannel) for c in canais)}** • "
+                f"Cargos: **{len(guild.roles)}**\\n"
+                "O arquivo contém a estrutura e as permissões gerais e específicas. "
+                "Nenhuma alteração foi feita no servidor."
+            ),
+            file=arquivo
+        )
+        await interaction.followup.send(
+            "✅ Relatório enviado ao seu PV. Não alterei nenhuma categoria, canal, cargo ou permissão.",
+            ephemeral=True
+        )
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ Não consegui enviar o relatório no PV. Ative mensagens diretas do servidor e tente novamente.",
+            ephemeral=True
+        )
+    except Exception as exc:
+        log.exception("Falha ao gerar relatório de hierarquia")
+        await interaction.followup.send(
+            f"❌ Não consegui gerar o relatório ({type(exc).__name__}). Confira os avisos do bot.",
+            ephemeral=True
+        )
+
+
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
@@ -1751,6 +1886,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 discord.SelectOption(label="Gerenciar ícones", description="Monitorar Pinterest e publicar álbuns de fotos", emoji="🖼️", value="icones"),
                 discord.SelectOption(label="Permissões das categorias", description="Somente leitura, mantendo bots utilizáveis e Comunidade intacta", emoji="🔒", value="permissoes_categorias"),
                 discord.SelectOption(label="Trabalhos ON", description="Publicar aviso no canal e marcar todos", emoji="📣", value="trabalhos_on"),
+                discord.SelectOption(label="Analisar hierarquia", description="Enviar categorias, canais, cargos e permissões no PV", emoji="🧭", value="analisar_hierarquia"),
             ]
         )
 
@@ -1794,6 +1930,8 @@ class CategoriaPainelSelect(discord.ui.Select):
             await abrir_permissoes_categorias(interaction)
         elif categoria == "trabalhos_on":
             await abrir_trabalhos_on(interaction)
+        elif categoria == "analisar_hierarquia":
+            await analisar_hierarquia(interaction)
         elif categoria == "icones":
             await interaction.response.edit_message(
                 embed=criar_embed_painel_icones(),
