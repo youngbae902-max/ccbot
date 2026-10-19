@@ -535,22 +535,32 @@ class ComprarBeatButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         try:
+            # Reconhece o clique antes de avisar o administrador.
+            await interaction.response.defer(ephemeral=True, thinking=True)
             await enviar_pedido_admin(
-                f"🛒 **Pedido de compra de beat**\nBeat: {self.nome}\nValor: {self.preco}\n"
-                f"Comprador: {interaction.user} (ID {interaction.user.id})\n"
+                f"🛒 **Pedido de compra de beat**\\nBeat: {self.nome}\\nValor: {self.preco}\\n"
+                f"Comprador: {interaction.user} (ID {interaction.user.id})\\n"
                 f"Servidor: {interaction.guild.name if interaction.guild else 'DM'}"
             )
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"🛒 Seu interesse em **{self.nome}** ({self.preco}) foi enviado ao administrador. Aguarde o contato para concluir a compra.",
                 ephemeral=True
             )
         except Exception:
             log.exception("Falha ao registrar interesse de compra de beat")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "Não consegui registrar seu pedido agora. Tente novamente mais tarde.",
-                    ephemeral=True
-                )
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(
+                        "Não consegui registrar seu pedido agora. Tente novamente mais tarde.",
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.response.send_message(
+                        "Não consegui registrar seu pedido agora. Tente novamente mais tarde.",
+                        ephemeral=True
+                    )
+            except Exception:
+                log.exception("Falha ao informar erro no pedido de compra de beat")
 
 
 class VendaBeatView(discord.ui.View):
