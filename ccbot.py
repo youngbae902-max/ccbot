@@ -469,8 +469,11 @@ async def on_member_join(member: discord.Member):
 @bot.event
 async def on_ready():
     try:
-        synced = await bot.tree.sync()
-        log.info("Comandos sincronizados: %s", len(synced))
+        # Sincronização por servidor: os comandos aparecem imediatamente neste Discord.
+        guild = discord.Object(id=1561513043886743562)
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
+        log.info("Comandos sincronizados no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
 
         if not getattr(bot, "_sales_history_counted", False):
