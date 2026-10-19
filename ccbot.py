@@ -1980,7 +1980,8 @@ async def on_ready():
         bot.tree.clear_commands(guild=guild)
         bot.tree.copy_global_to(guild=guild)
         bot.tree.clear_commands(guild=None)
-        await bot.tree.sync()
+        # Não sincronize a árvore global vazia: o Discord protege o comando Entry Point
+        # das Activities contra exclusão em atualizações em lote.
         synced = await bot.tree.sync(guild=guild)
         log.info("Comandos sincronizados somente no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
