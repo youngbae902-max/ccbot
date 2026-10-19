@@ -304,12 +304,21 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             )
             return
 
-        await interaction.edit_original_response(
-            content=(
-                "🎧 **Envie o arquivo de áudio neste canal do servidor.**\\n"
-                "A mensagem de instrução é privada, mas o arquivo deve ser enviado aqui no canal. "
-                "Você tem 3 minutos. Depois que eu receber, vou preparar a confirmação."
+        instrucoes = discord.Embed(
+            title="🎧 Envio da prévia do beat",
+            description=(
+                "Envie **o arquivo de áudio neste canal** para continuar o cadastro.\\n\\n"
+                "・ Aceito: MP3, WAV, OGG, M4A e outros formatos de áudio.\\n"
+                "・ Você tem **3 minutos** para enviar o arquivo.\\n"
+                "・ Assim que o áudio for recebido, o beat será publicado automaticamente."
             ),
+            color=discord.Color.blurple()
+        )
+        instrucoes.set_footer(text="CC BOT • Venda de Beats")
+
+        await interaction.edit_original_response(
+            content=None,
+            embed=instrucoes,
             view=None
         )
 
