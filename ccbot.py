@@ -20,6 +20,13 @@ ADMIN_ID = 1366109646934380614
 DEFAULT_NOTICE_CHANNEL = 1561698571525423115
 WELCOME_CHANNEL_ID = 1561513269754068992
 
+STORE_CHANNELS = {
+    1561513281049595958: ("Loja CC", "https://ccloja.erbysite.com/"),
+    1561513282265944104: ("Packy", "https://packy.lovable.app"),
+    1561513283171651644: ("Grimo", "https://garimoh.lovable.app/perfil"),
+}
+
+
 CONFIG.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -244,6 +251,26 @@ async def arrumador(interaction: discord.Interaction):
         ephemeral=True
     )
 
+
+
+@bot.event
+async def on_guild_channel_create(channel: discord.abc.GuildChannel):
+    if channel.id not in STORE_CHANNELS or not isinstance(channel, discord.TextChannel):
+        return
+    try:
+        guild_icon = channel.guild.icon.url if channel.guild.icon else None
+        name, url = STORE_CHANNELS[channel.id]
+        embed = discord.Embed(
+            title="Acesse",
+            description=f"[{name}]({url})",
+            color=discord.Color.from_rgb(0, 0, 0)
+        )
+        if guild_icon:
+            embed.set_thumbnail(url=guild_icon)
+        await channel.send(embed=embed)
+    except Exception as exc:
+        log.exception("Falha ao publicar embed da loja/site")
+        await notify_admin(f"Falha no embed de {channel.name}: {exc}")
 
 @bot.event
 async def on_member_join(member: discord.Member):
