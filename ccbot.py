@@ -1362,7 +1362,7 @@ async def publicar_album_icone(nome, paths):
             embed = discord.Embed(
                 title=f"Icon - {nome}" if inicio == 0 else f"Icon - {nome} (continuação)",
                 description=f"📸 {len(paths)} foto(s)" if inicio == 0 else None,
-                color=discord.Color.from_rgb(190, 45, 75)
+                color=discord.Color.from_rgb(0, 0, 0)
             )
             embed.set_footer(text="CC BOT • Icons")
             await canal.send(embed=embed, files=arquivos)
