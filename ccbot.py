@@ -1,4 +1,5 @@
 import os
+import asyncio
 import json
 import logging
 import zipfile
@@ -350,9 +351,13 @@ class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
         save_json(DJS_FILE, mcs)
         await interaction.response.send_message(
             f"DJ **{discord.utils.escape_markdown(nome)}** adicionado à lista.",
-            ephemeral=True,
-            view=PainelAdminView()
+            ephemeral=True
         )
+        await asyncio.sleep(2)
+        try:
+            await interaction.delete_original_response()
+        except (discord.NotFound, discord.HTTPException):
+            pass
 
 
 class AlterarDJModal(discord.ui.Modal, title="Alterar nome de DJ"):
@@ -389,9 +394,13 @@ class AlterarDJModal(discord.ui.Modal, title="Alterar nome de DJ"):
         save_json(DJS_FILE, mcs)
         await interaction.response.send_message(
             f"Nome alterado: **{discord.utils.escape_markdown(antigo)}** → **{discord.utils.escape_markdown(novo)}**.",
-            ephemeral=True,
-            view=PainelAdminView()
+            ephemeral=True
         )
+        await asyncio.sleep(2)
+        try:
+            await interaction.delete_original_response()
+        except (discord.NotFound, discord.HTTPException):
+            pass
 
 
 class ExcluirDJSelect(discord.ui.Select):
@@ -417,9 +426,13 @@ class ExcluirDJSelect(discord.ui.Select):
         save_json(DJS_FILE, mcs)
         await interaction.response.send_message(
             f"DJ **{discord.utils.escape_markdown(nome)}** excluído.",
-            ephemeral=True,
-            view=PainelAdminView()
+            ephemeral=True
         )
+        await asyncio.sleep(2)
+        try:
+            await interaction.delete_original_response()
+        except (discord.NotFound, discord.HTTPException):
+            pass
 
 
 class ExcluirDJView(discord.ui.LayoutView):
