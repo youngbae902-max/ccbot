@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import zipfile
+import io
 import uuid
 from pathlib import Path
 from datetime import datetime
@@ -1508,14 +1509,140 @@ async def samples(interaction: discord.Interaction):
         return
     await interaction.response.send_message(view=GeradorSamplesView())
 
-@bot.tree.command(name="arrumador", description="Estado do módulo Arrumador de Projetos")
-async def arrumador(interaction: discord.Interaction):
-    if await deny_unauthorized(interaction):
-        return
-    await interaction.response.send_message(
-        "O módulo está reservado na estrutura. Falta integrar a lógica real do arrumador.",
-        ephemeral=True
+class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
+    mudancas = discord.ui.TextInput(
+        label="O que você quer mudar no projeto?",
+        placeholder="Ex.: organizar pastas, renomear arquivos, separar samples...",
+        style=discord.TextStyle.paragraph,
+        min_length=3,
+        max_length=1500
     )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            await interaction.user.send(
+                "**🧰 Arrumador de Projetos**\\n"
+                "Recebi sua descrição. Agora envie aqui nesta conversa privada o arquivo **.ZIP** do projeto.\\n"
+                "Envie somente um ZIP válido. Você tem **10 minutos**."
+            )
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "Não consegui abrir seu PV. Ative mensagens diretas deste servidor e execute /arrumador novamente.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.followup.send(
+            "Te enviei uma mensagem privada para você anexar o ZIP do projeto.",
+            ephemeral=True
+        )
+
+        def arquivo_do_usuario(message: discord.Message):
+            return (
+                message.author.id == interaction.user.id
+                and isinstance(message.channel, discord.DMChannel)
+                and bool(message.attachments)
+            )
+
+        limite = asyncio.get_running_loop().time() + 600
+        while True:
+            restante = limite - asyncio.get_running_loop().time()
+            if restante <= 0:
+                try:
+                    await interaction.user.send(
+                        "⏰ O prazo do Arrumador expirou. Execute /arrumador novamente para iniciar outro pedido."
+                    )
+                except discord.HTTPException:
+                    pass
+                return
+
+            try:
+                mensagem_zip = await bot.wait_for(
+                    "message", check=arquivo_do_usuario, timeout=restante
+                )
+            except asyncio.TimeoutError:
+                try:
+                    await interaction.user.send(
+                        "⏰ O prazo do Arrumador expirou. Execute /arrumador novamente para iniciar outro pedido."
+                    )
+                except discord.HTTPException:
+                    pass
+                return
+
+            anexo = next(
+                (a for a in mensagem_zip.attachments if Path(a.filename).suffix.lower() == ".zip"),
+                None
+            )
+            if anexo is None:
+                await interaction.user.send("⚠️ Não encontrei um arquivo .zip nessa mensagem. Envie o ZIP do projeto.")
+                continue
+            if anexo.size > 24 * 1024 * 1024:
+                await interaction.user.send("⚠️ O ZIP ultrapassa o limite de 24 MB deste fluxo. Envie um arquivo menor.")
+                continue
+
+            try:
+                dados = await anexo.read(use_cached=True)
+                with zipfile.ZipFile(io.BytesIO(dados), "r") as arquivo:
+                    problema = arquivo.testzip()
+                if problema is not None:
+                    raise zipfile.BadZipFile("O arquivo contém um item corrompido.")
+            except (discord.HTTPException, zipfile.BadZipFile, OSError, ValueError):
+                await interaction.user.send("⚠️ Não consegui validar esse ZIP. Confira se ele abre normalmente e envie novamente.")
+                continue
+            except Exception:
+                log.exception("Erro ao receber o ZIP do Arrumador.")
+                await interaction.user.send("⚠️ Ocorreu um erro ao verificar o ZIP. Tente enviar novamente.")
+                continue
+
+            nome_seguro = Path(anexo.filename).name.replace("/", "_").replace(chr(92), "_")
+            resumo = (
+                "🧰 **Novo pedido — Arrumador de Projetos**\\n"
+                f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\\n"
+                f"**Pedido de mudança:**\\n{self.mudancas.value}\\n"
+                f"**Arquivo:** `{nome_seguro}`"
+            )
+            erros = []
+            try:
+                admin = bot.get_user(ADMIN_ID) or await bot.fetch_user(ADMIN_ID)
+                await admin.send(
+                    resumo,
+                    file=discord.File(io.BytesIO(dados), filename=nome_seguro)
+                )
+            except Exception:
+                erros.append("PV do administrador")
+                log.exception("Falha ao enviar pedido do Arrumador por PV.")
+
+            try:
+                canal_id = int(settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL))
+                canal = bot.get_channel(canal_id)
+                if canal is None:
+                    canal = await bot.fetch_channel(canal_id)
+                await canal.send(
+                    resumo,
+                    file=discord.File(io.BytesIO(dados), filename=nome_seguro)
+                )
+            except Exception:
+                erros.append("canal de avisos")
+                log.exception("Falha ao enviar pedido do Arrumador ao canal de avisos.")
+
+            if len(erros) == 2:
+                await interaction.user.send(
+                    "❌ Não consegui encaminhar seu pedido. Avise o administrador e tente novamente mais tarde."
+                )
+                log.error("Pedido Arrumador não foi entregue a nenhum destino.")
+                return
+
+            await interaction.user.send(
+                "✅ Seu pedido e o ZIP foram encaminhados para análise."
+                + (f"\\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
+            )
+            return
+
+
+@bot.tree.command(name="arrumador", description="Solicitar mudanças em um projeto FL Studio Mobile")
+async def arrumador(interaction: discord.Interaction):
+    await interaction.response.send_modal(ArrumadorModal())
 
 
 
