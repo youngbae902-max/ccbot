@@ -1318,6 +1318,265 @@ class VoltarPainelButtonView(discord.ui.View):
         self.add_item(VoltarPainelButton())
 
 
+
+
+# Sistema de ícones importados da pasta do Pinterest no Android.
+PINTEREST_PINS_DIR = Path("/sdcard/Pictures/100PINT/Pins")
+ICONS_CHANNEL_ID = 1561513290473934998
+ICON_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ICON_POLL_SECONDS = 5
+
+def icon_files():
+    try:
+        return sorted(
+            (p for p in PINTEREST_PINS_DIR.iterdir()
+             if p.is_file() and p.suffix.lower() in ICON_EXTENSIONS),
+            key=lambda p: (p.stat().st_mtime, p.name.lower())
+        )
+    except (FileNotFoundError, PermissionError, OSError):
+        return []
+
+def icon_state():
+    state = settings.setdefault("icon_system", {})
+    state.setdefault("monitoring", False)
+    state.setdefault("pending", None)
+    state.setdefault("known_files", [])
+    return state
+
+async def publicar_album_icone(nome, paths):
+    if not paths:
+        raise ValueError("Nenhuma foto encontrada para publicar.")
+    canal = bot.get_channel(ICONS_CHANNEL_ID)
+    if canal is None:
+        canal = await bot.fetch_channel(ICONS_CHANNEL_ID)
+    if not isinstance(canal, discord.TextChannel):
+        raise TypeError("O canal de ícones configurado não é um canal de texto.")
+
+    enviados = 0
+    for inicio in range(0, len(paths), 10):
+        lote = paths[inicio:inicio + 10]
+        arquivos = []
+        try:
+            for path in lote:
+                arquivos.append(discord.File(str(path), filename=path.name))
+            embed = discord.Embed(
+                title=f"Icon - {nome}" if inicio == 0 else f"Icon - {nome} (continuação)",
+                description=f"📸 {len(paths)} foto(s)" if inicio == 0 else None,
+                color=discord.Color.from_rgb(190, 45, 75)
+            )
+            embed.set_footer(text="CC BOT • Icons")
+            await canal.send(embed=embed, files=arquivos)
+            enviados += len(lote)
+        finally:
+            for arquivo in arquivos:
+                try:
+                    arquivo.close()
+                except Exception:
+                    pass
+    return enviados
+
+class IconNomeQuantidadeModal(discord.ui.Modal, title="Cadastrar ícone"):
+    nome = discord.ui.TextInput(
+        label="Nome do ícone",
+        placeholder="Ex.: brocasito",
+        min_length=1,
+        max_length=80
+    )
+    quantidade = discord.ui.TextInput(
+        label="Quantidade de fotos",
+        placeholder="Ex.: 10",
+        min_length=1,
+        max_length=4
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        try:
+            quantidade = int(str(self.quantidade.value).strip())
+            if not 1 <= quantidade <= 500:
+                raise ValueError
+        except ValueError:
+            await interaction.response.send_message(
+                "Informe uma quantidade entre 1 e 500.", ephemeral=True
+            )
+            return
+
+        state = icon_state()
+        atuais = [str(p.resolve()) for p in icon_files()]
+        state["pending"] = {
+            "name": str(self.nome.value).strip(),
+            "quantity": quantidade,
+            "baseline": atuais,
+            "started_at": datetime.now().isoformat(timespec="seconds")
+        }
+        state["known_files"] = list(set(state.get("known_files", [])) | set(atuais))
+        save_json(DATA_FILE, settings)
+        await interaction.response.send_message(
+            f"Icon - {str(self.nome.value).strip()} cadastrado.\n"
+            f"Agora baixe {quantidade} foto(s) do Pinterest para {PINTEREST_PINS_DIR}. "
+            "Quando a quantidade for atingida, vou publicar o álbum no canal de ícones.",
+            ephemeral=True
+        )
+
+class IconImportarModal(discord.ui.Modal, title="Importar fotos existentes"):
+    nome = discord.ui.TextInput(
+        label="Nome do ícone",
+        placeholder="Ex.: brocasito",
+        min_length=1,
+        max_length=80
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        paths = icon_files()
+        if not paths:
+            await interaction.followup.send(
+                f"Não encontrei fotos em {PINTEREST_PINS_DIR}. Confira a pasta e as permissões do Termux.",
+                ephemeral=True
+            )
+            return
+        try:
+            total = await publicar_album_icone(str(self.nome.value).strip(), paths)
+            state = icon_state()
+            state["known_files"] = list(set(state.get("known_files", [])) | {str(p.resolve()) for p in paths})
+            save_json(DATA_FILE, settings)
+            await interaction.followup.send(
+                f"Icon - {str(self.nome.value).strip()} publicado com {total} foto(s).",
+                ephemeral=True
+            )
+        except Exception as exc:
+            log.exception("Falha ao importar fotos existentes como ícone")
+            await interaction.followup.send(
+                f"Não consegui publicar as fotos ({type(exc).__name__}). Confira as permissões do bot no canal.",
+                ephemeral=True
+            )
+
+class IconMonitoramentoButton(discord.ui.Button):
+    def __init__(self):
+        state = icon_state()
+        ativo = bool(state.get("monitoring"))
+        super().__init__(
+            label="Desativar monitoramento" if ativo else "Ativar monitoramento",
+            emoji="🟢" if ativo else "⚪",
+            style=discord.ButtonStyle.success if ativo else discord.ButtonStyle.secondary,
+            custom_id="ccbot:icons_toggle_monitor"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        state = icon_state()
+        state["monitoring"] = not bool(state.get("monitoring"))
+        save_json(DATA_FILE, settings)
+        await interaction.response.edit_message(
+            embed=criar_embed_painel_icones(),
+            view=PainelIconesView()
+        )
+
+class IconAdicionarButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Cadastrar ícone e quantidade",
+            emoji="➕",
+            style=discord.ButtonStyle.primary,
+            custom_id="ccbot:icons_add"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.send_modal(IconNomeQuantidadeModal())
+
+class IconImportarButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Importar fotos da pasta",
+            emoji="🖼️",
+            style=discord.ButtonStyle.primary,
+            custom_id="ccbot:icons_import"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.send_modal(IconImportarModal())
+
+class PainelIconesView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(IconMonitoramentoButton())
+        self.add_item(IconAdicionarButton())
+        self.add_item(IconImportarButton())
+        self.add_item(VoltarPainelButton())
+
+def criar_embed_painel_icones():
+    state = icon_state()
+    pendente = state.get("pending")
+    status = "Ativo" if state.get("monitoring") else "Desativado"
+    aguardando = (
+        f"Ícone em andamento: {pendente['name']} · {pendente['quantity']} fotos"
+        if pendente else "Ícone em andamento: nenhum"
+    )
+    embed = discord.Embed(
+        title="Central de Ícones",
+        description=(
+            f"Monitoramento: {status}\n{aguardando}\n\n"
+            f"Pasta: {PINTEREST_PINS_DIR}\n"
+            f"Canal de publicação: <#{ICONS_CHANNEL_ID}>\n\n"
+            "1. Ative o monitoramento.\n"
+            "2. Cadastre o nome e a quantidade.\n"
+            "3. Baixe as fotos do Pinterest para a pasta Pins.\n"
+            "4. Ao atingir a quantidade, o bot publica o álbum automaticamente.\n\n"
+            "A opção de importar publica as fotos que já estão na pasta."
+        ),
+        color=discord.Color.from_rgb(190, 45, 75)
+    )
+    embed.set_footer(text="CC BOT • Icons")
+    return embed
+
+@tasks.loop(seconds=ICON_POLL_SECONDS)
+async def monitorar_pasta_icones():
+    state = icon_state()
+    if not state.get("monitoring"):
+        return
+    pendente = state.get("pending")
+    if not isinstance(pendente, dict):
+        return
+    try:
+        baseline = set(pendente.get("baseline", []))
+        caminhos = [
+            p for p in icon_files()
+            if str(p.resolve()) not in baseline
+        ]
+        quantidade = int(pendente.get("quantity", 0))
+        if quantidade < 1 or len(caminhos) < quantidade:
+            return
+
+        selecionadas = caminhos[:quantidade]
+        nome = str(pendente.get("name", "Ícone")).strip() or "Ícone"
+        await publicar_album_icone(nome, selecionadas)
+        state["known_files"] = list(set(state.get("known_files", [])) | {str(p.resolve()) for p in selecionadas})
+        state["pending"] = None
+        save_json(DATA_FILE, settings)
+        await notify_admin(
+            f"Ícone publicado automaticamente: {nome}\nFotos: {len(selecionadas)}\nCanal: <#{ICONS_CHANNEL_ID}>"
+        )
+    except Exception:
+        log.exception("Erro no monitoramento automático da pasta Pins")
+
+@monitorar_pasta_icones.before_loop
+async def antes_de_monitorar_pasta_icones():
+    await bot.wait_until_ready()
+
+
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
@@ -1332,6 +1591,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 discord.SelectOption(label="Publicar painéis", description="Samples, acapellas, arrumador, beats e pack personalizado", emoji="📋", value="publicar"),
                 discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
                 discord.SelectOption(label="Limpar mensagens do PV", description="Apagar mensagens enviadas pelo CC BOT na sua DM", emoji="🧹", value="limpar_pv"),
+                discord.SelectOption(label="Gerenciar ícones", description="Monitorar Pinterest e publicar álbuns de fotos", emoji="🖼️", value="icones"),
             ]
         )
 
@@ -1370,6 +1630,11 @@ class CategoriaPainelSelect(discord.ui.Select):
                     color=discord.Color.green()
                 ),
                 view=PainelPublicarView()
+            )
+        elif categoria == "icones":
+            await interaction.response.edit_message(
+                embed=criar_embed_painel_icones(),
+                view=PainelIconesView()
             )
         elif categoria == "limpar_pv":
             await interaction.response.edit_message(
@@ -2285,6 +2550,10 @@ async def on_ready():
 
         # Publica os três embeds promocionais novos apenas uma vez.
         await publicar_embeds_promocionais()
+
+        # Inicia o monitor de fotos baixadas do Pinterest.
+        if not monitorar_pasta_icones.is_running():
+            monitorar_pasta_icones.start()
 
         # Atualiza a mensagem do painel já publicada, sem criar outra.
         try:
