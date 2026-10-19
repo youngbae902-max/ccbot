@@ -1640,9 +1640,50 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
             return
 
 
-@bot.tree.command(name="arrumador", description="Solicitar mudanças em um projeto FL Studio Mobile")
+class MandarArrumadorButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="MANDAR",
+            emoji="📦",
+            style=discord.ButtonStyle.success,
+            custom_id="ccbot:arrumador_mandar"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(ArrumadorModal())
+
+
+class ArrumadorPainelView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(
+            discord.ui.Container(
+                discord.ui.Section(
+                    discord.ui.TextDisplay(
+                        content=(
+                            "## 🧰 ARRUMADOR DE ARQUIVOS\n"
+                            "Organize seu projeto do FL Studio Mobile do jeito que você precisa.\n\n"
+                            "Descreva as mudanças desejadas e, em seguida, envie seu projeto em **.ZIP** pelo PV do bot. "
+                            "Seu pedido e o arquivo serão encaminhados ao responsável para análise.\n\n"
+                            "-# Clique em **MANDAR** para começar."
+                        )
+                    ),
+                    accessory=discord.ui.Thumbnail(
+                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+                discord.ui.ActionRow(MandarArrumadorButton())
+            )
+        )
+
+
+@bot.tree.command(name="arrumador", description="Publicar o painel do Arrumador de Arquivos")
 async def arrumador(interaction: discord.Interaction):
-    await interaction.response.send_modal(ArrumadorModal())
+    if await deny_unauthorized(interaction):
+        return
+    await interaction.response.send_message(view=ArrumadorPainelView())
+
 
 
 
@@ -1840,6 +1881,9 @@ async def on_ready():
             log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
         except Exception:
             log.exception("Não foi possível atualizar o painel /samples existente.")
+
+        bot.add_view(ArrumadorPainelView())
+        log.info("View persistente do painel Arrumador registrada.")
 
         # Atualiza o painel de Pack Personalizado já publicado, sem criar outro.
         try:
