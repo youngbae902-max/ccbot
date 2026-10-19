@@ -1523,12 +1523,12 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             await interaction.user.send(
-                "**🧰 Arrumador de Projetos**\\n"
-                "Recebi sua descrição. Envie o ZIP aqui no PV se o Discord permitir.\\n\\n"
-                "**Se o arquivo for grande e o Discord pedir Nitro:**\\n"
-                "1. Envie o ZIP para o Google Drive.\\n"
-                "2. No Drive, abra **Compartilhar** e mude o acesso para **Qualquer pessoa com o link** (leitor).\\n"
-                "3. Cole o link aqui nesta conversa privada.\\n\\n"
+                "**🧰 Arrumador de Projetos**\n"
+                "Recebi sua descrição. Envie o ZIP aqui no PV se o Discord permitir.\n\n"
+                "**Se o arquivo for grande e o Discord pedir Nitro:**\n"
+                "1. Envie o ZIP para o Google Drive.\n"
+                "2. No Drive, abra **Compartilhar** e mude o acesso para **Qualquer pessoa com o link** (leitor).\n"
+                "3. Cole o link aqui nesta conversa privada.\n\n"
                 "Aceito anexos ZIP ou links do Google Drive, Dropbox, OneDrive e WeTransfer. Você tem **10 minutos**."
             )
         except discord.Forbidden:
@@ -1601,11 +1601,11 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
 
                 if url_valida:
                     resumo = (
-                        "🧰 **Novo pedido — Arrumador de Projetos**\\n"
-                        f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\\n"
-                        f"**Pedido de mudança:**\\n{self.mudancas.value}\\n"
-                        "**Arquivo:** enviado por link externo (não anexado ao Discord)\\n"
-                        f"**Link do arquivo:** {url_valida}\\n"
+                        "🧰 **Novo pedido — Arrumador de Projetos**\n"
+                        f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\n"
+                        f"**Pedido de mudança:**\n{self.mudancas.value}\n"
+                        "**Arquivo:** enviado por link externo (não anexado ao Discord)\n"
+                        f"**Link do arquivo:** {url_valida}\n"
                         "⚠️ Confira se o link está acessível; o bot não consegue validar o conteúdo do arquivo hospedado."
                     )
                     erros = []
@@ -1633,7 +1633,7 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
                     else:
                         await interaction.user.send(
                             "✅ Seu pedido e o link do arquivo foram encaminhados para análise."
-                            + (f"\\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
+                            + (f"\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
                         )
                     return
 
@@ -1664,9 +1664,9 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
 
             nome_seguro = Path(anexo.filename).name.replace("/", "_").replace(chr(92), "_")
             resumo = (
-                "🧰 **Novo pedido — Arrumador de Projetos**\\n"
-                f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\\n"
-                f"**Pedido de mudança:**\\n{self.mudancas.value}\\n"
+                "🧰 **Novo pedido — Arrumador de Projetos**\n"
+                f"**Pessoa:** {interaction.user} (`{interaction.user.id}`)\n"
+                f"**Pedido de mudança:**\n{self.mudancas.value}\n"
                 f"**Arquivo:** `{nome_seguro}`"
             )
             erros = []
@@ -1702,7 +1702,7 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
 
             await interaction.user.send(
                 "✅ Seu pedido e o ZIP foram encaminhados para análise."
-                + (f"\\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
+                + (f"\n⚠️ O envio falhou em: {', '.join(erros)}." if erros else "")
             )
             return
 
