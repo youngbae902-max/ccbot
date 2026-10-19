@@ -1977,7 +1977,7 @@ async def on_ready():
         # junto da versão registrada no servidor.
         global_commands = await bot.tree.fetch_commands()
         for command in global_commands:
-            await bot.tree.delete_command(command.id)
+            await bot.tree.delete_global_command(command.id)
             log.info("Comando global antigo removido: /%s (id=%s)", command.name, command.id)
 
         # Registra uma única cópia de cada comando no servidor de destino.
