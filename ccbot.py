@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import zipfile
+import random
 from pathlib import Path
 from datetime import datetime
 
@@ -317,7 +318,27 @@ async def contar_mensagens_do_canal():
 
     settings["sales_count"] = total
     save_json(DATA_FILE, settings)
-    log.info("Contagem inicial concluída: %s mensagens", total)
+    log.info("Contagem recalculada: %s mensagens atuais no canal de vendas", total)
+
+
+@bot.event
+async def on_raw_message_delete(payload: discord.RawMessageDeleteEvent):
+    if payload.channel_id != SALES_SOURCE_CHANNEL_ID:
+        return
+    try:
+        await contar_mensagens_do_canal()
+    except Exception:
+        log.exception("Falha ao recalcular vendas após exclusão de mensagem")
+
+
+@bot.event
+async def on_raw_bulk_message_delete(payload: discord.RawBulkMessageDeleteEvent):
+    if payload.channel_id != SALES_SOURCE_CHANNEL_ID:
+        return
+    try:
+        await contar_mensagens_do_canal()
+    except Exception:
+        log.exception("Falha ao recalcular vendas após exclusão em massa")
 
 
 @tasks.loop(seconds=10)
@@ -399,7 +420,13 @@ async def on_ready():
             color=discord.Color.green(),
             timestamp=discord.utils.utcnow()
         )
-        embed.set_image(url="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561732847021334580/kamiina-botan-botan.gif?ex=6ad76c8e&is=6ad61b0e&hm=e74ff48874c079d4331d8855240b54a32081e3b0b3f6c9fdbfb024709a61814b&")
+        startup_gifs = [
+            "https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561732847021334580/kamiina-botan-botan.gif?ex=6ad76c8e&is=6ad61b0e&hm=e74ff48874c079d4331d8855240b54a32081e3b0b3f6c9fdbfb024709a61814b&",
+            "https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561733134632882216/yawn-cute-anime.gif?ex=6ad76cd2&is=6ad61b52&hm=73513c8157b59bd315ffe1a466965568dda527ca79c579e8db48daf5c1eac36b&",
+            "https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561733563433488404/erza-erza-scarlet.gif?ex=6ad76d39&is=6ad61bb9&hm=5fc8974f8a912abc3ca2dd6400609a37b784617d20d1b8fc29020d6ff30d26da&",
+            "https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561733897560006656/shizuka-yoshimoto-the-100-girlfriends-who-really-really-really-really-really-love-you.gif?ex=6ad76d88&is=6ad61c08&hm=614448483788ab64136b04be34806876b04fb220df8326a970db0cde07069f44&",
+        ]
+        embed.set_image(url=random.choice(startup_gifs) )
         embed.set_footer(text="CC BOT • Sistema de inicialização")
         await channel.send(embed=embed)
 
