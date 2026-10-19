@@ -1,0 +1,7 @@
+token.txt
+.env
+*.token
+__pycache__/
+*.pyc
+ccbot_data/
+Backups/
