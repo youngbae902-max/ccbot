@@ -1720,36 +1720,39 @@ class MandarArrumadorButton(discord.ui.Button):
         await interaction.response.send_modal(ArrumadorModal())
 
 
-class ArrumadorPainelView(discord.ui.LayoutView):
+class ArrumadorPainelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(
-            discord.ui.Container(
-                discord.ui.Section(
-                    discord.ui.TextDisplay(
-                        content=(
-                            "## 🧰 ARRUMADOR DE ARQUIVOS\n"
-                            "Organize seu projeto do FL Studio Mobile do jeito que você precisa.\n\n"
-                            "Descreva as mudanças desejadas e, em seguida, envie seu projeto em **.ZIP** pelo PV do bot. "
-                            "Seu pedido e o arquivo serão encaminhados ao responsável para análise.\n\n"
-                            "-# Clique em **MANDAR** para começar."
-                        )
-                    ),
-                    accessory=discord.ui.Thumbnail(
-                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
-                    )
-                ),
-                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-                discord.ui.ActionRow(MandarArrumadorButton())
-            )
-        )
+        self.add_item(MandarArrumadorButton())
+
+
+def criar_embed_arrumador():
+    embed = discord.Embed(
+        title="🧰 ARRUMADOR DE ARQUIVOS",
+        description=(
+            "Organize seu projeto do FL Studio Mobile do jeito que você precisa.\n\n"
+            "Descreva as mudanças desejadas e envie seu projeto em **.ZIP** pelo PV do bot. "
+            "Seu pedido e o arquivo serão encaminhados ao responsável para análise.\n\n"
+            "📦 **Como começar**\n"
+            "Clique no botão **MANDAR** abaixo e descreva o que deseja mudar."
+        ),
+        color=discord.Color.red()
+    )
+    embed.set_thumbnail(
+        url="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
+    )
+    embed.set_footer(text="CC BOT • Arrumador de Projetos")
+    return embed
 
 
 @bot.tree.command(name="arrumador", description="Publicar o painel do Arrumador de Arquivos")
 async def arrumador(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
-    await interaction.response.send_message(view=ArrumadorPainelView())
+    await interaction.response.send_message(
+        embed=criar_embed_arrumador(),
+        view=ArrumadorPainelView()
+    )
 
 
 
