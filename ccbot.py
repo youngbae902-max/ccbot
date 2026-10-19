@@ -47,7 +47,8 @@ def save_json(path, data):
     )
 
 settings = load_json(DATA_FILE, {
-    "notice_channel": DEFAULT_NOTICE_CHANNEL
+    "notice_channel": DEFAULT_NOTICE_CHANNEL,
+    "sales_count": 0
 })
 
 models = load_json(MODELS_FILE, {
@@ -256,7 +257,7 @@ async def on_message(message: discord.Message):
     if message.channel.id != SALES_SOURCE_CHANNEL_ID:
         return
 
-    settings["sales_count"] = int(settings.get("sales_count", 0)) + 1
+    settings["sales_count"] = max(1, int(settings.get("sales_count", 0)) + 1)
     save_json(DATA_FILE, settings)
     log.info("Contador de vendas atualizado: %s", settings["sales_count"])
 
@@ -271,7 +272,7 @@ async def atualizar_contador_vendas():
             log.error("O canal do contador de vendas não é um canal de texto.")
             return
 
-        nome = f"{SALES_COUNTER_PREFIX}{int(settings.get('sales_count', 0))}"
+        nome = f"{SALES_COUNTER_PREFIX}{max(1, int(settings.get('sales_count', 0)))}"
         if channel.name != nome:
             await channel.edit(name=nome, reason="Atualização automática do contador de vendas")
             log.info("Nome do contador alterado para: %s", nome)
