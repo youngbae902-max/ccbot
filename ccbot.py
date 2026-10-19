@@ -1232,6 +1232,92 @@ class PainelFerramentasView(discord.ui.View):
         self.add_item(VoltarPainelButton())
 
 
+class ConfirmarLimpezaPVButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Confirmar limpeza",
+            emoji="🧹",
+            style=discord.ButtonStyle.danger,
+            custom_id="ccbot:confirmar_limpeza_pv"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message(
+                "Apenas o administrador pode usar esta função.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        apagadas = 0
+        falhas = 0
+        try:
+            administrador = bot.get_user(ADMIN_ID) or await bot.fetch_user(ADMIN_ID)
+            dm = await administrador.create_dm()
+            async for mensagem in dm.history(limit=500):
+                if mensagem.author.id != bot.user.id:
+                    continue
+                try:
+                    await mensagem.delete()
+                    apagadas += 1
+                except discord.NotFound:
+                    pass
+                except discord.HTTPException:
+                    falhas += 1
+
+            texto = f"🧹 Limpeza concluída. Mensagens do CC BOT apagadas: **{apagadas}**."
+            if falhas:
+                texto += f"\nNão foi possível apagar {falhas} mensagem(ns)."
+            await interaction.followup.send(texto, ephemeral=True)
+            await interaction.message.edit(
+                embed=discord.Embed(
+                    title="🧹 Limpeza concluída",
+                    description=texto,
+                    color=discord.Color.green()
+                ),
+                view=VoltarPainelButtonView()
+            )
+        except Exception as exc:
+            log.exception("Falha ao limpar mensagens do CC BOT no PV")
+            await interaction.followup.send(
+                f"Não consegui limpar o PV ({type(exc).__name__}).",
+                ephemeral=True
+            )
+
+
+class CancelarLimpezaPVButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Cancelar",
+            emoji="↩️",
+            style=discord.ButtonStyle.secondary,
+            custom_id="ccbot:cancelar_limpeza_pv"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.edit_message(
+            embed=criar_embed_painel(),
+            view=PainelAdminView()
+        )
+
+
+class LimparPVView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+        self.add_item(ConfirmarLimpezaPVButton())
+        self.add_item(CancelarLimpezaPVButton())
+
+
+class VoltarPainelButtonView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+        self.add_item(VoltarPainelButton())
+
+
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
@@ -1245,6 +1331,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 discord.SelectOption(label="Emojis, backup e avisos", description="Importar emojis, criar backup e definir canal de avisos", emoji="🧰", value="ferramentas"),
                 discord.SelectOption(label="Publicar painéis", description="Samples, acapellas, arrumador, beats e pack personalizado", emoji="📋", value="publicar"),
                 discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
+                discord.SelectOption(label="Limpar mensagens do PV", description="Apagar mensagens enviadas pelo CC BOT na sua DM", emoji="🧹", value="limpar_pv"),
             ]
         )
 
@@ -1283,6 +1370,19 @@ class CategoriaPainelSelect(discord.ui.Select):
                     color=discord.Color.green()
                 ),
                 view=PainelPublicarView()
+            )
+        elif categoria == "limpar_pv":
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="🧹 Limpar mensagens do PV",
+                    description=(
+                        "Esta função apaga **somente mensagens enviadas pelo CC BOT** na conversa privada com você.\n\n"
+                        "Suas mensagens não serão apagadas. A limpeza analisa até as **500 mensagens mais recentes** "
+                        "e pede confirmação antes de começar."
+                    ),
+                    color=discord.Color.orange()
+                ),
+                view=LimparPVView()
             )
         elif categoria == "ferramentas":
             await interaction.response.edit_message(
