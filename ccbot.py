@@ -1843,10 +1843,10 @@ async def analisar_hierarquia(interaction: discord.Interaction):
         administrador = bot.get_user(ADMIN_ID) or await bot.fetch_user(ADMIN_ID)
         await administrador.send(
             content=(
-                f"📋 **Relatório de hierarquia de {guild.name}**\\n"
+                f"📋 **Relatório de hierarquia de {guild.name}**\n"
                 f"Categorias: **{sum(isinstance(c, discord.CategoryChannel) for c in canais)}** • "
                 f"Canais: **{sum(not isinstance(c, discord.CategoryChannel) for c in canais)}** • "
-                f"Cargos: **{len(guild.roles)}**\\n"
+                f"Cargos: **{len(guild.roles)}**\n"
                 "O arquivo contém a estrutura e as permissões gerais e específicas. "
                 "Nenhuma alteração foi feita no servidor."
             ),
