@@ -429,7 +429,7 @@ async def on_ready():
         gif_embed = discord.Embed(color=discord.Color.green())
         gif_embed.set_image(url=random.choice(startup_gifs))
         embed.set_footer(text="CC BOT • Sistema de inicialização")
-        await channel.send(embed=embed)
+        await channel.send(embeds=[embed, gif_embed])
 
     except Exception as exc:
         log.exception("Falha ao iniciar ou sincronizar comandos")
