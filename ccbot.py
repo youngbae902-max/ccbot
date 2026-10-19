@@ -299,19 +299,12 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             return
 
         def mensagem_valida(message: discord.Message):
-            valida = (
+            return (
                 message.author.id == interaction.user.id
                 and message.guild is None
                 and message.channel.id == dm.id
                 and bool(message.attachments)
             )
-            if valida:
-                log.info(
-                    "Áudio de prévia recebido por DM: user=%s arquivos=%s",
-                    message.author.id,
-                    len(message.attachments)
-                )
-            return valida
 
         prazo_final = asyncio.get_running_loop().time() + 180
         audio = None
@@ -320,14 +313,14 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
         while audio is None:
             restante = prazo_final - asyncio.get_running_loop().time()
             if restante <= 0:
-                await interaction.followup.send(
-                    "Tempo esgotado. Execute /venda-de-beats novamente para tentar cadastrar o beat.",
-                    ephemeral=True
-                )
                 try:
                     await dm.send("⏰ Tempo esgotado. Execute /venda-de-beats novamente.")
                 except discord.HTTPException:
                     pass
+                await interaction.edit_original_response(
+                    content="⏰ **Tempo esgotado.** Execute /venda-de-beats novamente para cadastrar o beat.",
+                    view=None
+                )
                 return
 
             try:
@@ -335,15 +328,22 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
                     "message", check=mensagem_valida, timeout=restante
                 )
             except asyncio.TimeoutError:
-                await interaction.followup.send(
-                    "Tempo esgotado. Execute /venda-de-beats novamente para tentar cadastrar o beat.",
-                    ephemeral=True
-                )
                 try:
                     await dm.send("⏰ Tempo esgotado. Execute /venda-de-beats novamente.")
                 except discord.HTTPException:
                     pass
+                await interaction.edit_original_response(
+                    content="⏰ **Tempo esgotado.** Execute /venda-de-beats novamente para cadastrar o beat.",
+                    view=None
+                )
                 return
+
+            try:
+                await dm.send(
+                    f"📥 Recebi o arquivo **{mensagem.attachments[0].filename}**. Vou verificar se é um áudio..."
+                )
+            except discord.HTTPException:
+                pass
 
             for arquivo in mensagem.attachments:
                 nome_arquivo = Path(arquivo.filename).name.lower()
@@ -355,7 +355,7 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             if audio is None:
                 try:
                     await dm.send(
-                        "⚠️ Não reconheci esse arquivo como áudio. Envie um arquivo MP3, WAV, OGG, M4A ou outro formato de áudio compatível. Você ainda tem até completar os 3 minutos."
+                        "⚠️ Recebi o arquivo, mas não reconheci o formato como áudio. Envie MP3, WAV, OGG, M4A ou outro formato de áudio compatível. Você ainda pode tentar novamente dentro dos 3 minutos."
                     )
                 except discord.HTTPException:
                     pass
@@ -371,9 +371,13 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             await mensagem.delete()
         except Exception:
             log.exception("Falha ao salvar a prévia ou apagar a mensagem original")
-            await interaction.followup.send(
-                "Não consegui guardar a prévia com segurança. A publicação foi interrompida.",
-                ephemeral=True
+            try:
+                await dm.send("❌ Recebi o arquivo, mas ocorreu um erro ao salvá-lo. Tente novamente com /venda-de-beats.")
+            except discord.HTTPException:
+                pass
+            await interaction.edit_original_response(
+                content="❌ Não consegui guardar o áudio. Execute /venda-de-beats e tente novamente.",
+                view=None
             )
             return
 
