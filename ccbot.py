@@ -1565,10 +1565,24 @@ async def painel_acapellas(interaction: discord.Interaction):
         )
         embed.set_footer(text="CC BOT • Busca de Acapellas")
 
-        await canal.send(embed=embed, view=AcapellasActivityView())
-        await interaction.response.send_message(
-            f"✅ Painel de acapellas publicado em {canal.mention} com botão de Activity.", ephemeral=True
-        )
+        painel_existente = None
+        async for mensagem in canal.history(limit=100):
+            if (
+                mensagem.author.id == bot.user.id
+                and mensagem.embeds
+                and mensagem.embeds[0].title == "🎙️ ACAPELLAS DE MCs FAMOSOS"
+            ):
+                painel_existente = mensagem
+                break
+
+        if painel_existente:
+            await painel_existente.edit(embed=embed, view=AcapellasActivityView())
+            resultado = f"✅ Painel existente atualizado em {canal.mention}."
+        else:
+            await canal.send(embed=embed, view=AcapellasActivityView())
+            resultado = f"✅ Painel de acapellas publicado em {canal.mention}."
+
+        await interaction.response.send_message(resultado, ephemeral=True)
     except Exception as exc:
         log.exception("Falha ao publicar painel de acapellas")
         if interaction.response.is_done():
