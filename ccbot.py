@@ -196,44 +196,132 @@ async def status(interaction: discord.Interaction):
     )
 
 class ListaDJsSelect(discord.ui.Select):
-    def __init__(self):
+    def __init__(self, view):
+        self.parent_view = view
+        inicio = view.page * 25
+        nomes = mcs[inicio:inicio + 25]
         options = [
-            discord.SelectOption(label=nome[:100], value=nome)
-            for nome in mcs[:25]
+            discord.SelectOption(
+                label=nome[:100],
+                value=nome,
+                default=(nome == view.selected_dj)
+            )
+            for nome in nomes
         ]
         super().__init__(
-            placeholder="Escolha um DJ da lista...",
+            placeholder="Selecione um DJ...",
             min_values=1,
             max_values=1,
             options=options,
-            custom_id="ccbot:selecionar_dj"
+            custom_id=f"ccbot:selecionar_dj:{view.page}"
         )
 
     async def callback(self, interaction: discord.Interaction):
-        nome = self.values[0]
-        await interaction.response.send_message(
-            f"🎧 DJ selecionado: **{discord.utils.escape_markdown(nome)}**\n"
-            "A seleção foi recebida. A geração automática de áudio ainda precisa ser integrada.",
-            ephemeral=True
+        self.parent_view.selected_dj = self.values[0]
+        await interaction.response.edit_message(view=ListaDJsView(
+            page=self.parent_view.page,
+            selected_dj=self.parent_view.selected_dj
+        ))
+
+
+class NavegarDJsButton(discord.ui.Button):
+    def __init__(self, view, delta):
+        self.parent_view = view
+        self.delta = delta
+        total_paginas = max(1, (len(mcs) + 24) // 25)
+        label = "⬅️ Anterior" if delta < 0 else "Próxima ➡️"
+        disabled = (
+            (delta < 0 and view.page == 0) or
+            (delta > 0 and view.page >= total_paginas - 1)
+        )
+        super().__init__(
+            label=label,
+            style=discord.ButtonStyle.secondary,
+            disabled=disabled,
+            custom_id=f"ccbot:navegar_djs:{view.page}:{delta}"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        nova_pagina = self.parent_view.page + self.delta
+        await interaction.response.edit_message(
+            view=ListaDJsView(
+                page=nova_pagina,
+                selected_dj=self.parent_view.selected_dj
+            )
+        )
+
+
+class ConfirmarDJButton(discord.ui.Button):
+    def __init__(self, view):
+        self.parent_view = view
+        super().__init__(
+            label="Confirmar DJ",
+            emoji="🎧",
+            style=discord.ButtonStyle.success,
+            disabled=not bool(view.selected_dj),
+            custom_id="ccbot:confirmar_dj"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        nome = self.parent_view.selected_dj
+        if not nome:
+            await interaction.response.send_message(
+                "Selecione um DJ primeiro.",
+                ephemeral=True
+            )
+            return
+        await interaction.response.edit_message(
+            view=discord.ui.LayoutView(
+                discord.ui.Container(
+                    discord.ui.TextDisplay(
+                        content=(
+                            "## 🎧 DJ SELECIONADO\n"
+                            f"**{discord.utils.escape_markdown(nome)}**\n\n"
+                            "A seleção foi recebida. A geração automática dos arquivos de áudio ainda precisa ser integrada."
+                        )
+                    )
+                )
+            )
         )
 
 
 class ListaDJsView(discord.ui.LayoutView):
-    def __init__(self):
+    def __init__(self, page=0, selected_dj=None):
         super().__init__(timeout=300)
-        self.add_item(
-            discord.ui.Container(
-                discord.ui.TextDisplay(
-                    content=(
-                        "## 🎧 GERAR SAMPLES\n"
-                        "Escolha abaixo o DJ para continuar.\n"
-                        "-# A lista do Discord permite até 25 opções por menu."
-                    )
-                ),
-                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-                discord.ui.ActionRow(ListaDJsSelect())
-            )
+        self.page = max(0, min(page, max(0, (len(mcs) - 1) // 25)))
+        self.selected_dj = selected_dj
+        total_paginas = max(1, (len(mcs) + 24) // 25)
+        inicio = self.page * 25
+        nomes = mcs[inicio:inicio + 25]
+
+        conteudo = (
+            "## 🎧 GERAR SAMPLES\n"
+            "Selecione um DJ na lista e confirme abaixo.\n\n"
+            f"**DJs cadastrados:** {len(mcs)}  •  **Página:** {self.page + 1}/{total_paginas}\n"
+            "-# Se houver mais de 25 DJs, use os botões de navegação."
         )
+        if self.selected_dj:
+            conteudo += f"\n\n**Selecionado:** {discord.utils.escape_markdown(self.selected_dj)}"
+
+        container_items = [
+            discord.ui.TextDisplay(content=conteudo),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small)
+        ]
+        if nomes:
+            container_items.append(discord.ui.ActionRow(ListaDJsSelect(self)))
+            container_items.append(
+                discord.ui.ActionRow(
+                    NavegarDJsButton(self, -1),
+                    NavegarDJsButton(self, 1)
+                )
+            )
+            container_items.append(discord.ui.ActionRow(ConfirmarDJButton(self)))
+        else:
+            container_items.append(
+                discord.ui.TextDisplay(content="Nenhum DJ cadastrado. Peça ao administrador para adicionar DJs.")
+            )
+
+        self.add_item(discord.ui.Container(*container_items))
 
 
 class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
