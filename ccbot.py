@@ -529,10 +529,15 @@ class PackBasicoModal(discord.ui.Modal, title="Pack Básico"):
     detalhes = discord.ui.TextInput(label="Detalhes do pedido", style=discord.TextStyle.paragraph, max_length=900)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(
-            view=PackAdicionaisView(interaction.user.id, str(self.nome), str(self.estilo), str(self.detalhes)),
-            ephemeral=True
-        )
+        try:
+            await interaction.response.send_message(
+                view=PackAdicionaisView(interaction.user.id, str(self.nome), str(self.estilo), str(self.detalhes)),
+                ephemeral=True
+            )
+        except Exception as exc:
+            log.exception("Falha ao abrir adicionais do Pack Básico")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("Não consegui abrir os adicionais. Tente novamente.", ephemeral=True)
 
 
 class PackPremiumModal(discord.ui.Modal, title="Pack Premium"):
@@ -565,33 +570,26 @@ class PackAdicionais(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        # Confirma a interação do menu para evitar "A aplicação não respondeu".
+        # O menu só atualiza a seleção; confirma a interação imediatamente.
         await interaction.response.defer()
 
 
 async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
     canal_id = int(settings.get("pack_orders_channel", settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)))
-    canal = bot.get_channel(canal_id)
-    if canal is None:
-        try:
-            canal = await bot.fetch_channel(canal_id)
-        except Exception:
-            log.exception("Canal de pedidos do pack não encontrado")
-            await interaction.followup.send("Não encontrei o canal de pedidos. Avise o administrador.", ephemeral=True)
-            return
-
-    embed = discord.Embed(
-        title="📦 Novo pedido • Pack Personalizado",
-        description=f"**Plano:** {plano}\n**Valor estimado:** R$ {valor},00",
-        color=discord.Color.blurple()
-    )
-    embed.add_field(name="Cliente", value=f"{interaction.user.mention} (ID {interaction.user.id})", inline=True)
-    embed.add_field(name="Adicionais", value=", ".join(adicionais) if adicionais else "Nenhum", inline=False)
-    for titulo, texto in detalhes.items():
-        embed.add_field(name=titulo[:256], value=(texto.strip() or "Não informado")[:1024], inline=False)
-    embed.set_footer(text="CC BOT • Pack Personalizado")
-
     try:
+        canal = bot.get_channel(canal_id)
+        if canal is None:
+            canal = await bot.fetch_channel(canal_id)
+        embed = discord.Embed(
+            title="📦 Novo pedido • Pack Personalizado",
+            description=f"**Plano:** {plano}\n**Valor estimado:** R$ {valor},00",
+            color=discord.Color.blurple()
+        )
+        embed.add_field(name="Cliente", value=f"{interaction.user.mention} (ID {interaction.user.id})", inline=True)
+        embed.add_field(name="Adicionais", value=", ".join(adicionais) if adicionais else "Nenhum", inline=False)
+        for titulo, texto in detalhes.items():
+            embed.add_field(name=titulo[:256], value=(str(texto).strip() or "Não informado")[:1024], inline=False)
+        embed.set_footer(text="CC BOT • Pack Personalizado")
         await canal.send(embed=embed)
         await interaction.followup.send(
             f"✅ Pedido de **{plano}** enviado! Valor estimado: **R$ {valor},00**. O administrador entrará em contato.",
@@ -599,7 +597,13 @@ async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
         )
     except Exception as exc:
         log.exception("Falha ao enviar pedido de pack")
-        await interaction.followup.send(f"Não consegui enviar o pedido ({type(exc).__name__}).", ephemeral=True)
+        try:
+            await interaction.followup.send(
+                f"Não consegui enviar o pedido ({type(exc).__name__}). Avise o administrador.",
+                ephemeral=True
+            )
+        except Exception:
+            pass
 
 
 class PackAdicionaisView(discord.ui.LayoutView):
@@ -637,7 +641,7 @@ class PackAdicionaisView(discord.ui.LayoutView):
                 valor += 10
             elif "outros packs" in item:
                 valor += 20
-        await interaction.response.edit_message(view=None)
+        await interaction.response.defer(ephemeral=True, thinking=True)
         await enviar_pedido_pack(
             interaction, "Pack Básico", valor,
             {"Nome do pack": self.nome, "Estilo musical": self.estilo, "Detalhes": self.detalhes},
@@ -651,7 +655,7 @@ class PackAdicionaisView(discord.ui.LayoutView):
 
 class PackPersonalizadoView(discord.ui.LayoutView):
     def __init__(self):
-        super().__init__(timeout=None)
+        super().__init__(timeout=600)
         basico = discord.ui.Button(label="PACK BÁSICO", emoji="🧩", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:basico")
         premium = discord.ui.Button(label="PACK PREMIUM", emoji="💎", style=discord.ButtonStyle.success, custom_id="ccbot:pack:premium")
         basico.callback = self.abrir_basico
@@ -670,10 +674,20 @@ class PackPersonalizadoView(discord.ui.LayoutView):
         ))
 
     async def abrir_basico(self, interaction):
-        await interaction.response.send_modal(PackBasicoModal())
+        try:
+            await interaction.response.send_modal(PackBasicoModal())
+        except Exception:
+            log.exception("Falha no botão Pack Básico")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("Não consegui abrir o formulário básico. Execute /pack-personalizado novamente.", ephemeral=True)
 
     async def abrir_premium(self, interaction):
-        await interaction.response.send_modal(PackPremiumModal())
+        try:
+            await interaction.response.send_modal(PackPremiumModal())
+        except Exception:
+            log.exception("Falha no botão Pack Premium")
+            if not interaction.response.is_done():
+                await interaction.response.send_message("Não consegui abrir o formulário premium. Execute /pack-personalizado novamente.", ephemeral=True)
 
 
 @bot.tree.command(name="pack-personalizado", description="Solicitar um pack básico ou premium personalizado")
