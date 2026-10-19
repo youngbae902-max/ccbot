@@ -538,13 +538,131 @@ class TestarBoasVindasButton(discord.ui.Button):
                 )
 
 
+class VoltarPainelButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Voltar ao painel", emoji="↩️", style=discord.ButtonStyle.secondary, custom_id="ccbot:painel_voltar")
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.edit_message(
+            embed=criar_embed_painel(),
+            view=PainelAdminView()
+        )
+
+
+class CategoriaPainelSelect(discord.ui.Select):
+    def __init__(self):
+        super().__init__(
+            placeholder="Selecione uma área para gerenciar...",
+            min_values=1,
+            max_values=1,
+            custom_id="ccbot:painel_categoria",
+            options=[
+                discord.SelectOption(label="Gerenciar DJs", description="Adicionar, alterar ou excluir DJs", emoji="🎧", value="djs"),
+                discord.SelectOption(label="Boas-vindas", description="Testar a mensagem de entrada", emoji="👋", value="boas_vindas"),
+                discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
+            ]
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+
+        categoria = self.values[0]
+        if categoria == "djs":
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="🎧 Gerenciamento de DJs",
+                    description="Configure quais DJs aparecem no painel **Gerar Samples**.\n\nUse os botões abaixo para adicionar, alterar ou excluir nomes.",
+                    color=discord.Color.green()
+                ),
+                view=PainelDJsView()
+            )
+        elif categoria == "boas_vindas":
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="👋 Boas-vindas",
+                    description=f"Canal configurado: <#{WELCOME_CHANNEL_ID}>\n\nUse o botão para publicar uma mensagem de teste nesse canal.",
+                    color=discord.Color.green()
+                ),
+                view=PainelBoasVindasView()
+            )
+        else:
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="🛠️ Testes e manutenção",
+                    description="Use a opção abaixo para conferir se o bot está online e respondendo às interações.",
+                    color=discord.Color.green()
+                ),
+                view=PainelManutencaoView()
+            )
+
+
 class PainelAdminView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(CategoriaPainelSelect())
+
+
+class PainelDJsView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(AdicionarDJButton())
         self.add_item(AlterarDJButton())
         self.add_item(ExcluirDJButton())
+        self.add_item(VoltarPainelButton())
+
+
+class PainelBoasVindasView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
         self.add_item(TestarBoasVindasButton())
+        self.add_item(VoltarPainelButton())
+
+
+class VerificarBotButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Verificar bot", emoji="✅", style=discord.ButtonStyle.success, custom_id="ccbot:painel_verificar_bot")
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+
+        latency_ms = round(bot.latency * 1000)
+        await interaction.response.send_message(
+            f"✅ **CC BOT está online.**\nLatência: **{latency_ms} ms**",
+            ephemeral=True
+        )
+
+
+class PainelManutencaoView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(VerificarBotButton())
+        self.add_item(VoltarPainelButton())
+
+
+def criar_embed_painel():
+    embed = discord.Embed(
+        title="<:box:1561761831587160140> Central administrativa do **CC BOT**",
+        description=(
+            "Selecione uma área para abrir suas opções.\n\n"
+            "### 🎧 Gerenciamento de DJs\n"
+            "Adicione, altere ou remova os DJs do gerador.\n\n"
+            "### 👋 Boas-vindas\n"
+            "Teste a mensagem de entrada do servidor.\n\n"
+            "### 🛠️ Testes e manutenção\n"
+            "Confira se o bot está online e respondendo.\n\n"
+            "-# A central será ampliada conforme novas ferramentas administrativas forem criadas."
+        ),
+        color=discord.Color.green()
+    )
+    embed.set_footer(text="CC BOT • Central administrativa")
+    return embed
 
 
 class GerarSamplesButton(discord.ui.Button):
@@ -616,19 +734,8 @@ async def painel(interaction: discord.Interaction):
         await interaction.response.send_message("Apenas o administrador pode abrir esse painel.", ephemeral=True)
         return
 
-    embed = discord.Embed(
-        title="<:box:1561761831587160140> Gerencie os módulos e as funcionalidades do **CC BOT** por aqui.",
-        description=(
-            "### <:customer_service_headset:1561761835181674536>・Gerenciamento de DJs\n"
-            "Adicione os DJs que deverão aparecer no botão **Gerar Samples**.\n\n"
-            "-# Novas opções de configuração poderão ser adicionadas a este painel."
-        ),
-        color=discord.Color.green()
-    )
-    embed.set_footer(text="CC BOT • Painel de Configurações")
-
     await interaction.response.send_message(
-        embed=embed,
+        embed=criar_embed_painel(),
         view=PainelAdminView(),
         ephemeral=True
     )
