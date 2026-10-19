@@ -517,6 +517,20 @@ async def on_ready():
             timestamp=discord.utils.utcnow()
         )
         embed.set_footer(text="CC BOT • Sistema de inicialização")
+
+        # Mantém apenas a mensagem de inicialização mais recente do próprio bot.
+        async for mensagem in channel.history(limit=100):
+            if mensagem.author.id != bot.user.id or not mensagem.embeds:
+                continue
+            if mensagem.embeds[0].title == "CC BOT iniciado com sucesso!":
+                try:
+                    await mensagem.delete()
+                except discord.NotFound:
+                    pass
+                except discord.Forbidden:
+                    log.warning("Sem permissão para apagar a mensagem anterior de inicialização.")
+                break
+
         await channel.send(embed=embed)
 
         # Atualiza a mensagem do painel já publicada, sem criar outra.
