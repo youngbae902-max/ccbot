@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import zipfile
+import random
 from pathlib import Path
 from datetime import datetime
 
@@ -358,9 +359,13 @@ async def on_ready():
             color=discord.Color.green(),
             timestamp=discord.utils.utcnow()
         )
-        embed.set_image(
-            url="https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUycGtoZjFxZmdvcXdvMDlxZTZrZHBjZ3h6b20xaHVsbGJjY2R2NG1neSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/IsIyvk7zftw4H2C1Kz/giphy.gif"
-        )
+        startup_gifs = [
+            "https://tenor.com/nUfrDXWqeSC.gif",
+            "https://tenor.com/sQTXN9DRlo4.gif",
+            "https://tenor.com/bbEmFL7mPIr.gif",
+            "https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUycGtoZjFxZmdvcXdvMDlxZTZrZHBjZ3h6b20xaHVsbGJjY2R2NG1neSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/IsIyvk7zftw4H2C1Kz/giphy.gif",
+        ]
+        embed.set_image(url=random.choice(startup_gifs))
         embed.set_footer(text="CC BOT • Sistema de inicialização")
         await channel.send(embed=embed)
 
