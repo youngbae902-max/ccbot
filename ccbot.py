@@ -324,7 +324,7 @@ class GeradorSamplesView(discord.ui.LayoutView):
                         "## **PAINEL ATUALIZADO**\n"
                         "-# Confira abaixo todas as funcionalidades disponíveis e descubra tudo o que você pode fazer com o nosso painel!\n\n"
                         "### <:emoji_14:1561362005104001095> Samples No Estilo Dos Djs!\n"
-                        "Escolha o estilo de sample que combina com o seu beat! Gere samples inspiradas em artistas como **DJ ARANA, DAOZE, MP7** e muito mais!\n\n"
+                        "Clique em **Gerar Samples** e escolha um MC cadastrado pelo administrador.\n\n"
                         "### <:emoji_14:1561362005104001095> Gere __Quantas Samples Quiser!__\n"
                         "Tenha liberdade para gerar **quantas samples quiser**, de forma prática, rápida e direto pelo painel."
                     )
