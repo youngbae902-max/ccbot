@@ -749,160 +749,201 @@ class PackAdicionaisView(discord.ui.LayoutView):
             pass
 
 
+PACK_QUESTIONS = {
+    "Pack Básico": [
+        ("Nome do pack", "Qual nome você quer dar ao pack?", "Pode ser o nome do DJ ou uma ideia que identifique o projeto."),
+        ("Estilo musical", "Qual estilo musical você quer?", "Ex.: mandelão, automotivo, rave, montagem ou mistura."),
+        ("Ideia e detalhes", "Como você imagina esse pack?", "Conte quais sons, referências e elementos não podem faltar.")
+    ],
+    "Pack Premium": [
+        ("Nome do pack", "Qual nome você quer dar ao pack?", "Pode ser o nome do DJ ou uma ideia que identifique o projeto."),
+        ("Estilo musical", "Qual estilo musical você quer?", "Ex.: mandelão, automotivo, rave, montagem ou mistura."),
+        ("Itens desejados", "O que você quer receber no pack Premium?", "Cite kicks, samples, acapellas, MCs, vozes antes da virada e outros elementos."),
+        ("Quantidades", "Tem alguma quantidade em mente?", "Diga aproximadamente quantos itens quer de cada tipo, ou escreva a combinar."),
+        ("Organização", "Como prefere a organização?", "Ex.: pastas por tipo, nome do DJ, BPM ou outra preferência.")
+    ]
+}
+PACK_EXTRAS = [
+    ("Organização das pastas", 10, "Quer que eu organize os arquivos em pastas?"),
+    ("Samples personalizadas", 10, "Quer samples personalizadas para combinar com sua ideia?"),
+    ("Samples de outros packs", 20, "Quer incluir samples de outros packs?")
+]
+
 async def iniciar_fluxo_pack(interaction: discord.Interaction, plano: str):
-    """Inicia uma encomenda guiada por perguntas individuais no privado."""
-    try:
-        await interaction.user.send(
-            f"## 📦 Encomendar {plano}\n"
-            "Vou fazer algumas perguntas, uma por vez, para montar seu pedido. "
-            "Responda diretamente aqui nesta conversa. Você tem até 5 minutos para responder cada pergunta.\n\n"
-            "Para cancelar, escreva **cancelar**."
-        )
-    except discord.Forbidden:
-        await interaction.response.send_message(
-            "Não consigo te chamar no privado. Ative as mensagens diretas deste servidor e clique novamente.",
-            ephemeral=True
-        )
+    """Abre o fluxo dentro da própria resposta efêmera do painel, sem PV e sem canal novo."""
+    if interaction.guild is None:
+        await interaction.response.send_message("Use este painel dentro do servidor.", ephemeral=True)
         return
+    fluxo = PackPerguntasView(interaction.user.id, plano, interaction.guild.id)
+    await interaction.response.send_message(view=fluxo, ephemeral=True)
 
-    await interaction.response.send_message(
-        "📩 Te chamei no privado para montar sua encomenda por perguntas. Confira suas mensagens com o CC BOT.",
-        ephemeral=True
-    )
-    asyncio.create_task(fluxo_perguntas_pack(interaction.user, interaction.guild, plano))
-
-
-async def fluxo_perguntas_pack(usuario: discord.User, guild, plano: str):
-    respostas = {}
-
-    async def perguntar(pergunta: str) -> str:
-        await usuario.send(pergunta)
-        def check(message):
-            return message.author.id == usuario.id and message.guild is None
-        resposta = await bot.wait_for("message", check=check, timeout=300)
-        texto = resposta.content.strip()
-        if texto.casefold() == "cancelar":
-            raise asyncio.CancelledError("Pedido cancelado pelo cliente")
-        if not texto:
-            await usuario.send("Pode responder com um texto ou escrever **pular** se a pergunta for opcional.")
-            return await perguntar(pergunta)
-        return texto
-
-    try:
-        respostas["Nome do pack"] = await perguntar(
-            "**1/3 — Qual nome você quer dar ao pack?**\n"
-            "Pode ser o nome do DJ, uma ideia ou um nome que identifique o projeto."
+class PackRespostaModal(discord.ui.Modal):
+    def __init__(self, parent, titulo, pergunta, dica):
+        super().__init__(title=titulo[:45], timeout=300)
+        self.parent_view = parent
+        self.resposta = discord.ui.TextInput(
+            label=pergunta[:45],
+            placeholder=dica[:100],
+            style=discord.TextStyle.paragraph if len(dica) > 55 else discord.TextStyle.short,
+            max_length=900,
+            required=True
         )
-        respostas["Estilo musical"] = await perguntar(
-            "**2/3 — Qual estilo musical você quer?**\n"
-            "Exemplos: mandelão, automotivo, rave, montagem ou uma mistura de estilos."
-        )
-        if plano == "Pack Básico":
-            respostas["Ideia e detalhes"] = await perguntar(
-                "**3/6 — Como você imagina esse pack?**\n"
-                "Conte o que procura, quais sons ou referências quer usar e o que não pode faltar. "
-                "Quanto mais detalhes, melhor."
+        self.add_item(self.resposta)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if interaction.user.id != self.parent_view.owner_id:
+            await interaction.response.send_message("Este pedido pertence a outra pessoa.", ephemeral=True)
+            return
+        self.parent_view.salvar_resposta(str(self.resposta.value).strip())
+        await interaction.response.defer()
+        await self.parent_view.mostrar_proxima(interaction)
+
+class PackPerguntasView(discord.ui.LayoutView):
+    def __init__(self, owner_id: int, plano: str, guild_id: int):
+        super().__init__(timeout=900)
+        self.owner_id = owner_id
+        self.plano = plano
+        self.guild_id = guild_id
+        self.respostas = {}
+        self.indice = 0
+        self.extras_indice = 0
+        self.extras_escolhidos = []
+        self.fase = "perguntas"
+        self.rebuild()
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("Este pedido pertence a outra pessoa.", ephemeral=True)
+            return False
+        return True
+
+    def salvar_resposta(self, texto):
+        if self.fase == "perguntas":
+            titulo = PACK_QUESTIONS[self.plano][self.indice][0]
+            self.respostas[titulo] = texto
+
+    def rebuild(self):
+        self.clear_items()
+        if self.fase == "perguntas":
+            perguntas = PACK_QUESTIONS[self.plano]
+            titulo, pergunta, dica = perguntas[self.indice]
+            total = len(perguntas) + (len(PACK_EXTRAS) if self.plano == "Pack Básico" else 0)
+            numero = self.indice + 1
+            conteudo = (
+                f"## 📦 {self.plano.upper()}\n"
+                f"**Pergunta {numero} de {total}**\n\n"
+                f"### {pergunta}\n{dica}\n\n"
+                "Toque em **Responder**. A próxima pergunta aparecerá aqui nesta mesma aba."
             )
-            extras = []
-            extras_config = [
-                ("Organização das pastas", 10, "Quer que eu organize os arquivos em pastas para ficar fácil de encontrar? (+ R$ 10)"),
-                ("Samples personalizadas", 10, "Quer samples personalizadas para combinar com a sua ideia? (+ R$ 10)"),
-                ("Samples de outros packs", 20, "Quer incluir samples de outros packs? (+ R$ 20)")
-            ]
-            for i, (nome, preco, pergunta) in enumerate(extras_config, start=4):
-                resposta = (await perguntar(
-                    f"**{i}/6 — {pergunta}**\nResponda **sim** ou **não**."
-                )).casefold()
-                if resposta in ("sim", "s", "quero", "quero sim", "yes"):
-                    extras.append((nome, preco))
-            valor = 50 + sum(preco for _, preco in extras)
-            adicionais = [f"{nome} (+ R$ {preco})" for nome, preco in extras]
+            botao = discord.ui.Button(label="Responder", emoji="✍️", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:responder")
+            botao.callback = self.abrir_modal
+            itens = [botao]
+        elif self.fase == "extras":
+            nome, preco, pergunta = PACK_EXTRAS[self.extras_indice]
+            conteudo = (
+                f"## 📦 PACK BÁSICO — ADICIONAIS\n"
+                f"**Adicional {self.extras_indice + 1} de {len(PACK_EXTRAS)}**\n\n"
+                f"### {pergunta}\n"
+                f"Valor adicional: **R$ {preco},00**\n\nEscolha uma opção abaixo."
+            )
+            sim = discord.ui.Button(label="Sim", emoji="✅", style=discord.ButtonStyle.success, custom_id="ccbot:pack:extra:sim")
+            nao = discord.ui.Button(label="Não", emoji="✖️", style=discord.ButtonStyle.secondary, custom_id="ccbot:pack:extra:nao")
+            sim.callback = self.responder_extra_sim
+            nao.callback = self.responder_extra_nao
+            itens = [sim, nao]
         else:
-            respostas["Itens desejados"] = await perguntar(
-                "**3/5 — O que você quer receber no pack Premium?**\n"
-                "Você pode citar kicks, samples, acapellas, MCs, vozes antes da virada e outros elementos."
+            total = 50 + sum(preco for _, preco in self.extras_escolhidos) if self.plano == "Pack Básico" else 100
+            extras = ", ".join(f"{n} (+ R$ {p})" for n, p in self.extras_escolhidos) or "Nenhum"
+            resumo = "\n".join(f"**{k}:** {v}" for k, v in self.respostas.items())
+            conteudo = (
+                f"## ✅ REVISE SEU PEDIDO\n**Plano:** {self.plano}\n"
+                f"**Valor estimado:** R$ {total},00\n**Adicionais:** {extras}\n\n"
+                f"{resumo}\n\nConfira as informações e envie o pedido."
             )
-            respostas["Quantidades"] = await perguntar(
-                "**4/5 — Tem alguma quantidade em mente?**\n"
-                "Diga aproximadamente quantos itens quer de cada tipo ou escreva **a combinar**."
-            )
-            respostas["Organização"] = await perguntar(
-                "**5/5 — Como prefere a organização?**\n"
-                "Ex.: pastas separadas por tipo, nome do DJ, BPM ou outra preferência."
-            )
-            valor = 100
-            adicionais = []
-
-        embed = discord.Embed(
-            title="📦 Novo pedido • Encomendar Pack Personalizado",
-            description=f"**Plano:** {plano}\n**Valor estimado:** R$ {valor},00",
-            color=discord.Color.blurple()
-        )
-        embed.add_field(name="Cliente", value=f"{usuario} (ID {usuario.id})", inline=False)
-        embed.add_field(name="Servidor", value=guild.name if guild else "Não informado", inline=False)
-        embed.add_field(name="Adicionais", value=", ".join(adicionais) if adicionais else "Nenhum", inline=False)
-        for titulo, texto in respostas.items():
-            embed.add_field(name=titulo[:256], value=(texto.strip() or "Não informado")[:1024], inline=False)
-        embed.set_footer(text="CC BOT • Encomenda guiada de pack")
-        await enviar_pedido_admin(None, embed=embed)
-        await usuario.send(
-            f"✅ **Sua encomenda foi enviada!**\n"
-            f"**Plano:** {plano}\n**Valor estimado:** R$ {valor},00\n"
-            "O administrador vai conferir os detalhes e entrar em contato para combinar o restante."
-        )
-    except asyncio.TimeoutError:
-        try:
-            await usuario.send("⌛ A encomenda foi pausada porque você demorou mais de 5 minutos para responder. Clique novamente no painel para começar outra.")
-        except Exception:
-            pass
-    except asyncio.CancelledError:
-        try:
-            await usuario.send("Encomenda cancelada. Se quiser, você pode começar novamente pelo painel.")
-        except Exception:
-            pass
-    except Exception:
-        log.exception("Falha no fluxo de perguntas do pack para user_id=%s", usuario.id)
-        try:
-            await usuario.send("Não consegui concluir sua encomenda agora. Tente novamente pelo painel ou avise o administrador.")
-        except Exception:
-            pass
-
-
-class PackPersonalizadoView(discord.ui.LayoutView):
-    def __init__(self):
-        super().__init__(timeout=None)
-        basico = discord.ui.Button(label="PACK BÁSICO", emoji="<:tag:1561787923865665667>", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:v2:basico")
-        premium = discord.ui.Button(label="PACK PREMIUM", emoji="<:coroa:1561788313214390364>", style=discord.ButtonStyle.success, custom_id="ccbot:pack:v2:premium")
-        basico.callback = self.abrir_basico
-        premium.callback = self.abrir_premium
+            enviar = discord.ui.Button(label="Enviar pedido", emoji="📨", style=discord.ButtonStyle.success, custom_id="ccbot:pack:finalizar")
+            voltar = discord.ui.Button(label="Voltar", style=discord.ButtonStyle.secondary, custom_id="ccbot:pack:voltar")
+            enviar.callback = self.finalizar
+            voltar.callback = self.voltar
+            itens = [voltar, enviar]
         self.add_item(discord.ui.Container(
-            discord.ui.TextDisplay(content=(
-                "## <:box:1561761831587160140> ENCOMENDAR PACK PERSONALIZADO\n"
-                "Escolha Básico ou Premium. O CC BOT vai te chamar no privado e fazer perguntas uma por vez, "
-                "para entender sua ideia e montar a encomenda com você. Não tem formulário para preencher.\n\n"
-                "### <:tag:1561787923865665667> PACK BÁSICO — R$ 50,00\n"
-                "Você responde às perguntas sobre nome, estilo e ideia do pack. Depois, o bot pergunta se deseja "
-                "organização de pastas, samples personalizadas ou samples de outros packs.\n"
-                "**Adicionais:** organização de pastas (+ R$ 10), samples personalizadas (+ R$ 10) "
-                "e samples de outros packs (+ R$ 20).\n\n"
-                "### <:coroa:1561788313214390364> PACK PREMIUM — R$ 100,00\n"
-                "Você responde a perguntas sobre o nome, estilo, itens desejados, quantidades e organização. "
-                "Pode citar kicks, samples, acapellas, MCs e vozes antes da virada.\n\n"
-                "**Como funciona:**\n"
-                "1. Escolha um plano.\n"
-                "2. Responda às perguntas que o bot enviar no privado.\n"
-                "3. No Básico, responda se quer cada adicional.\n"
-                "4. O pedido completo será enviado ao administrador para combinar os detalhes."
-            )),
+            discord.ui.TextDisplay(content=conteudo[:3900]),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-            discord.ui.ActionRow(basico, premium)
+            discord.ui.ActionRow(*itens)
         ))
 
-    async def abrir_basico(self, interaction):
-        await iniciar_fluxo_pack(interaction, "Pack Básico")
+    async def abrir_modal(self, interaction):
+        titulo, pergunta, dica = PACK_QUESTIONS[self.plano][self.indice]
+        await interaction.response.send_modal(PackRespostaModal(self, titulo, pergunta, dica))
 
-    async def abrir_premium(self, interaction):
-        await iniciar_fluxo_pack(interaction, "Pack Premium")
+    async def mostrar_proxima(self, interaction):
+        if self.fase == "perguntas":
+            self.indice += 1
+            if self.indice >= len(PACK_QUESTIONS[self.plano]):
+                if self.plano == "Pack Básico":
+                    self.fase = "extras"
+                else:
+                    self.fase = "revisao"
+        elif self.fase == "extras":
+            self.extras_indice += 1
+            if self.extras_indice >= len(PACK_EXTRAS):
+                self.fase = "revisao"
+        self.rebuild()
+        await interaction.edit_original_response(view=self)
+
+    async def responder_extra_sim(self, interaction):
+        nome, preco, _ = PACK_EXTRAS[self.extras_indice]
+        self.extras_escolhidos.append((nome, preco))
+        await interaction.response.defer()
+        await self.mostrar_proxima(interaction)
+
+    async def responder_extra_nao(self, interaction):
+        await interaction.response.defer()
+        await self.mostrar_proxima(interaction)
+
+    async def voltar(self, interaction):
+        if self.fase == "revisao":
+            if self.plano == "Pack Básico":
+                self.fase = "extras"
+                self.extras_indice = len(PACK_EXTRAS) - 1
+            else:
+                self.fase = "perguntas"
+                self.indice = len(PACK_QUESTIONS[self.plano]) - 1
+        elif self.fase == "extras":
+            if self.extras_indice > 0:
+                self.extras_indice -= 1
+            else:
+                self.fase = "perguntas"
+                self.indice = len(PACK_QUESTIONS[self.plano]) - 1
+        elif self.fase == "perguntas" and self.indice > 0:
+            self.indice -= 1
+        self.rebuild()
+        await interaction.response.edit_message(view=self)
+
+    async def finalizar(self, interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        total = 50 + sum(preco for _, preco in self.extras_escolhidos) if self.plano == "Pack Básico" else 100
+        embed = discord.Embed(
+            title="📦 Novo pedido • Pack Personalizado",
+            description=f"**Plano:** {self.plano}\n**Valor estimado:** R$ {total},00",
+            color=discord.Color.blurple()
+        )
+        embed.add_field(name="Cliente", value=f"{interaction.user} (ID {interaction.user.id})", inline=False)
+        guild = bot.get_guild(self.guild_id)
+        embed.add_field(name="Servidor", value=guild.name if guild else "Não informado", inline=False)
+        embed.add_field(name="Adicionais", value=", ".join(f"{n} (+ R$ {p})" for n, p in self.extras_escolhidos) or "Nenhum", inline=False)
+        for titulo, texto in self.respostas.items():
+            embed.add_field(name=titulo[:256], value=texto[:1024], inline=False)
+        embed.set_footer(text="CC BOT • Encomenda guiada de pack")
+        try:
+            await enviar_pedido_admin(None, embed=embed)
+            self.clear_items()
+            self.add_item(discord.ui.Container(discord.ui.TextDisplay(
+                content=f"## ✅ PEDIDO ENVIADO\nSeu pedido de **{self.plano}** foi enviado ao administrador.\n**Valor estimado:** R$ {total},00"
+            )))
+            await interaction.edit_original_response(view=self)
+        except Exception:
+            log.exception("Falha ao enviar pedido de pack")
+            await interaction.edit_original_response(content="❌ Não consegui enviar o pedido. Tente novamente.", view=None)
 
 
 async def criar_pack_personalizado(interaction: discord.Interaction):
