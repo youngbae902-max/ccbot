@@ -202,7 +202,7 @@ class ListaDJsSelect(discord.ui.Select):
             for nome in mcs[:25]
         ]
         super().__init__(
-            placeholder="Escolha um DJ...",
+            placeholder="Escolha um DJ da lista...",
             min_values=1,
             max_values=1,
             options=options,
@@ -210,21 +210,36 @@ class ListaDJsSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        # O próximo passo do fluxo ainda não foi implementado.
-        # A seleção é recebida sem exibir uma nova mensagem.
-        await interaction.response.defer()
+        nome = self.values[0]
+        await interaction.response.send_message(
+            f"🎧 DJ selecionado: **{discord.utils.escape_markdown(nome)}**\n"
+            "A seleção foi recebida. A geração automática de áudio ainda precisa ser integrada.",
+            ephemeral=True
+        )
 
 
-class ListaDJsView(discord.ui.View):
+class ListaDJsView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(ListaDJsSelect())
+        self.add_item(
+            discord.ui.Container(
+                discord.ui.TextDisplay(
+                    content=(
+                        "## 🎧 GERAR SAMPLES\n"
+                        "Escolha abaixo o DJ para continuar.\n"
+                        "-# A lista do Discord permite até 25 opções por menu."
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+                discord.ui.ActionRow(ListaDJsSelect())
+            )
+        )
 
 
 class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
     nome = discord.ui.TextInput(
         label="Nome do DJ",
-        placeholder="Digite o nome do DJ que aparecerá na lista",
+        placeholder="Digite o nome do DJ",
         min_length=1,
         max_length=100
     )
@@ -238,7 +253,6 @@ class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
         if not nome:
             await interaction.response.send_message("Digite um nome válido.", ephemeral=True)
             return
-
         if any(item.casefold() == nome.casefold() for item in mcs):
             await interaction.response.send_message("Esse DJ já está cadastrado.", ephemeral=True)
             return
@@ -246,16 +260,95 @@ class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
         mcs.append(nome)
         mcs.sort(key=str.casefold)
         save_json(DJS_FILE, mcs)
-        await interaction.response.send_message(f"DJ **{discord.utils.escape_markdown(nome)}** adicionado à lista.", ephemeral=True)
+        await interaction.response.send_message(
+            f"DJ **{discord.utils.escape_markdown(nome)}** adicionado à lista.",
+            ephemeral=True,
+            view=PainelAdminView()
+        )
+
+
+class AlterarDJModal(discord.ui.Modal, title="Alterar nome de DJ"):
+    antigo = discord.ui.TextInput(
+        label="Nome atual do DJ",
+        placeholder="Digite o nome atual exatamente",
+        min_length=1,
+        max_length=100
+    )
+    novo = discord.ui.TextInput(
+        label="Novo nome do DJ",
+        placeholder="Digite o novo nome",
+        min_length=1,
+        max_length=100
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode alterar DJs.", ephemeral=True)
+            return
+
+        antigo = str(self.antigo).strip()
+        novo = str(self.novo).strip()
+        indice = next((i for i, item in enumerate(mcs) if item.casefold() == antigo.casefold()), None)
+        if indice is None:
+            await interaction.response.send_message("Não encontrei esse DJ na lista.", ephemeral=True)
+            return
+        if any(item.casefold() == novo.casefold() for i, item in enumerate(mcs) if i != indice):
+            await interaction.response.send_message("Já existe um DJ com esse nome.", ephemeral=True)
+            return
+
+        mcs[indice] = novo
+        mcs.sort(key=str.casefold)
+        save_json(DJS_FILE, mcs)
+        await interaction.response.send_message(
+            f"Nome alterado: **{discord.utils.escape_markdown(antigo)}** → **{discord.utils.escape_markdown(novo)}**.",
+            ephemeral=True,
+            view=PainelAdminView()
+        )
+
+
+class ExcluirDJSelect(discord.ui.Select):
+    def __init__(self):
+        options = [discord.SelectOption(label=nome[:100], value=nome) for nome in mcs[:25]]
+        super().__init__(
+            placeholder="Escolha o DJ para excluir...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="ccbot:excluir_dj"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode excluir DJs.", ephemeral=True)
+            return
+        nome = self.values[0]
+        if nome not in mcs:
+            await interaction.response.send_message("Esse DJ não está mais cadastrado.", ephemeral=True)
+            return
+        mcs.remove(nome)
+        save_json(DJS_FILE, mcs)
+        await interaction.response.send_message(
+            f"DJ **{discord.utils.escape_markdown(nome)}** excluído.",
+            ephemeral=True,
+            view=PainelAdminView()
+        )
+
+
+class ExcluirDJView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=300)
+        if mcs:
+            self.add_item(
+                discord.ui.Container(
+                    discord.ui.TextDisplay(content="## 🗑️ EXCLUIR DJ\nSelecione o DJ que deseja remover da lista."),
+                    discord.ui.ActionRow(ExcluirDJSelect())
+                )
+            )
 
 
 class AdicionarDJButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(
-            label="Adicionar DJs",
-            style=discord.ButtonStyle.success,
-            custom_id="ccbot:adicionar_djs"
-        )
+        super().__init__(label="Adicionar DJ", style=discord.ButtonStyle.success, custom_id="ccbot:adicionar_djs")
 
     async def callback(self, interaction: discord.Interaction):
         if not is_admin(interaction):
@@ -264,10 +357,40 @@ class AdicionarDJButton(discord.ui.Button):
         await interaction.response.send_modal(AdicionarDJModal())
 
 
+class AlterarDJButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Alterar nome", style=discord.ButtonStyle.primary, custom_id="ccbot:alterar_dj")
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar esse painel.", ephemeral=True)
+            return
+        if not mcs:
+            await interaction.response.send_message("Ainda não há DJs cadastrados.", ephemeral=True)
+            return
+        await interaction.response.send_modal(AlterarDJModal())
+
+
+class ExcluirDJButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Excluir DJ", style=discord.ButtonStyle.danger, custom_id="ccbot:botao_excluir_dj")
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar esse painel.", ephemeral=True)
+            return
+        if not mcs:
+            await interaction.response.send_message("Ainda não há DJs cadastrados.", ephemeral=True)
+            return
+        await interaction.response.send_message(view=ExcluirDJView(), ephemeral=True)
+
+
 class PainelAdminView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(AdicionarDJButton())
+        self.add_item(AlterarDJButton())
+        self.add_item(ExcluirDJButton())
 
 
 class GerarSamplesButton(discord.ui.Button):
@@ -283,7 +406,6 @@ class GerarSamplesButton(discord.ui.Button):
             return
 
         await interaction.response.send_message(
-            "Escolha um DJ:",
             view=ListaDJsView(),
             ephemeral=True
         )
