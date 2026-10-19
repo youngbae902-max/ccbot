@@ -426,12 +426,8 @@ async def on_ready():
             "https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561733563433488404/erza-erza-scarlet.gif?ex=6ad76d39&is=6ad61bb9&hm=5fc8974f8a912abc3ca2dd6400609a37b784617d20d1b8fc29020d6ff30d26da&",
             "https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561733897560006656/shizuka-yoshimoto-the-100-girlfriends-who-really-really-really-really-really-love-you.gif?ex=6ad76d88&is=6ad61c08&hm=614448483788ab64136b04be34806876b04fb220df8326a970db0cde07069f44&",
         ]
-        random.shuffle(startup_gifs)
-        startup_embeds = [embed]
-        for gif_url in startup_gifs:
-            gif_embed = discord.Embed(color=discord.Color.green())
-            gif_embed.set_image(url=gif_url)
-            startup_embeds.append(gif_embed)
+        gif_embed = discord.Embed(color=discord.Color.green())
+        gif_embed.set_image(url=random.choice(startup_gifs))
         embed.set_footer(text="CC BOT • Sistema de inicialização")
         await channel.send(embed=embed)
 
