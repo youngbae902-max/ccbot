@@ -366,8 +366,8 @@ async def on_ready():
         ]
         # Links de página do Tenor não são URLs diretas do arquivo GIF;
         # publicamos o link sorteado no embed, sem set_image.
-        embed.description += "\\n\\n🎞️ **GIF aleatório:** " + random.choice(startup_gifs)
-                embed.set_footer(text="CC BOT • Sistema de inicialização")
+        embed.description += "\n\n🎞️ **GIF aleatório:** " + random.choice(startup_gifs)
+        embed.set_footer(text="CC BOT • Sistema de inicialização")
         await channel.send(embed=embed)
 
     except Exception as exc:
