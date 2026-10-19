@@ -549,7 +549,6 @@ class VendaBeatView(discord.ui.View):
         self.add_item(ComprarBeatButton(nome, preco))
 
 
-@bot.tree.command(name="venda-de-beats", description="Cadastrar e publicar um beat para venda")
 async def venda_de_beats(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
@@ -1247,6 +1246,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 discord.SelectOption(label="Gerenciar DJs", description="Adicionar, alterar ou excluir DJs", emoji="🎧", value="djs"),
                 discord.SelectOption(label="Boas-vindas", description="Testar a mensagem de entrada", emoji="👋", value="boas_vindas"),
                 discord.SelectOption(label="Emojis, backup e avisos", description="Importar emojis, criar backup e definir canal de avisos", emoji="🧰", value="ferramentas"),
+                discord.SelectOption(label="Publicar painéis", description="Samples, acapellas, arrumador e venda de beats", emoji="📋", value="publicar"),
                 discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
             ]
         )
@@ -1275,6 +1275,18 @@ class CategoriaPainelSelect(discord.ui.Select):
                 ),
                 view=PainelBoasVindasView()
             )
+        elif categoria == "publicar":
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="📋 Publicar painéis",
+                    description=(
+                        "Escolha uma função abaixo. Os sistemas continuam ativos; "
+                        "esta central apenas reúne os acessos em um só lugar."
+                    ),
+                    color=discord.Color.green()
+                ),
+                view=PainelPublicarView()
+            )
         elif categoria == "ferramentas":
             await interaction.response.edit_message(
                 embed=discord.Embed(
@@ -1298,6 +1310,45 @@ class CategoriaPainelSelect(discord.ui.Select):
                 ),
                 view=PainelManutencaoView()
             )
+
+
+class PublicarPainelButton(discord.ui.Button):
+    def __init__(self, label, emoji, action):
+        super().__init__(
+            label=label,
+            emoji=emoji,
+            style=discord.ButtonStyle.primary,
+            custom_id=f"ccbot:publicar_{action}"
+        )
+        self.action = action
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message(
+                "Apenas o administrador pode usar este painel.", ephemeral=True
+            )
+            return
+
+        # Reutiliza os fluxos originais, sem duplicar a lógica dos sistemas.
+        handlers = {
+            "emojis": adicionar_emojis,
+            "arrumador": arrumador,
+            "acapellas": painel_acapellas,
+            "samples": samples,
+            "beats": venda_de_beats,
+        }
+        await handlers[self.action](interaction)
+
+
+class PainelPublicarView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(PublicarPainelButton("Adicionar emojis", "😀", "emojis"))
+        self.add_item(PublicarPainelButton("Arrumador", "🧰", "arrumador"))
+        self.add_item(PublicarPainelButton("Acapellas", "🎙️", "acapellas"))
+        self.add_item(PublicarPainelButton("Samples", "🎧", "samples"))
+        self.add_item(PublicarPainelButton("Venda de beats", "💿", "beats"))
+        self.add_item(VoltarPainelButton())
 
 
 class PainelAdminView(discord.ui.View):
@@ -1355,7 +1406,9 @@ def criar_embed_painel():
             "### 👋 Boas-vindas\n"
             "Teste a mensagem de entrada do servidor.\n\n"
             "### 🧰 Emojis, backup e avisos\n"
-            "Importe emojis, crie backups e configure o canal de avisos.\n\n"
+            "Crie backups e configure o canal de avisos.\n\n"
+            "### 📋 Publicar painéis\n"
+            "Acesse Adicionar emojis, Arrumador, Acapellas, Samples e Venda de beats.\n\n"
             "### 🛠️ Testes e manutenção\n"
             "Confira se o bot está online e respondendo.\n\n"
             "-# A central será ampliada conforme novas ferramentas administrativas forem criadas."
@@ -1446,7 +1499,6 @@ async def painel(interaction: discord.Interaction):
 
 EMOJIS_DIR = Path("/sdcard/Download/EMOJIS")
 
-@bot.tree.command(name="adicionar_emojis", description="Adicionar emojis da pasta EMOJIS ao servidor")
 async def adicionar_emojis(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador pode usar este comando.", ephemeral=True)
@@ -1512,7 +1564,6 @@ async def adicionar_emojis(interaction: discord.Interaction):
         texto.append("**Falhas:**\n" + "\n".join(falhas[:8]))
     await interaction.followup.send("\n".join(texto)[:1950], ephemeral=True)
 
-@bot.tree.command(name="samples", description="Publicar o painel do Gerador de Samples")
 async def samples(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
@@ -1546,7 +1597,6 @@ class AcapellasActivityView(discord.ui.View):
         self.add_item(AcapellasActivityButton())
 
 
-@bot.tree.command(name="painel-acapellas", description="Publicar o painel de busca de acapellas")
 async def painel_acapellas(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
@@ -1839,7 +1889,6 @@ def criar_embed_arrumador():
     return embed
 
 
-@bot.tree.command(name="arrumador", description="Publicar o painel do Arrumador de Arquivos")
 async def arrumador(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
