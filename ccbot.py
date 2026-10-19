@@ -717,6 +717,91 @@ class VoltarPainelButton(discord.ui.Button):
         )
 
 
+class AdicionarEmojisPainelButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Adicionar emojis da pasta", emoji="😀", style=discord.ButtonStyle.success, custom_id="ccbot:painel_adicionar_emojis")
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        await adicionar_emojis.callback(interaction)
+
+
+class DefinirCanalAvisosSelect(discord.ui.ChannelSelect):
+    def __init__(self):
+        super().__init__(
+            placeholder="Escolha o canal de avisos...",
+            channel_types=[discord.ChannelType.text],
+            min_values=1,
+            max_values=1,
+            custom_id="ccbot:painel_canal_avisos"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        canal = self.values[0]
+        settings["notice_channel"] = canal.id
+        save_json(DATA_FILE, settings)
+        await interaction.response.send_message(
+            f"Canal de avisos definido para {canal.mention}.",
+            ephemeral=True
+        )
+
+
+class BackupPainelButton(discord.ui.Button):
+    def __init__(self, destino: str):
+        self.destino = destino
+        label = "Salvar no Termux" if destino == "termux" else "Enviar por DM"
+        super().__init__(label=label, emoji="💾" if destino == "termux" else "📩", style=discord.ButtonStyle.primary, custom_id=f"ccbot:painel_backup_{destino}")
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        arquivo = BACKUP_DIR / f"CCBOT_backup_{timestamp}.zip"
+        try:
+            with zipfile.ZipFile(arquivo, "w", zipfile.ZIP_DEFLATED) as z:
+                for path in BASE.rglob("*"):
+                    if not path.is_file():
+                        continue
+                    relative = path.relative_to(BASE)
+                    if any(part in {".git", "__pycache__", ".venv"} for part in relative.parts):
+                        continue
+                    if path.name in {"token.txt", ".env"} or path.suffix in {".pyc", ".log"}:
+                        continue
+                    z.write(path, relative.as_posix())
+
+            if self.destino == "termux":
+                await interaction.followup.send(f"Backup criado no Termux: {arquivo}", ephemeral=True)
+            else:
+                user = await bot.fetch_user(ADMIN_ID)
+                await user.send(
+                    f"Backup do CC BOT — {timestamp}. O token não está incluído.",
+                    file=discord.File(arquivo)
+                )
+                await interaction.followup.send("Backup enviado por mensagem privada.", ephemeral=True)
+        except Exception as exc:
+            log.exception("Falha ao criar backup pelo painel")
+            await notify_admin(f"Falha ao criar backup pelo painel: {exc}")
+            await interaction.followup.send("Não consegui criar o backup. Verifique os avisos do bot.", ephemeral=True)
+
+
+class PainelFerramentasView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(AdicionarEmojisPainelButton())
+        self.add_item(BackupPainelButton("termux"))
+        self.add_item(BackupPainelButton("discord"))
+        self.add_item(DefinirCanalAvisosSelect())
+        self.add_item(VoltarPainelButton())
+
+
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
@@ -727,6 +812,7 @@ class CategoriaPainelSelect(discord.ui.Select):
             options=[
                 discord.SelectOption(label="Gerenciar DJs", description="Adicionar, alterar ou excluir DJs", emoji="🎧", value="djs"),
                 discord.SelectOption(label="Boas-vindas", description="Testar a mensagem de entrada", emoji="👋", value="boas_vindas"),
+                discord.SelectOption(label="Emojis, backup e avisos", description="Importar emojis, criar backup e definir canal de avisos", emoji="🧰", value="ferramentas"),
                 discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
             ]
         )
@@ -754,6 +840,20 @@ class CategoriaPainelSelect(discord.ui.Select):
                     color=discord.Color.green()
                 ),
                 view=PainelBoasVindasView()
+            )
+        elif categoria == "ferramentas":
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="🧰 Ferramentas administrativas",
+                    description=(
+                        "**Adicionar emojis:** importa as imagens da pasta EMOJIS no Termux.\n\n"
+                        "**Backup:** salva uma cópia no Termux ou envia o ZIP por mensagem privada.\n\n"
+                        f"**Canal de avisos atual:** <#{settings.get('notice_channel', DEFAULT_NOTICE_CHANNEL)}>\n"
+                        "Escolha o canal no seletor abaixo para alterar onde os erros e avisos são enviados."
+                    ),
+                    color=discord.Color.green()
+                ),
+                view=PainelFerramentasView()
             )
         else:
             await interaction.response.edit_message(
@@ -820,6 +920,8 @@ def criar_embed_painel():
             "Adicione, altere ou remova os DJs do gerador.\n\n"
             "### 👋 Boas-vindas\n"
             "Teste a mensagem de entrada do servidor.\n\n"
+            "### 🧰 Emojis, backup e avisos\n"
+            "Importe emojis, crie backups e configure o canal de avisos.\n\n"
             "### 🛠️ Testes e manutenção\n"
             "Confira se o bot está online e respondendo.\n\n"
             "-# A central será ampliada conforme novas ferramentas administrativas forem criadas."
