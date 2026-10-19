@@ -358,6 +358,7 @@ async def on_ready():
             color=discord.Color.green(),
             timestamp=discord.utils.utcnow()
         )
+        embed.set_image(url="https://media.giphy.com/media/AdmayiHwIsukoOdTQC/giphy.gif")
         embed.set_footer(text="CC BOT • Sistema de inicialização")
         await channel.send(embed=embed)
 
