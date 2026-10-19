@@ -187,6 +187,153 @@ class Backup(app_commands.Group):
 
 bot.tree.add_command(Backup())
 
+BEAT_AUDIO_EXTENSIONS = {
+    ".mp3", ".wav", ".ogg", ".oga", ".opus", ".m4a", ".aac",
+    ".flac", ".aiff", ".aif", ".wma", ".mid", ".midi", ".amr", ".3gp"
+}
+
+
+class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
+    nome = discord.ui.TextInput(label="Nome do beat", placeholder="Ex.: Noite de Baile", max_length=100)
+    descricao = discord.ui.TextInput(label="Descrição", placeholder="Descreva o beat", style=discord.TextStyle.paragraph, max_length=1000)
+    estilo = discord.ui.TextInput(label="Estilo do beat", placeholder="Ex.: Funk mandelão", max_length=100)
+    valor = discord.ui.TextInput(label="Valor (R$)", placeholder="Ex.: 25,00", max_length=20)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode cadastrar beats.", ephemeral=True)
+            return
+
+        try:
+            valor_texto = str(self.valor.value).strip().replace("R$", "").replace(" ", "")
+            valor_texto = valor_texto.replace(".", "").replace(",", ".")
+            valor_numero = float(valor_texto)
+            if valor_numero < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            await interaction.response.send_message(
+                "Valor inválido. Informe um preço como 25,00 ou 25.00.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        canal = interaction.channel
+        await canal.send(
+            f"{interaction.user.mention} **Mande um áudio para ser a prévia do BEAT.**\\n"
+            "Aceito arquivos de áudio. Você tem 3 minutos para enviar a prévia neste canal."
+        )
+
+        def mensagem_valida(message: discord.Message):
+            return (
+                message.author.id == interaction.user.id
+                and message.channel.id == interaction.channel_id
+                and bool(message.attachments)
+            )
+
+        try:
+            mensagem = await bot.wait_for("message", check=mensagem_valida, timeout=180)
+        except asyncio.TimeoutError:
+            await interaction.followup.send(
+                "Tempo esgotado. Execute /venda-de-beats novamente para tentar cadastrar o beat.",
+                ephemeral=True
+            )
+            return
+
+        audio = None
+        for arquivo in mensagem.attachments:
+            nome_arquivo = arquivo.filename.lower()
+            tipo = (arquivo.content_type or "").lower()
+            if tipo.startswith("audio/") or Path(nome_arquivo).suffix in BEAT_AUDIO_EXTENSIONS:
+                audio = arquivo
+                break
+
+        if audio is None:
+            await interaction.followup.send(
+                "Esse arquivo não parece ser um áudio. Envie um arquivo de áudio e tente novamente com /venda-de-beats.",
+                ephemeral=True
+            )
+            try:
+                await mensagem.delete()
+            except discord.HTTPException:
+                pass
+            return
+
+        preco = f"R$ {valor_numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        embed = discord.Embed(
+            title=f"🎧 {self.nome.value.strip()}",
+            description=self.descricao.value.strip(),
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Estilo", value=self.estilo.value.strip(), inline=True)
+        embed.add_field(name="Valor", value=preco, inline=True)
+        embed.set_footer(text="CC BOT • Venda de Beats")
+
+        view = VendaBeatView(
+            nome=self.nome.value.strip(),
+            preco=preco,
+            preview_url=audio.url
+        )
+        await canal.send(embed=embed, view=view)
+        await interaction.followup.send("Beat publicado com sucesso neste canal.", ephemeral=True)
+
+
+class OuvirPreviaBeatButton(discord.ui.Button):
+    def __init__(self, preview_url: str):
+        super().__init__(label="Ouvir prévia", emoji="🎧", style=discord.ButtonStyle.primary)
+        self.preview_url = preview_url
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            f"🎧 **Prévia do beat:** {self.preview_url}",
+            ephemeral=True
+        )
+
+
+class ComprarBeatButton(discord.ui.Button):
+    def __init__(self, nome: str, preco: str):
+        super().__init__(label="Comprar beat", emoji="🛒", style=discord.ButtonStyle.success)
+        self.nome = nome
+        self.preco = preco
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            await notify_admin(
+                f"Pedido de compra de beat\\nBeat: {self.nome}\\nValor: {self.preco}\\n"
+                f"Comprador: {interaction.user} (ID {interaction.user.id})\\n"
+                f"Servidor: {interaction.guild.name if interaction.guild else 'DM'}"
+            )
+            await interaction.response.send_message(
+                f"🛒 Seu interesse em **{self.nome}** ({self.preco}) foi enviado ao administrador. Aguarde o contato para concluir a compra.",
+                ephemeral=True
+            )
+        except Exception:
+            log.exception("Falha ao registrar interesse de compra de beat")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "Não consegui registrar seu pedido agora. Tente novamente mais tarde.",
+                    ephemeral=True
+                )
+
+
+class VendaBeatView(discord.ui.View):
+    def __init__(self, nome: str, preco: str, preview_url: str):
+        super().__init__(timeout=None)
+        self.add_item(OuvirPreviaBeatButton(preview_url))
+        self.add_item(ComprarBeatButton(nome, preco))
+
+
+@bot.tree.command(name="venda-de-beats", description="Cadastrar e publicar um beat para venda")
+async def venda_de_beats(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador pode cadastrar beats para venda.",
+            ephemeral=True
+        )
+        return
+    await interaction.response.send_modal(BeatInfoModal())
+
+
 @bot.tree.command(name="status", description="Verificar se o CC BOT está funcionando")
 async def status(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
