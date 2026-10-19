@@ -285,8 +285,8 @@ async def atualizar_contador_vendas():
         channel = bot.get_channel(SALES_COUNTER_CHANNEL_ID)
         if channel is None:
             channel = await bot.fetch_channel(SALES_COUNTER_CHANNEL_ID)
-        if not isinstance(channel, discord.TextChannel):
-            log.error("O canal do contador de vendas não é um canal de texto.")
+        if not isinstance(channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.ForumChannel, discord.CategoryChannel)):
+            log.error("Tipo de canal do contador não suportado: %s", type(channel).__name__)
             return
 
         nome = f"{SALES_COUNTER_PREFIX}{int(settings.get('sales_count', 0))}"
