@@ -868,8 +868,7 @@ class PackPerguntasView(discord.ui.LayoutView):
             total = len(perguntas) + (len(PACK_EXTRAS) if self.plano == "Pack Básico" else 0)
             numero = self.indice + 1
             conteudo = (
-                f"## 📦 {self.plano.upper()}\n"
-                f"**Pergunta {numero} de {total}**\n\n"
+                f"## PERGUNTA {numero}/{total}\n"
                 f"### {pergunta}\n{dica}\n\n"
                 "Toque em **Responder**. A próxima pergunta aparecerá aqui nesta mesma aba."
             )
@@ -894,8 +893,11 @@ class PackPerguntasView(discord.ui.LayoutView):
             extras = ", ".join(f"{n} (+ R$ {p})" for n, p in self.extras_escolhidos) or "Nenhum"
             resumo = "\n".join(f"**{k}:** {v}" for k, v in self.respostas.items())
             conteudo = (
-                f"## ✅ REVISE SEU PEDIDO\n**Plano:** {self.plano}\n"
-                f"**Valor estimado:** R$ {total},00\n**Adicionais:** {extras}\n\n"
+                f"## ✅ REVISE SEU PEDIDO\n"
+                f"**Plano:** {self.plano}\n\n"
+                f"## 💰 VALOR ESTIMADO\n"
+                f"# R$ {total},00\n\n"
+                f"**Adicionais:** {extras}\n\n"
                 f"{resumo}\n\nConfira as informações e envie o pedido."
             )
             enviar = discord.ui.Button(label="Enviar pedido", emoji="📨", style=discord.ButtonStyle.success, custom_id="ccbot:pack:finalizar")
