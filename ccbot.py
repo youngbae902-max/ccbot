@@ -370,26 +370,40 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
 
         try:
             await interaction.edit_original_response(
-                content=f"✅ Áudio reconhecido: `{audio.filename}`. Baixando e preparando a confirmação..."
+                content=f"✅ Áudio reconhecido: `{audio.filename}`. Baixando o arquivo..."
             )
-            safe_name = Path(audio.filename).name.replace("/", "_")
+            safe_name = Path(audio.filename).name.replace("/", "_").replace("\\", "_")
             preview_path = BEAT_PREVIEWS_DIR / f"{uuid.uuid4().hex}_{safe_name}"
-            await asyncio.wait_for(audio.save(str(preview_path)), timeout=45)
+
+            # Baixa os bytes diretamente e grava em disco fora do loop do bot.
+            # Isso evita travamentos do Attachment.save em anexos de mensagem de voz.
+            dados_audio = await asyncio.wait_for(audio.read(use_cached=True), timeout=30)
+            if not dados_audio:
+                raise ValueError("O Discord retornou um arquivo de áudio vazio.")
+
+            await interaction.edit_original_response(
+                content=f"📦 Áudio baixado ({len(dados_audio) // 1024} KB). Salvando e preparando a confirmação..."
+            )
+            await asyncio.wait_for(
+                asyncio.to_thread(preview_path.write_bytes, dados_audio),
+                timeout=15
+            )
+
             try:
                 await mensagem.delete()
             except (discord.Forbidden, discord.HTTPException):
                 pass
         except asyncio.TimeoutError:
-            log.error("Timeout ao baixar a prévia do beat: %s", audio.filename)
+            log.error("Timeout ao baixar/salvar a prévia do beat: %s", audio.filename)
             await interaction.edit_original_response(
-                content="⏳ O Discord demorou demais para baixar esse áudio. Tente enviar o arquivo novamente como anexo de áudio (MP3, WAV ou OGG).",
+                content="⏳ O download do áudio excedeu o limite de tempo. Tente enviar o arquivo como anexo normal MP3, WAV ou OGG, não como mensagem de voz.",
                 view=None
             )
             return
         except Exception as exc:
-            log.exception("Falha ao salvar a prévia do beat")
+            log.exception("Falha ao baixar/salvar a prévia do beat")
             await interaction.edit_original_response(
-                content=f"❌ Reconheci o áudio, mas não consegui salvá-lo ({type(exc).__name__}). Tente enviar novamente.",
+                content=f"❌ Não consegui preparar a prévia ({type(exc).__name__}: {str(exc)[:180]}). Tente enviar o arquivo como anexo normal MP3, WAV ou OGG.",
                 view=None
             )
             return
