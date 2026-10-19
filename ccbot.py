@@ -794,9 +794,33 @@ class PackRespostaModal(discord.ui.Modal):
         if interaction.user.id != self.parent_view.owner_id:
             await interaction.response.send_message("Este pedido pertence a outra pessoa.", ephemeral=True)
             return
-        self.parent_view.salvar_resposta(str(self.resposta.value).strip())
-        await interaction.response.defer(ephemeral=True)
-        await self.parent_view.mostrar_proxima()
+        try:
+            texto = str(self.resposta.value).strip()
+            if not texto:
+                await interaction.response.send_message("Escreva uma resposta antes de continuar.", ephemeral=True)
+                return
+            self.parent_view.salvar_resposta(texto)
+            # A interação do modal tem seu próprio token. Respondemos nela com a próxima
+            # etapa e usamos esse novo token para atualizar as etapas seguintes.
+            await self.parent_view.avancar_estado()
+            self.parent_view.rebuild()
+            await interaction.response.send_message(view=self.parent_view, ephemeral=True)
+            self.parent_view.painel_interaction = interaction
+        except Exception:
+            log.exception("Falha ao processar resposta do modal Pack Personalizado")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "Não consegui registrar essa resposta. Tente novamente.",
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.followup.send(
+                        "Não consegui registrar essa resposta. Tente novamente.",
+                        ephemeral=True
+                    )
+            except Exception:
+                log.exception("Também falhou o aviso de erro do modal Pack Personalizado")
 
 class PackPerguntasView(discord.ui.LayoutView):
     def __init__(self, owner_id: int, plano: str, guild_id: int, painel_interaction):
@@ -873,10 +897,21 @@ class PackPerguntasView(discord.ui.LayoutView):
         ))
 
     async def abrir_modal(self, interaction):
-        titulo, pergunta, dica = PACK_QUESTIONS[self.plano][self.indice]
-        await interaction.response.send_modal(PackRespostaModal(self, titulo, pergunta, dica))
+        try:
+            titulo, pergunta, dica = PACK_QUESTIONS[self.plano][self.indice]
+            await interaction.response.send_modal(PackRespostaModal(self, titulo, pergunta, dica))
+        except Exception:
+            log.exception("Falha ao abrir modal do Pack Personalizado")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "Não consegui abrir o campo de resposta. Clique novamente em Responder.",
+                        ephemeral=True
+                    )
+            except Exception:
+                log.exception("Falha ao avisar sobre erro ao abrir modal do Pack")
 
-    async def mostrar_proxima(self):
+    async def avancar_estado(self):
         if self.fase == "perguntas":
             self.indice += 1
             if self.indice >= len(PACK_QUESTIONS[self.plano]):
@@ -888,6 +923,9 @@ class PackPerguntasView(discord.ui.LayoutView):
             self.extras_indice += 1
             if self.extras_indice >= len(PACK_EXTRAS):
                 self.fase = "revisao"
+
+    async def mostrar_proxima(self):
+        await self.avancar_estado()
         self.rebuild()
         await self.painel_interaction.edit_original_response(view=self)
 
