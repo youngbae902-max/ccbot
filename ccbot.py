@@ -1970,6 +1970,10 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
                 if categoria_id in por_id:
                     ordem_final.append(por_id[categoria_id])
                 ordem_final.extend(por_id[cid] for cid in filhos_por_categoria[categoria_id] if cid in por_id)
+            # Mantém as duas categorias antigas no fim, sem apagá-las.
+            for categoria_antiga_id in (1561513262405648404, 1561513266960666654):
+                if categoria_antiga_id in por_id:
+                    ordem_final.append(por_id[categoria_antiga_id])
             for posicao_global, canal in enumerate(ordem_final):
                 if canal.position != posicao_global:
                     await canal.edit(position=posicao_global, reason="Ordem final confirmada pelo administrador")
