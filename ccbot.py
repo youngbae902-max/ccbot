@@ -483,19 +483,20 @@ async def on_ready():
     try:
         guild = discord.Object(id=1561513043886743562)
 
-        # Sincroniza apenas uma vez por execução; evita duplicatas globais e
-        # não apaga os comandos do servidor quando o bot reconecta.
-        if not getattr(bot, "_commands_synced_once", False):
-            bot.tree.clear_commands(guild=guild)
-            bot.tree.copy_global_to(guild=guild)
-            bot.tree.clear_commands(guild=None)
-            await bot.tree.sync()
-            synced = await bot.tree.sync(guild=guild)
-            bot._commands_synced_once = True
-            log.info("Comandos únicos sincronizados no servidor %s: %s", guild.id, len(synced))
-        else:
-            synced = await bot.tree.fetch_commands(guild=guild)
-            log.info("Comandos do servidor já sincronizados: %s", len(synced))
+        # Remove registros globais antigos para não exibir a mesma slash command
+        # junto da versão registrada no servidor.
+        global_commands = await bot.tree.fetch_commands()
+        for command in global_commands:
+            await bot.tree.delete_command(command.id)
+            log.info("Comando global antigo removido: /%s (id=%s)", command.name, command.id)
+
+        # Registra uma única cópia de cada comando no servidor de destino.
+        bot.tree.clear_commands(guild=guild)
+        bot.tree.copy_global_to(guild=guild)
+        bot.tree.clear_commands(guild=None)
+        await bot.tree.sync()
+        synced = await bot.tree.sync(guild=guild)
+        log.info("Comandos sincronizados somente no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
 
         if not getattr(bot, "_sales_history_counted", False):
