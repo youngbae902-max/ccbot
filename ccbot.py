@@ -878,22 +878,21 @@ class PackPersonalizadoView(discord.ui.LayoutView):
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
                 "## <:box:1561761831587160140> ENCOMENDAR PACK PERSONALIZADO\n"
-                "Escolha uma opção abaixo para montar seu pedido. O bot vai orientar você em cada etapa; "
-                "não precisa saber preencher tudo antes de começar.\n\n"
+                "Escolha Básico ou Premium. O CC BOT vai te chamar no privado e fazer perguntas uma por vez, "
+                "para entender sua ideia e montar a encomenda com você. Não tem formulário para preencher.\n\n"
                 "### <:tag:1561787923865665667> PACK BÁSICO — R$ 50,00\n"
-                "Para encomendar um pack a partir da sua ideia. Você informa o nome, o estilo musical e "
-                "explica o que procura. Depois, pode adicionar serviços opcionais.\n"
+                "Você responde às perguntas sobre nome, estilo e ideia do pack. Depois, o bot pergunta se deseja "
+                "organização de pastas, samples personalizadas ou samples de outros packs.\n"
                 "**Adicionais:** organização de pastas (+ R$ 10), samples personalizadas (+ R$ 10) "
                 "e samples de outros packs (+ R$ 20).\n\n"
                 "### <:coroa:1561788313214390364> PACK PREMIUM — R$ 100,00\n"
-                "Para uma montagem mais completa e personalizada. Você informa o nome e o estilo, "
-                "lista o que quer receber — como kicks, samples, acapellas, MCs e vozes antes da virada — "
-                "e pode explicar quantidades e como quer as pastas organizadas.\n\n"
-                "**Como encomendar:**\n"
-                "1. Escolha Básico ou Premium.\n"
-                "2. Preencha os campos com suas ideias e referências.\n"
-                "3. No Básico, selecione os adicionais se quiser.\n"
-                "4. Envie o pedido. Ele será encaminhado ao administrador, que poderá combinar os detalhes com você."
+                "Você responde a perguntas sobre o nome, estilo, itens desejados, quantidades e organização. "
+                "Pode citar kicks, samples, acapellas, MCs e vozes antes da virada.\n\n"
+                "**Como funciona:**\n"
+                "1. Escolha um plano.\n"
+                "2. Responda às perguntas que o bot enviar no privado.\n"
+                "3. No Básico, responda se quer cada adicional.\n"
+                "4. O pedido completo será enviado ao administrador para combinar os detalhes."
             )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
             discord.ui.ActionRow(basico, premium)
