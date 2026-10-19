@@ -358,7 +358,7 @@ async def on_ready():
             color=discord.Color.green(),
             timestamp=discord.utils.utcnow()
         )
-        embed.set_image(url="https://media.giphy.com/media/AdmayiHwIsukoOdTQC/giphy.gif")
+        embed.set_image(url="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561732847021334580/kamiina-botan-botan.gif?ex=6ad76c8e&is=6ad61b0e&hm=e74ff48874c079d4331d8855240b54a32081e3b0b3f6c9fdbfb024709a61814b&")
         embed.set_footer(text="CC BOT • Sistema de inicialização")
         await channel.send(embed=embed)
 
