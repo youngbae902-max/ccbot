@@ -3469,7 +3469,7 @@ async def diagnostico(interaction: discord.Interaction):
         "",
         "Nota: 'sem mensagens visíveis' significa que o bot não encontrou mensagem no histórico acessível."
     ])
-    relatorio = "\\n".join(linhas)
+    relatorio = "\n".join(linhas)
     arquivo = discord.File(
         io.BytesIO(relatorio.encode("utf-8")),
         filename="diagnostico_servidor.txt"
