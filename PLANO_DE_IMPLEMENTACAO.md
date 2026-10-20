@@ -12,7 +12,6 @@ Este documento acompanha as melhorias do repositório. Os recursos existentes de
 
 ## Fase 2 — Criação guiada
 
-- [x] Criar `/criar canal:#destino`.
 - [x] Fazer uma pergunta por vez: tipo, título, objetivo, texto e estilo.
 - [x] Mostrar uma prévia e exigir confirmação antes de publicar.
 - [ ] Adicionar modelos de Componentes V2 depois de definir as ações reais de cada painel.
@@ -50,4 +49,3 @@ Este documento acompanha as melhorias do repositório. Os recursos existentes de
 
 ## Limites técnicos atuais
 
-O bot não possui uma integração de IA configurada que permita escrever e implantar código por conta própria. O comando `/criar` atualmente monta embeds informativos; painéis interativos e novas funções precisam de implementação e teste no repositório. Tokens e chaves devem permanecer fora do Git.
