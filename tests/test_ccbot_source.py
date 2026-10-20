@@ -69,5 +69,22 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertIn("Nada será publicado até você confirmar.", self.source)
 
 
+    def test_health_command_is_registered_and_read_only(self):
+        found = False
+        for node in ast.walk(self.tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name != "saude":
+                continue
+            for decorator in node.decorator_list:
+                if not isinstance(decorator, ast.Call):
+                    continue
+                if isinstance(decorator.func, ast.Attribute) and decorator.func.attr == "command":
+                    for keyword in decorator.keywords:
+                        if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
+                            found = keyword.value.value == "saude"
+        self.assertTrue(found, "/saude deve ser um comando slash")
+
+
 if __name__ == "__main__":
     unittest.main()
