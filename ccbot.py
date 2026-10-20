@@ -24,6 +24,7 @@ DJS_FILE = CONFIG / "djs.json"
 TOKEN_FILE = Path("/sdcard/Download/CC/token.txt")
 BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
 BEAT_PREVIEWS_DIR = Path("/sdcard/Download/CC/BeatPreviews")
+BEATS_FILE = CONFIG / "beats.json"
 
 ADMIN_ID = 1366109646934380614
 ORDERS_CHANNEL_ID = 1561513284191125625
@@ -84,6 +85,12 @@ models = load_json(MODELS_FILE, {
     "comprar-beats": "",
     "arrumador-projeto": ""
 })
+
+# Registro persistente das prévias publicadas para restaurar os botões após reinícios.
+beat_records = load_json(BEATS_FILE, {})
+if not isinstance(beat_records, dict):
+    beat_records = {}
+    save_json(BEATS_FILE, beat_records)
 
 # A lista só contém DJs cadastrados pelo administrador no comando /painel.
 mcs = load_json(DJS_FILE, [])
@@ -265,6 +272,8 @@ class ConfirmarPublicacaoBeatView(discord.ui.View):
         )
         try:
             mensagem_publicada = await self.canal.send(embed=embed, view=view)
+            beat_records[str(mensagem_publicada.id)] = {"preview_path": str(self.preview_path)}
+            save_json(BEATS_FILE, beat_records)
             log.info(
                 "Beat publicado com sucesso: nome=%r canal=%s mensagem=%s",
                 self.nome, self.canal.id, mensagem_publicada.id
@@ -470,7 +479,9 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
                 preco=preco,
                 preview_path=preview_path
             )
-            await canal.send(embed=embed, view=view)
+            mensagem_publicada = await canal.send(embed=embed, view=view)
+            beat_records[str(mensagem_publicada.id)] = {"preview_path": str(preview_path)}
+            save_json(BEATS_FILE, beat_records)
             await interaction.edit_original_response(
                 content=f"✅ Beat **{nome_beat}** publicado em {canal.mention}.",
                 view=None,
@@ -487,11 +498,15 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
 
 class OuvirPreviaBeatButton(discord.ui.Button):
     def __init__(self, preview_path):
-        super().__init__(label="Ouvir prévia", emoji="🎧", style=discord.ButtonStyle.primary)
+        super().__init__(label="Ouvir prévia", emoji="🎧", style=discord.ButtonStyle.primary, custom_id="ccbot:beat:preview")
         self.preview_path = Path(preview_path)
 
     async def callback(self, interaction: discord.Interaction):
-        if not self.preview_path.is_file():
+        preview_path = self.preview_path
+        if not preview_path.is_file() and interaction.message:
+            registro = beat_records.get(str(interaction.message.id), {})
+            preview_path = Path(registro.get("preview_path", ""))
+        if not preview_path.is_file():
             await interaction.response.send_message(
                 "A prévia não está disponível no armazenamento do bot. O administrador precisa cadastrar o beat novamente.",
                 ephemeral=True
@@ -502,7 +517,7 @@ class OuvirPreviaBeatButton(discord.ui.Button):
             await interaction.response.defer(ephemeral=True, thinking=True)
             await interaction.followup.send(
                 content="🎧 **Prévia do beat** — toque no áudio anexado para ouvir.",
-                file=discord.File(self.preview_path, filename=self.preview_path.name),
+                file=discord.File(preview_path, filename=preview_path.name),
                 ephemeral=True
             )
         except Exception:
@@ -518,21 +533,29 @@ class OuvirPreviaBeatButton(discord.ui.Button):
 
 class ComprarBeatButton(discord.ui.Button):
     def __init__(self, nome: str, preco: str):
-        super().__init__(label="Comprar beat", emoji="🛒", style=discord.ButtonStyle.success)
+        super().__init__(label="Comprar beat", emoji="🛒", style=discord.ButtonStyle.success, custom_id="ccbot:beat:buy")
         self.nome = nome
         self.preco = preco
 
     async def callback(self, interaction: discord.Interaction):
+        nome = self.nome
+        preco = self.preco
+        if interaction.message and interaction.message.embeds:
+            embed_beat = interaction.message.embeds[0]
+            if not nome:
+                nome = (embed_beat.title or "Beat").replace("🎧 ", "", 1)
+            if not preco:
+                preco = next((campo.value for campo in embed_beat.fields if campo.name.lower() == "valor"), "A combinar")
         try:
             # Reconhece o clique antes de avisar o administrador.
             await interaction.response.defer(ephemeral=True, thinking=True)
             await enviar_pedido_admin(
-                f"🛒 **Pedido de compra de beat**\\nBeat: {self.nome}\\nValor: {self.preco}\\n"
+                f"🛒 **Pedido de compra de beat**\\nBeat: {nome}\\nValor: {preco}\\n"
                 f"Comprador: {interaction.user} (ID {interaction.user.id})\\n"
                 f"Servidor: {interaction.guild.name if interaction.guild else 'DM'}"
             )
             await interaction.followup.send(
-                f"🛒 Seu interesse em **{self.nome}** ({self.preco}) foi enviado ao administrador. Aguarde o contato para concluir a compra.",
+                f"🛒 Seu interesse em **{nome}** ({preco}) foi enviado ao administrador. Aguarde o contato para concluir a compra.",
                 ephemeral=True
             )
         except Exception:
@@ -3492,6 +3515,7 @@ async def on_ready():
                 ("Arrumador de Projetos", ArrumadorPainelView),
                 ("Acapellas", AcapellasActivityView),
                 ("Trampar Conosco", TramparConoscoView),
+                ("Comprar Beats — botões persistentes", lambda: VendaBeatView("", "", "")),
             ]
             for nome_view, classe_view in views_persistentes:
                 try:
