@@ -3233,10 +3233,33 @@ class SelecionarAreaTrabalho(discord.ui.Select):
         )
 
 
+class SelecionarAreaTrabalhoView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(SelecionarAreaTrabalho())
+
+
+class AbrirAreasTrabalhoButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Quero trampar conosco",
+            emoji="💼",
+            style=discord.ButtonStyle.primary,
+            custom_id="ccbot:trabalhar:abrir"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            "Qual área você domina ou gostaria de oferecer?",
+            view=SelecionarAreaTrabalhoView(),
+            ephemeral=True
+        )
+
+
 class TramparConoscoView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(SelecionarAreaTrabalho())
+        self.add_item(AbrirAreasTrabalhoButton())
 
 
 class ParceriasView(discord.ui.View):
