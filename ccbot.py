@@ -3348,8 +3348,8 @@ async def on_ready():
 
         await channel.send(embed=embed)
 
-        # Publica os três embeds promocionais novos apenas uma vez.
-        await publicar_embeds_promocionais()
+        # Não publicar mensagens promocionais automaticamente ao iniciar.
+        # Loja CC, PACKy e Garimpo só devem receber mensagens quando o administrador solicitar.
 
         # Inicia o monitor de fotos baixadas do Pinterest.
         if not monitorar_pasta_icones.is_running():
