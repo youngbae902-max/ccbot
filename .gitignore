@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 ccbot_data/
 Backups/
+
+github_token.txt
