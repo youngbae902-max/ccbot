@@ -3258,14 +3258,14 @@ def criar_embed_parcerias() -> discord.Embed:
         title="🤝 Quer fechar uma parceria com o nosso servidor?",
         description=(
             "Quer divulgar seu grupo, projeto ou negócio junto com o C.C ©? "
-            "Confira os requisitos antes de entrar em contato.\\n\\n"
-            "## 📋 Requisitos mínimos\\n"
-            "・ Ter um grupo de WhatsApp com **no mínimo 30 membros**.\\n"
-            "・ Adicionar o responsável pelo C.C © como **administrador do grupo**.\\n\\n"
-            "## 🔄 Como funciona?\\n"
+            "Confira os requisitos antes de entrar em contato.\n\n"
+            "## 📋 Requisitos mínimos\n"
+            "・ Ter um grupo de WhatsApp com **no mínimo 30 membros**.\n"
+            "・ Adicionar o responsável pelo C.C © como **administrador do grupo**.\n\n"
+            "## 🔄 Como funciona?\n"
             "Com a permissão de administrador, o responsável poderá enviar as divulgações "
             "necessárias e organizar a parceria. O parceiro também poderá ter uma área "
-            "específica no servidor C.C © para divulgar seus produtos, serviços e projetos.\\n\\n"
+            "específica no servidor C.C © para divulgar seus produtos, serviços e projetos.\n\n"
             "Cada parceria será combinada diretamente para definir os detalhes."
         ),
         color=discord.Color.from_rgb(0, 0, 0)
@@ -3280,18 +3280,18 @@ def criar_embed_trampar_conosco() -> discord.Embed:
         description=(
             "Quer contribuir com o crescimento do C.C ©? Estamos planejando oportunidades "
             "para pessoas com diferentes habilidades. **Não precisa saber fazer tudo:** "
-            "cada área é independente.\\n\\n"
-            "## 🛠️ Áreas de interesse\\n"
-            "・ **Bots para Discord:** desenvolvimento em Python, com ou sem IA.\\n"
-            "・ **Design:** banners, artes e materiais para o servidor.\\n"
-            "・ **Organização de servidor / Staff:** estrutura e organização do Discord.\\n"
-            "・ **Edição de vídeo:** prevista para uma próxima etapa.\\n\\n"
-            "## 🎁 Benefício\\n"
+            "cada área é independente.\n\n"
+            "## 🛠️ Áreas de interesse\n"
+            "・ **Bots para Discord:** desenvolvimento em Python, com ou sem IA.\n"
+            "・ **Design:** banners, artes e materiais para o servidor.\n"
+            "・ **Organização de servidor / Staff:** estrutura e organização do Discord.\n"
+            "・ **Edição de vídeo:** prevista para uma próxima etapa.\n\n"
+            "## 🎁 Benefício\n"
             "Quem participar poderá ter uma categoria específica no servidor para divulgar "
-            "seus trabalhos, produtos, serviços e projetos. Novas áreas poderão ser adicionadas futuramente.\\n\\n"
-            "## ⚠️ Inscrições\\n"
+            "seus trabalhos, produtos, serviços e projetos. Novas áreas poderão ser adicionadas futuramente.\n\n"
+            "## ⚠️ Inscrições\n"
             "**No momento, não estamos aceitando novos integrantes.** Esta aba informa "
-            "as áreas de interesse para oportunidades futuras.\\n\\n"
+            "as áreas de interesse para oportunidades futuras.\n\n"
             "Selecione uma área no menu abaixo para ver as opções de contato."
         ),
         color=discord.Color.from_rgb(0, 0, 0)
@@ -3518,6 +3518,10 @@ async def on_ready():
                 break
 
         await channel.send(embed=embed)
+
+        # Registra os botões e menus persistentes para continuarem funcionando após reinícios.
+        bot.add_view(ParceriasView())
+        bot.add_view(TramparConoscoView())
 
         # Publica/atualiza os painéis de Parcerias e Trampar Conosco sem duplicar mensagens.
         await publicar_paineis_comunidade()
