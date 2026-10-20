@@ -3108,7 +3108,7 @@ class PromoLinksView(discord.ui.View):
     def __init__(self, label: str, url: str):
         super().__init__(timeout=None)
         self.add_item(discord.ui.Button(
-            label=f"Acessar {label}",
+            label=label,
             style=discord.ButtonStyle.link,
             url=url,
             emoji="🔗"
@@ -3123,7 +3123,7 @@ def criar_embed_promocional(nome: str) -> discord.Embed:
     }
     embed = discord.Embed(
         title="Acesse",
-        description=f"**{nome}**\\n\\n{textos[nome]}",
+        description=f"**{nome}**\n\n{textos[nome]}",
         color=discord.Color.from_rgb(0, 0, 0)
     )
     guild = bot.get_guild(1561513043886743562)
