@@ -3144,9 +3144,12 @@ def criar_embed_promocional(nome: str) -> discord.Embed:
 
 async def publicar_embeds_promocionais():
     publicados = settings.setdefault("promo_embeds", {})
+    # Republica somente uma vez após esta atualização; grava a marca para
+    # impedir novas duplicações nos próximos reinícios.
+    republicar_uma_vez = not settings.get("promo_embeds_republicados_outubro_2026", False)
     alterou = False
     for nome, canal_id in PROMO_CHANNELS.items():
-        if publicados.get(nome):
+        if publicados.get(nome) and not republicar_uma_vez:
             continue
         try:
             canal = bot.get_channel(canal_id)
@@ -3161,6 +3164,9 @@ async def publicar_embeds_promocionais():
             log.info("Embed promocional publicado: %s no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
         except Exception:
             log.exception("Falha ao publicar embed promocional: %s", nome)
+    if republicar_uma_vez and all(publicados.get(nome) for nome in PROMO_CHANNELS):
+        settings["promo_embeds_republicados_outubro_2026"] = True
+        alterou = True
     if alterou:
         save_json(DATA_FILE, settings)
 
@@ -3348,8 +3354,9 @@ async def on_ready():
 
         await channel.send(embed=embed)
 
-        # Não publicar mensagens promocionais automaticamente ao iniciar.
-        # Loja CC, PACKy e Garimpo só devem receber mensagens quando o administrador solicitar.
+        # Republica os três embeds promocionais uma única vez após esta atualização.
+        # A marca é salva em config.json para impedir duplicações em reinícios futuros.
+        await publicar_embeds_promocionais()
 
         # Inicia o monitor de fotos baixadas do Pinterest.
         if not monitorar_pasta_icones.is_running():
