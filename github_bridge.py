@@ -30,6 +30,7 @@ CHANNEL_CHECKS = [
     ("Pedidos", 1561513284191125625, ("view_channel", "send_messages", "embed_links", "attach_files")),
     ("Boas-vindas", 1561513269754068992, ("view_channel", "send_messages", "embed_links")),
     ("Origem do contador", 1561513284191125625, ("view_channel", "read_message_history")),
+    ("Canal contador", 1561513273554374686, ("view_channel", "manage_channels")),
     ("Painel Samples", 1561513284811624480, ("view_channel", "read_message_history", "send_messages")),
     ("Painel Pack", 1561513286967500841, ("view_channel", "read_message_history", "send_messages")),
     ("Painel Acapellas", 1561794460617277511, ("view_channel", "send_messages", "embed_links")),
@@ -99,6 +100,14 @@ def _upload_report(token, request_id, report):
         "content": base64.b64encode(report.encode("utf-8")).decode("ascii"),
         "branch": BRANCH,
     }
+    # Idempotência: se o processo cair após enviar o relatório, a próxima tentativa
+    # atualiza o mesmo arquivo em vez de falhar porque ele já existe.
+    try:
+        existing = _api_request("GET", path + f"?ref={BRANCH}", token)
+        payload["sha"] = existing["sha"]
+    except RuntimeError as exc:
+        if "HTTP 404" not in str(exc):
+            raise
     _api_request("PUT", path, token, payload)
 
 async def _diagnostico(guild):
