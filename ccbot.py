@@ -3500,6 +3500,77 @@ async def diagnostico(interaction: discord.Interaction):
 
 
 
+
+
+@bot.tree.command(name="saude", description="Verificar canais e permissões do CC BOT")
+async def saude(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode executar esta verificação.", ephemeral=True)
+        return
+    if interaction.guild is None:
+        await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    guild = interaction.guild
+    membro_bot = guild.me
+    linhas = [
+        f"SAÚDE DO CC BOT — {guild.name}",
+        f"Bot conectado: {'SIM' if bot.is_ready() else 'NÃO'}",
+        f"Latência: {round(bot.latency * 1000)} ms" if bot.is_ready() else "Latência indisponível",
+        f"Intent members: {'ativo' if bot.intents.members else 'inativo'}",
+        f"Intent message_content: {'ativo' if bot.intents.message_content else 'inativo'}",
+        "",
+        "CANAIS"
+    ]
+    verificacoes = [
+        ("Pedidos", ORDERS_CHANNEL_ID, ("view_channel", "send_messages", "embed_links", "attach_files")),
+        ("Avisos", int(settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)), ("view_channel", "send_messages", "embed_links")),
+        ("Boas-vindas", WELCOME_CHANNEL_ID, ("view_channel", "send_messages", "embed_links")),
+        ("Origem do contador", SALES_SOURCE_CHANNEL_ID, ("view_channel", "read_message_history")),
+        ("Canal contador", SALES_COUNTER_CHANNEL_ID, ("view_channel", "manage_channels")),
+        ("Painel Samples", SAMPLES_PANEL_CHANNEL_ID, ("view_channel", "read_message_history", "send_messages")),
+        ("Painel Pack", PACK_PANEL_CHANNEL_ID, ("view_channel", "read_message_history", "send_messages")),
+        ("Painel Acapellas", 1561794460617277511, ("view_channel", "send_messages", "embed_links")),
+    ]
+    falhas = 0
+    for nome, canal_id, requeridas in verificacoes:
+        try:
+            canal = bot.get_channel(canal_id) or await bot.fetch_channel(canal_id)
+            canal_guild = getattr(canal, "guild", None)
+            if canal_guild is None or canal_guild.id != guild.id:
+                linhas.append(f"FALHA | {nome}: canal fora deste servidor (ID {canal_id})")
+                falhas += 1
+                continue
+            permissoes = canal.permissions_for(membro_bot)
+            faltando = [p for p in requeridas if not getattr(permissoes, p, False)]
+            if faltando:
+                linhas.append(f"ATENÇÃO | {nome} (ID {canal_id}): faltam {', '.join(faltando)}")
+                falhas += 1
+            else:
+                linhas.append(f"OK | {nome} (ID {canal_id})")
+        except (discord.Forbidden, discord.NotFound, discord.HTTPException) as exc:
+            linhas.append(f"FALHA | {nome} (ID {canal_id}): {type(exc).__name__}")
+            falhas += 1
+        except Exception as exc:
+            log.exception("Falha ao verificar canal %s", canal_id)
+            linhas.append(f"FALHA | {nome} (ID %s): %s" % (canal_id, type(exc).__name__))
+            falhas += 1
+
+    linhas.extend(["", f"Alertas/falhas: {falhas}", "Verificação somente de leitura: nenhuma configuração foi alterada."])
+    relatorio = "\n".join(linhas)
+    try:
+        await interaction.followup.send(
+            content=f"## Saúde do CC BOT\nAlertas/falhas: **{falhas}**. Relatório anexado.",
+            file=discord.File(io.BytesIO(relatorio.encode("utf-8")), filename="saude_cc_bot.txt"),
+            ephemeral=True
+        )
+    except discord.HTTPException:
+        log.exception("Falha ao enviar relatório de saúde.")
+        await interaction.followup.send("Não consegui anexar o relatório. Confira os logs.", ephemeral=True)
+
+
+
 if not TOKEN_FILE.is_file():
     raise SystemExit(
         f"Token não encontrado em {TOKEN_FILE}. Crie o arquivo com o token do bot."
