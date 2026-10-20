@@ -3164,6 +3164,173 @@ async def publicar_embeds_promocionais():
             log.exception("Falha ao atualizar embed promocional: %s", nome)
 
 
+
+# Painéis de Parcerias e Trampar Conosco — publicados/atualizados sem duplicar mensagens.
+PARTNERSHIPS_CHANNEL_ID = 1561843704518549604
+WORK_WITH_US_CHANNEL_ID = 1561843767860789318
+WHATSAPP_NUMBER = "5511914038635"
+CONTACT_DISCORD_ID = ADMIN_ID
+
+
+def link_whatsapp(mensagem: str) -> str:
+    from urllib.parse import quote
+    return f"https://wa.me/{WHATSAPP_NUMBER}?text={quote(mensagem)}"
+
+
+class ContatoOportunidadeView(discord.ui.View):
+    def __init__(self, assunto: str):
+        super().__init__(timeout=300)
+        texto = (
+            "Olá! Quero fechar uma parceria com o servidor C.C ©. "
+            "Já tenho os requisitos mínimos e gostaria de conversar."
+            if assunto == "Parceria"
+            else f"Olá! Tenho interesse em trampar com o C.C © na área de {assunto}. Gostaria de conversar."
+        )
+        self.add_item(discord.ui.Button(
+            label="Entrar em contato pelo Discord",
+            style=discord.ButtonStyle.link,
+            url=f"https://discord.com/users/{CONTACT_DISCORD_ID}",
+            emoji="💬"
+        ))
+        self.add_item(discord.ui.Button(
+            label="Entrar em contato pelo WhatsApp",
+            style=discord.ButtonStyle.link,
+            url=link_whatsapp(texto),
+            emoji="📱"
+        ))
+
+
+class SelecionarAreaTrabalho(discord.ui.Select):
+    def __init__(self):
+        opcoes = [
+            discord.SelectOption(label="Bots para Discord", value="Bots para Discord", emoji="🤖"),
+            discord.SelectOption(label="Design", value="Design", emoji="🎨"),
+            discord.SelectOption(label="Organização de servidor / Staff", value="Organização de servidor / Staff", emoji="🛠️"),
+            discord.SelectOption(label="Edição de vídeo", value="Edição de vídeo", emoji="🎬"),
+        ]
+        super().__init__(
+            placeholder="Selecione a área em que você trabalha",
+            min_values=1,
+            max_values=1,
+            options=opcoes,
+            custom_id="ccbot:trabalhar:area"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        area = self.values[0]
+        embed = discord.Embed(
+            title=f"💼 Interesse em trabalhar — {area}",
+            description=(
+                f"Você selecionou **{area}**. Escolha como quer entrar em contato "
+                "com o responsável pelo C.C ©."
+            ),
+            color=discord.Color.blurple()
+        )
+        await interaction.response.send_message(
+            embed=embed,
+            view=ContatoOportunidadeView(area),
+            ephemeral=True
+        )
+
+
+class TramparConoscoView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(SelecionarAreaTrabalho())
+
+
+class ParceriasView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(discord.ui.Button(
+            label="Quero fechar uma parceria",
+            style=discord.ButtonStyle.link,
+            url=link_whatsapp(
+                "Olá! Quero fechar uma parceria com o servidor C.C ©. "
+                "Já tenho os requisitos mínimos e gostaria de conversar."
+            ),
+            emoji="🤝"
+        ))
+
+
+def criar_embed_parcerias() -> discord.Embed:
+    embed = discord.Embed(
+        title="🤝 Quer fechar uma parceria com o nosso servidor?",
+        description=(
+            "Quer divulgar seu grupo, projeto ou negócio junto com o C.C ©? "
+            "Confira os requisitos antes de entrar em contato.\\n\\n"
+            "## 📋 Requisitos mínimos\\n"
+            "・ Ter um grupo de WhatsApp com **no mínimo 30 membros**.\\n"
+            "・ Adicionar o responsável pelo C.C © como **administrador do grupo**.\\n\\n"
+            "## 🔄 Como funciona?\\n"
+            "Com a permissão de administrador, o responsável poderá enviar as divulgações "
+            "necessárias e organizar a parceria. O parceiro também poderá ter uma área "
+            "específica no servidor C.C © para divulgar seus produtos, serviços e projetos.\\n\\n"
+            "Cada parceria será combinada diretamente para definir os detalhes."
+        ),
+        color=discord.Color.from_rgb(0, 0, 0)
+    )
+    embed.set_footer(text="C.C © • Parcerias")
+    return embed
+
+
+def criar_embed_trampar_conosco() -> discord.Embed:
+    embed = discord.Embed(
+        title="💼 Trampar Conosco — C.C ©",
+        description=(
+            "Quer contribuir com o crescimento do C.C ©? Estamos planejando oportunidades "
+            "para pessoas com diferentes habilidades. **Não precisa saber fazer tudo:** "
+            "cada área é independente.\\n\\n"
+            "## 🛠️ Áreas de interesse\\n"
+            "・ **Bots para Discord:** desenvolvimento em Python, com ou sem IA.\\n"
+            "・ **Design:** banners, artes e materiais para o servidor.\\n"
+            "・ **Organização de servidor / Staff:** estrutura e organização do Discord.\\n"
+            "・ **Edição de vídeo:** prevista para uma próxima etapa.\\n\\n"
+            "## 🎁 Benefício\\n"
+            "Quem participar poderá ter uma categoria específica no servidor para divulgar "
+            "seus trabalhos, produtos, serviços e projetos. Novas áreas poderão ser adicionadas futuramente.\\n\\n"
+            "## ⚠️ Inscrições\\n"
+            "**No momento, não estamos aceitando novos integrantes.** Esta aba informa "
+            "as áreas de interesse para oportunidades futuras.\\n\\n"
+            "Selecione uma área no menu abaixo para ver as opções de contato."
+        ),
+        color=discord.Color.from_rgb(0, 0, 0)
+    )
+    embed.set_footer(text="C.C © • Trampar Conosco")
+    return embed
+
+
+async def publicar_paineis_comunidade():
+    """Cria os painéis uma vez e edita as mesmas mensagens em inicializações futuras."""
+    paineis = [
+        ("Parcerias", PARTNERSHIPS_CHANNEL_ID, criar_embed_parcerias, ParceriasView),
+        ("Trampar Conosco", WORK_WITH_US_CHANNEL_ID, criar_embed_trampar_conosco, TramparConoscoView),
+    ]
+    registros = settings.setdefault("community_panels", {})
+    for nome, canal_id, criar_embed, criar_view in paineis:
+        try:
+            canal = bot.get_channel(canal_id)
+            if canal is None:
+                canal = await bot.fetch_channel(canal_id)
+            registro = registros.get(nome, {})
+            mensagem_id = registro.get("message_id") if isinstance(registro, dict) else None
+            mensagem = None
+            if mensagem_id:
+                try:
+                    mensagem = await canal.fetch_message(int(mensagem_id))
+                except discord.NotFound:
+                    mensagem = None
+            if mensagem is None:
+                mensagem = await canal.send(embed=criar_embed(), view=criar_view())
+                registros[nome] = {"message_id": mensagem.id}
+                save_json(DATA_FILE, settings)
+                log.info("Painel %s publicado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
+            else:
+                await mensagem.edit(embed=criar_embed(), view=criar_view())
+                log.info("Painel %s existente atualizado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
+        except Exception:
+            log.exception("Falha ao publicar/atualizar o painel %s", nome)
+
 SALES_SOURCE_CHANNEL_ID = 1561513284191125625
 SALES_COUNTER_CHANNEL_ID = 1561513273554374686
 SALES_COUNTER_PREFIX = "│💰﹒Vendas : "
@@ -3351,6 +3518,9 @@ async def on_ready():
                 break
 
         await channel.send(embed=embed)
+
+        # Publica/atualiza os painéis de Parcerias e Trampar Conosco sem duplicar mensagens.
+        await publicar_paineis_comunidade()
 
         # Republica os três embeds promocionais uma única vez após esta atualização.
         # A marca é salva em config.json para impedir duplicações em reinícios futuros.
