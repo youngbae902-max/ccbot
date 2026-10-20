@@ -20,7 +20,7 @@ Este documento acompanha as melhorias do repositório. Os recursos existentes de
 
 ## Fase 3 — Auditoria do bot e confiabilidade
 
-- [ ] Criar um comando de saúde que verifique permissões, intents, canais configurados, arquivos necessários e comandos registrados.
+- [x] Criar `/saude` para verificar permissões básicas dos canais configurados e intents.
 - [ ] Verificar interações sem resposta, erros de API e tarefas em duplicidade.
 - [ ] Testar reinício e reconexão sem duplicar views, contadores ou mensagens.
 - [ ] Revisar permissões por comando e validar IDs/configurações sem alterar o servidor automaticamente.
