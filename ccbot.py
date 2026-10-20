@@ -3403,6 +3403,101 @@ async def on_app_command_error(interaction, error):
         pass
     await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
+
+
+@bot.tree.command(
+    name="diagnostico",
+    description="Analisar canais do servidor e localizar canais sem mensagens"
+)
+async def diagnostico(interaction: discord.Interaction):
+    """Auditoria somente de leitura; não altera canais nem mensagens."""
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador pode executar o diagnóstico.", ephemeral=True
+        )
+        return
+
+    guild = interaction.guild
+    if guild is None:
+        await interaction.response.send_message(
+            "Use este comando dentro do servidor.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+
+    vazios = []
+    com_mensagens = 0
+    sem_acesso = []
+    total = len(guild.text_channels)
+
+    for canal in guild.text_channels:
+        try:
+            encontrou_mensagem = False
+            async for _ in canal.history(limit=1, oldest_first=False):
+                encontrou_mensagem = True
+                break
+
+            if encontrou_mensagem:
+                com_mensagens += 1
+            else:
+                categoria = canal.category.name if canal.category else "Sem categoria"
+                vazios.append(f"#{canal.name} | categoria: {categoria} | ID: {canal.id}")
+        except (discord.Forbidden, discord.HTTPException) as exc:
+            categoria = canal.category.name if canal.category else "Sem categoria"
+            sem_acesso.append(
+                f"#{canal.name} | categoria: {categoria} | ID: {canal.id} | erro: {type(exc).__name__}"
+            )
+            log.warning(
+                "Diagnóstico sem acesso ao histórico do canal %s (%s): %s",
+                canal.name, canal.id, type(exc).__name__
+            )
+
+    linhas = [
+        f"DIAGNÓSTICO DO SERVIDOR: {guild.name}",
+        f"Data: {datetime.now().astimezone().isoformat(timespec='seconds')}",
+        "",
+        f"Canais de texto analisados: {total}",
+        f"Canais com mensagens: {com_mensagens}",
+        f"Canais sem nenhuma mensagem visível: {len(vazios)}",
+        f"Canais não verificáveis por permissão/erro: {len(sem_acesso)}",
+        "",
+        "CANAIS SEM MENSAGENS",
+        *(vazios or ["Nenhum canal vazio foi encontrado."]),
+        "",
+        "CANAIS NÃO VERIFICÁVEIS",
+        *(sem_acesso or ["Todos os históricos puderam ser consultados."]),
+        "",
+        "NOTA: o diagnóstico é somente leitura. Ele não publica conteúdo nem altera nomes/permissões.",
+        "Revise os canais vazios antes de decidir se devem receber conteúdo, ser renomeados ou permanecer assim."
+    ]
+    relatorio = "\n".join(linhas)
+    resumo = (
+        "## Diagnóstico concluído\n"
+        f"**Canais analisados:** {total}\n"
+        f"**Com mensagens:** {com_mensagens}\n"
+        f"**Sem mensagens:** {len(vazios)}\n"
+        f"**Não verificáveis:** {len(sem_acesso)}\n\n"
+        "Anexei o relatório completo. Nenhum canal foi alterado."
+    )
+
+    try:
+        arquivo = discord.File(
+            io.BytesIO(relatorio.encode("utf-8")),
+            filename="diagnostico_cc_servidor.txt"
+        )
+        await interaction.followup.send(
+            content=resumo, file=arquivo, ephemeral=True
+        )
+    except discord.HTTPException:
+        log.exception("Não foi possível enviar o relatório de diagnóstico.")
+        await interaction.followup.send(
+            resumo + "\n⚠️ Não consegui anexar o arquivo; confira os logs do bot.",
+            ephemeral=True
+        )
+
+
+
 if not TOKEN_FILE.is_file():
     raise SystemExit(
         f"Token não encontrado em {TOKEN_FILE}. Crie o arquivo com o token do bot."
