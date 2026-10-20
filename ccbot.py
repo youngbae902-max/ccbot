@@ -3117,58 +3117,49 @@ class PromoLinksView(discord.ui.View):
 
 def criar_embed_promocional(nome: str) -> discord.Embed:
     textos = {
-        "Loja CC": (
-            "🛍️ **Sua loja em um só lugar**\n\n"
-            "Acesse a Loja CC para conferir os produtos e opções disponíveis.\n"
-            "Use o botão abaixo para abrir o site oficial."
-        ),
-        "PACKy": (
-            "📦 **Encontre packs para sua produção**\n\n"
-            "Explore o PACKy e veja os conteúdos disponíveis para deixar seus projetos do seu jeito.\n"
-            "Toque no botão para acessar o site."
-        ),
-        "Garimpo": (
-            "💎 **Hora de garimpar novidades**\n\n"
-            "Confira o Garimpo e explore o conteúdo disponível no perfil.\n"
-            "Acesse pelo botão abaixo."
-        ),
+        "Loja CC": "Confira os produtos e opções disponíveis na Loja CC.",
+        "PACKy": "Explore packs e conteúdos para sua produção musical.",
+        "Garimpo": "Descubra novidades e conteúdos disponíveis no Garimpo.",
     }
     embed = discord.Embed(
-        title=f"✦  {nome}",
-        description=textos[nome],
-        color=discord.Color.from_rgb(190, 45, 75)
+        title="Acesse",
+        description=f"**{nome}**\\n\\n{textos[nome]}",
+        color=discord.Color.from_rgb(0, 0, 0)
     )
-    embed.set_footer(text="CC BOT • Links oficiais")
+    guild = bot.get_guild(1561513043886743562)
+    if guild and guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+    embed.set_footer(text="CC • LINKS OFICIAIS")
     return embed
 
 
 async def publicar_embeds_promocionais():
-    publicados = settings.setdefault("promo_embeds", {})
-    # Republica somente uma vez após esta atualização; grava a marca para
-    # impedir novas duplicações nos próximos reinícios.
-    republicar_uma_vez = not settings.get("promo_embeds_republicados_outubro_2026", False)
-    alterou = False
+    """Atualiza os embeds já publicados; nunca cria mensagens promocionais novas."""
+    publicados = settings.get("promo_embeds", {})
     for nome, canal_id in PROMO_CHANNELS.items():
-        if publicados.get(nome) and not republicar_uma_vez:
+        registro = publicados.get(nome, {})
+        mensagem_id = registro.get("message_id") if isinstance(registro, dict) else None
+        if not mensagem_id:
+            log.warning(
+                "Embed promocional de %s não foi alterado: ID da mensagem não está salvo.",
+                nome
+            )
             continue
         try:
             canal = bot.get_channel(canal_id)
             if canal is None:
                 canal = await bot.fetch_channel(canal_id)
-            mensagem = await canal.send(
+            mensagem = await canal.fetch_message(int(mensagem_id))
+            await mensagem.edit(
                 embed=criar_embed_promocional(nome),
-                view=PromoLinksView(nome, PROMO_URLS[nome])
+                view=PromoLinksView("Acesse", PROMO_URLS[nome])
             )
-            publicados[nome] = {"channel_id": canal_id, "message_id": mensagem.id}
-            alterou = True
-            log.info("Embed promocional publicado: %s no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
+            log.info(
+                "Embed promocional atualizado: %s no canal %s (mensagem %s)",
+                nome, canal_id, mensagem.id
+            )
         except Exception:
-            log.exception("Falha ao publicar embed promocional: %s", nome)
-    if republicar_uma_vez and all(publicados.get(nome) for nome in PROMO_CHANNELS):
-        settings["promo_embeds_republicados_outubro_2026"] = True
-        alterou = True
-    if alterou:
-        save_json(DATA_FILE, settings)
+            log.exception("Falha ao atualizar embed promocional: %s", nome)
 
 
 SALES_SOURCE_CHANNEL_ID = 1561513284191125625
