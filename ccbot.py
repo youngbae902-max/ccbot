@@ -14,6 +14,8 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 
+import github_bridge
+
 BASE = Path.home() / "ccbot-repo"
 CONFIG = BASE / "config"
 DATA_FILE = CONFIG / "config.json"
@@ -3305,6 +3307,11 @@ async def on_ready():
         log.info("Comandos sincronizados somente no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
 
+        # Ponte GitHub: recebe tarefas aprovadas no repositório e publica relatórios.
+        tarefa_ponte = getattr(bot, "_github_bridge_task", None)
+        if tarefa_ponte is None or tarefa_ponte.done():
+            bot._github_bridge_task = asyncio.create_task(github_bridge.run(bot))
+
         if not getattr(bot, "_sales_history_counted", False):
             await contar_mensagens_do_canal()
             bot._sales_history_counted = True
@@ -3403,169 +3410,9 @@ async def on_app_command_error(interaction, error):
 
 
 
-@bot.tree.command(
-    name="diagnostico",
-    description="Analisar canais do servidor e localizar canais sem mensagens"
-)
-async def diagnostico(interaction: discord.Interaction):
-    """Auditoria somente de leitura; não altera canais nem mensagens."""
-    if not is_admin(interaction):
-        await interaction.response.send_message(
-            "Apenas o administrador pode executar o diagnóstico.", ephemeral=True
-        )
-        return
+# Diagnósticos e verificações de saúde agora são executados pela ponte GitHub
+# e registrados em reports/, sem exigir comandos slash nem envio manual de TXT.
 
-    guild = interaction.guild
-    if guild is None:
-        await interaction.response.send_message(
-            "Use este comando dentro do servidor.", ephemeral=True
-        )
-        return
-
-    await interaction.response.defer(ephemeral=True, thinking=True)
-
-    vazios = []
-    com_mensagens = 0
-    sem_acesso = []
-    total = len(guild.text_channels)
-
-    for canal in guild.text_channels:
-        try:
-            encontrou_mensagem = False
-            async for _ in canal.history(limit=1, oldest_first=False):
-                encontrou_mensagem = True
-                break
-
-            if encontrou_mensagem:
-                com_mensagens += 1
-            else:
-                categoria = canal.category.name if canal.category else "Sem categoria"
-                vazios.append(f"#{canal.name} | categoria: {categoria} | ID: {canal.id}")
-        except (discord.Forbidden, discord.HTTPException) as exc:
-            categoria = canal.category.name if canal.category else "Sem categoria"
-            sem_acesso.append(
-                f"#{canal.name} | categoria: {categoria} | ID: {canal.id} | erro: {type(exc).__name__}"
-            )
-            log.warning(
-                "Diagnóstico sem acesso ao histórico do canal %s (%s): %s",
-                canal.name, canal.id, type(exc).__name__
-            )
-
-    linhas = [
-        f"DIAGNÓSTICO DO SERVIDOR: {guild.name}",
-        f"Data: {datetime.now().astimezone().isoformat(timespec='seconds')}",
-        "",
-        f"Canais de texto analisados: {total}",
-        f"Canais com mensagens: {com_mensagens}",
-        f"Canais sem nenhuma mensagem visível: {len(vazios)}",
-        f"Canais não verificáveis por permissão/erro: {len(sem_acesso)}",
-        "",
-        "CANAIS SEM MENSAGENS",
-        *(vazios or ["Nenhum canal vazio foi encontrado."]),
-        "",
-        "CANAIS NÃO VERIFICÁVEIS",
-        *(sem_acesso or ["Todos os históricos puderam ser consultados."]),
-        "",
-        "NOTA: o diagnóstico é somente leitura. Ele não publica conteúdo nem altera nomes/permissões.",
-        "Revise os canais vazios antes de decidir se devem receber conteúdo, ser renomeados ou permanecer assim."
-    ]
-    relatorio = "\n".join(linhas)
-    resumo = (
-        "## Diagnóstico concluído\n"
-        f"**Canais analisados:** {total}\n"
-        f"**Com mensagens:** {com_mensagens}\n"
-        f"**Sem mensagens:** {len(vazios)}\n"
-        f"**Não verificáveis:** {len(sem_acesso)}\n\n"
-        "Anexei o relatório completo. Nenhum canal foi alterado."
-    )
-
-    try:
-        arquivo = discord.File(
-            io.BytesIO(relatorio.encode("utf-8")),
-            filename="diagnostico_cc_servidor.txt"
-        )
-        await interaction.followup.send(
-            content=resumo, file=arquivo, ephemeral=True
-        )
-    except discord.HTTPException:
-        log.exception("Não foi possível enviar o relatório de diagnóstico.")
-        await interaction.followup.send(
-            resumo + "\n⚠️ Não consegui anexar o arquivo; confira os logs do bot.",
-            ephemeral=True
-        )
-
-
-
-
-
-
-
-@bot.tree.command(name="saude", description="Verificar canais e permissões do CC BOT")
-async def saude(interaction: discord.Interaction):
-    if not is_admin(interaction):
-        await interaction.response.send_message("Apenas o administrador pode executar esta verificação.", ephemeral=True)
-        return
-    if interaction.guild is None:
-        await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
-        return
-
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    guild = interaction.guild
-    membro_bot = guild.me
-    linhas = [
-        f"SAÚDE DO CC BOT — {guild.name}",
-        f"Bot conectado: {'SIM' if bot.is_ready() else 'NÃO'}",
-        f"Latência: {round(bot.latency * 1000)} ms" if bot.is_ready() else "Latência indisponível",
-        f"Intent members: {'ativo' if bot.intents.members else 'inativo'}",
-        f"Intent message_content: {'ativo' if bot.intents.message_content else 'inativo'}",
-        "",
-        "CANAIS"
-    ]
-    verificacoes = [
-        ("Pedidos", ORDERS_CHANNEL_ID, ("view_channel", "send_messages", "embed_links", "attach_files")),
-        ("Avisos", int(settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)), ("view_channel", "send_messages", "embed_links")),
-        ("Boas-vindas", WELCOME_CHANNEL_ID, ("view_channel", "send_messages", "embed_links")),
-        ("Origem do contador", SALES_SOURCE_CHANNEL_ID, ("view_channel", "read_message_history")),
-        ("Canal contador", SALES_COUNTER_CHANNEL_ID, ("view_channel", "manage_channels")),
-        ("Painel Samples", SAMPLES_PANEL_CHANNEL_ID, ("view_channel", "read_message_history", "send_messages")),
-        ("Painel Pack", PACK_PANEL_CHANNEL_ID, ("view_channel", "read_message_history", "send_messages")),
-        ("Painel Acapellas", 1561794460617277511, ("view_channel", "send_messages", "embed_links")),
-    ]
-    falhas = 0
-    for nome, canal_id, requeridas in verificacoes:
-        try:
-            canal = bot.get_channel(canal_id) or await bot.fetch_channel(canal_id)
-            canal_guild = getattr(canal, "guild", None)
-            if canal_guild is None or canal_guild.id != guild.id:
-                linhas.append(f"FALHA | {nome}: canal fora deste servidor (ID {canal_id})")
-                falhas += 1
-                continue
-            permissoes = canal.permissions_for(membro_bot)
-            faltando = [p for p in requeridas if not getattr(permissoes, p, False)]
-            if faltando:
-                linhas.append(f"ATENÇÃO | {nome} (ID {canal_id}): faltam {', '.join(faltando)}")
-                falhas += 1
-            else:
-                linhas.append(f"OK | {nome} (ID {canal_id})")
-        except (discord.Forbidden, discord.NotFound, discord.HTTPException) as exc:
-            linhas.append(f"FALHA | {nome} (ID {canal_id}): {type(exc).__name__}")
-            falhas += 1
-        except Exception as exc:
-            log.exception("Falha ao verificar canal %s", canal_id)
-            linhas.append(f"FALHA | {nome} (ID {canal_id}): {type(exc).__name__}")
-            falhas += 1
-
-    linhas.extend(["", f"Alertas/falhas: {falhas}", "Verificação somente de leitura: nenhuma configuração foi alterada."])
-    relatorio = "\n".join(linhas)
-    try:
-        await interaction.followup.send(
-            content=f"## Saúde do CC BOT\nAlertas/falhas: **{falhas}**. Relatório anexado.",
-            file=discord.File(io.BytesIO(relatorio.encode("utf-8")), filename="saude_cc_bot.txt"),
-            ephemeral=True
-        )
-    except discord.HTTPException:
-        log.exception("Falha ao enviar relatório de saúde.")
-        await interaction.followup.send("Não consegui anexar o relatório. Confira os logs.", ephemeral=True)
 
 
 
