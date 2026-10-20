@@ -3485,19 +3485,21 @@ async def on_ready():
     try:
         # Registra primeiro os componentes persistentes. Nenhuma tarefa lenta de
         # inicialização deve deixar os botões sem callback e causar "Interação falhou".
-        views_persistentes = [
-            ("Gerador de Samples", GeradorSamplesView),
-            ("Pack Personalizado", PackPersonalizadoView),
-            ("Arrumador de Projetos", ArrumadorPainelView),
-            ("Acapellas", AcapellasActivityView),
-            ("Trampar Conosco", TramparConoscoView),
-        ]
-        for nome_view, classe_view in views_persistentes:
-            try:
-                bot.add_view(classe_view())
-                log.info("View persistente registrada no início: %s", nome_view)
-            except Exception:
-                log.exception("Falha ao registrar a view persistente: %s", nome_view)
+        if not getattr(bot, "_persistent_views_registered", False):
+            views_persistentes = [
+                ("Gerador de Samples", GeradorSamplesView),
+                ("Pack Personalizado", PackPersonalizadoView),
+                ("Arrumador de Projetos", ArrumadorPainelView),
+                ("Acapellas", AcapellasActivityView),
+                ("Trampar Conosco", TramparConoscoView),
+            ]
+            for nome_view, classe_view in views_persistentes:
+                try:
+                    bot.add_view(classe_view())
+                    log.info("View persistente registrada no início: %s", nome_view)
+                except Exception:
+                    log.exception("Falha ao registrar a view persistente: %s", nome_view)
+            bot._persistent_views_registered = True
 
         guild = discord.Object(id=1561513043886743562)
 
