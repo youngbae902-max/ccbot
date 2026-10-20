@@ -51,5 +51,23 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertIn("canal.history(limit=1", source_segment)
 
 
+    def test_guided_creator_is_registered_and_asks_one_question_per_step(self):
+        commands = set()
+        for node in ast.walk(self.tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for decorator in node.decorator_list:
+                if not isinstance(decorator, ast.Call):
+                    continue
+                if isinstance(decorator.func, ast.Attribute) and decorator.func.attr == "command":
+                    for keyword in decorator.keywords:
+                        if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
+                            commands.add(keyword.value.value)
+        self.assertIn("criar", commands)
+        self.assertIn("class CriarCampoModal", self.source)
+        self.assertIn("class CriarPublicarView", self.source)
+        self.assertIn("Nada será publicado até você confirmar.", self.source)
+
+
 if __name__ == "__main__":
     unittest.main()
