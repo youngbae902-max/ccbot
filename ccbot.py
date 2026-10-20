@@ -3520,7 +3520,7 @@ async def on_ready():
         await channel.send(embed=embed)
 
         # Registra os botões e menus persistentes para continuarem funcionando após reinícios.
-        bot.add_view(ParceriasView())
+        # O painel de Parcerias usa somente botão de link; não precisa de registro de callback.
         bot.add_view(TramparConoscoView())
 
         # Publica/atualiza os painéis de Parcerias e Trampar Conosco sem duplicar mensagens.
