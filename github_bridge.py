@@ -18,6 +18,7 @@ BRANCH = "master"
 INBOX_PATH = "tasks/inbox.json"
 GUILD_ID = 1561513043886743562
 GITHUB_TOKEN_FILE = Path("/sdcard/Download/CC/github_token.txt")
+REPORT_LOCAL_FILE = Path("/sdcard/Download/CC/Relatorio.txt")
 STATE_FILE = Path.home() / "ccbot-repo" / "config" / "github_bridge_state.json"
 POLL_SECONDS = 30
 MAX_TASKS_PER_POLL = 5
@@ -209,6 +210,11 @@ async def process_request(bot, request, token):
         f"- Finalizado (UTC): {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
         "- Origem: ponte GitHub do CC BOT",
     ])
+    # Salva também no armazenamento do Android para o sincronizador local enviar ao GitHub.
+    def _save_local_report():
+        REPORT_LOCAL_FILE.parent.mkdir(parents=True, exist_ok=True)
+        REPORT_LOCAL_FILE.write_text(report + "\\n", encoding="utf-8")
+    await asyncio.to_thread(_save_local_report)
     await asyncio.to_thread(_upload_report, token, request_id, report)
     return request_id
 
