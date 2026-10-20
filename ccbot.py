@@ -3504,6 +3504,65 @@ async def on_member_remove(member: discord.Member):
         await notify_admin(f"Falha na mensagem de saída: {exc}")
 
 @bot.event
+async def restaurar_botoes_beats_existentes():
+    """Migra publicações antigas para botões persistentes sem repostar os embeds."""
+    guild = bot.get_guild(1561513043886743562)
+    if guild is None:
+        log.warning("Migração de beats adiada: servidor não está disponível.")
+        return
+
+    atualizados = 0
+    examinados = 0
+    for canal in guild.text_channels:
+        try:
+            async for mensagem in canal.history(limit=200):
+                examinados += 1
+                if mensagem.author.id != bot.user.id or not mensagem.embeds:
+                    continue
+                embed = mensagem.embeds[0]
+                rodape = embed.footer.text or "" if embed.footer else ""
+                if "Venda de Beats" not in rodape:
+                    continue
+
+                nome = (embed.title or "Beat").replace("🎧 ", "", 1).strip()
+                preco = next(
+                    (campo.value for campo in embed.fields if campo.name.lower() == "valor"),
+                    "A combinar"
+                )
+                registro = beat_records.get(str(mensagem.id), {})
+                caminho = registro.get("preview_path", "")
+                if not caminho:
+                    # Tenta localizar o arquivo local pelo nome do beat.
+                    alvo = "".join(c if c.isalnum() or c in "-_ " else "_" for c in nome).strip()
+                    candidatos = [p for p in BEAT_PREVIEWS_DIR.iterdir() if p.is_file()]
+                    correspondencia = next(
+                        (p for p in candidatos if p.stem.casefold() == alvo.casefold()),
+                        None
+                    )
+                    if correspondencia:
+                        caminho = str(correspondencia)
+
+                try:
+                    await mensagem.edit(view=VendaBeatView(nome, preco, caminho))
+                    if caminho:
+                        beat_records[str(mensagem.id)] = {"preview_path": caminho}
+                    atualizados += 1
+                except discord.NotFound:
+                    continue
+                except discord.HTTPException:
+                    log.exception("Não foi possível restaurar botões do beat mensagem=%s", mensagem.id)
+        except discord.Forbidden:
+            log.warning("Sem permissão para verificar beats no canal %s", canal.id)
+        except discord.HTTPException:
+            log.exception("Falha ao verificar beats no canal %s", canal.id)
+
+    save_json(BEATS_FILE, beat_records)
+    log.info(
+        "Migração de botões de beats concluída: %s mensagens atualizadas; %s mensagens verificadas.",
+        atualizados, examinados
+    )
+
+
 async def on_ready():
     try:
         # Registra primeiro os componentes persistentes. Nenhuma tarefa lenta de
@@ -3539,6 +3598,11 @@ async def on_ready():
         synced = await bot.tree.sync(guild=guild)
         log.info("Comandos sincronizados somente no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
+
+        # Corrige publicações antigas cujos botões não tinham IDs persistentes.
+        if not getattr(bot, "_beats_migrated_this_process", False):
+            await restaurar_botoes_beats_existentes()
+            bot._beats_migrated_this_process = True
 
         # Ponte GitHub: recebe tarefas aprovadas no repositório e publica relatórios.
         tarefa_ponte = getattr(bot, "_github_bridge_task", None)
