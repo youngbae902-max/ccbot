@@ -3483,6 +3483,22 @@ async def on_member_remove(member: discord.Member):
 @bot.event
 async def on_ready():
     try:
+        # Registra primeiro os componentes persistentes. Nenhuma tarefa lenta de
+        # inicialização deve deixar os botões sem callback e causar "Interação falhou".
+        views_persistentes = [
+            ("Gerador de Samples", GeradorSamplesView),
+            ("Pack Personalizado", PackPersonalizadoView),
+            ("Arrumador de Projetos", ArrumadorPainelView),
+            ("Acapellas", AcapellasActivityView),
+            ("Trampar Conosco", TramparConoscoView),
+        ]
+        for nome_view, classe_view in views_persistentes:
+            try:
+                bot.add_view(classe_view())
+                log.info("View persistente registrada no início: %s", nome_view)
+            except Exception:
+                log.exception("Falha ao registrar a view persistente: %s", nome_view)
+
         guild = discord.Object(id=1561513043886743562)
 
         # A sincronização com a árvore global vazia remove comandos globais antigos.
@@ -3543,9 +3559,8 @@ async def on_ready():
 
         await channel.send(embed=embed)
 
-        # Registra os botões e menus persistentes para continuarem funcionando após reinícios.
-        # O painel de Parcerias usa somente botão de link; não precisa de registro de callback.
-        bot.add_view(TramparConoscoView())
+        # Os componentes persistentes já foram registrados no início do on_ready.
+        # O painel de Parcerias usa somente botão de link; não precisa de callback.
 
         # Publica/atualiza os painéis de Parcerias e Trampar Conosco sem duplicar mensagens.
         await publicar_paineis_comunidade()
@@ -3563,23 +3578,15 @@ async def on_ready():
             samples_channel = await bot.fetch_channel(SAMPLES_PANEL_CHANNEL_ID)
             samples_message = await samples_channel.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
             await samples_message.edit(view=GeradorSamplesView())
-            bot.add_view(GeradorSamplesView())
             log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
         except Exception:
             log.exception("Não foi possível atualizar o painel /samples existente.")
-
-        bot.add_view(AcapellasActivityView())
-        log.info("View persistente do painel de acapellas registrada.")
-
-        bot.add_view(ArrumadorPainelView())
-        log.info("View persistente do painel Arrumador registrada.")
 
         # Atualiza o painel de Pack Personalizado já publicado, sem criar outro.
         try:
             pack_channel = await bot.fetch_channel(PACK_PANEL_CHANNEL_ID)
             pack_message = await pack_channel.fetch_message(PACK_PANEL_MESSAGE_ID)
             await pack_message.edit(view=PackPersonalizadoView())
-            bot.add_view(PackPersonalizadoView(), message_id=PACK_PANEL_MESSAGE_ID)
             log.info("Painel Pack Personalizado existente atualizado: canal=%s mensagem=%s", PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID)
         except Exception:
             log.exception("Não foi possível atualizar o painel Pack Personalizado existente.")
