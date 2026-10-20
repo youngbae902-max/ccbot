@@ -32,6 +32,7 @@ python ccbot.py
 - `/painel`: abre a central administrativa.
 - `/status`: verifica a conexão.
 - `/diagnostico`: gera um relatório somente de leitura dos canais de texto, identificando canais sem mensagens e canais cujo histórico não pôde ser consultado.
+- `/criar canal:#destino`: faz uma pergunta por vez para montar um embed, mostra uma prévia e só publica após confirmação.
 
 O diagnóstico não renomeia, não apaga e não publica mensagens. Canais sem mensagens devem ser revisados por uma pessoa antes de qualquer alteração.
 
