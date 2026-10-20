@@ -3554,7 +3554,7 @@ async def saude(interaction: discord.Interaction):
             falhas += 1
         except Exception as exc:
             log.exception("Falha ao verificar canal %s", canal_id)
-            linhas.append(f"FALHA | {nome} (ID %s): %s" % (canal_id, type(exc).__name__))
+            linhas.append(f"FALHA | {nome} (ID {canal_id}): {type(exc).__name__}")
             falhas += 1
 
     linhas.extend(["", f"Alertas/falhas: {falhas}", "Verificação somente de leitura: nenhuma configuração foi alterada."])
