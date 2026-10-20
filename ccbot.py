@@ -3410,8 +3410,82 @@ async def on_app_command_error(interaction, error):
 
 
 
-# Diagnósticos e verificações de saúde agora são executados pela ponte GitHub
-# e registrados em reports/, sem exigir comandos slash nem envio manual de TXT.
+@bot.tree.command(name="diagnostico", description="Analisar os canais do servidor e enviar um relatório")
+async def diagnostico(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador pode executar este diagnóstico.",
+            ephemeral=True
+        )
+        return
+
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "Use este comando dentro do servidor.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(thinking=True, ephemeral=False)
+    guild = interaction.guild
+    linhas = [
+        f"DIAGNÓSTICO DO SERVIDOR: {guild.name}",
+        f"Servidor ID: {guild.id}",
+        f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}",
+        "",
+        "CANAIS DE TEXTO"
+    ]
+    com_mensagens = 0
+    vazios = 0
+    sem_acesso = 0
+
+    for canal in sorted(guild.text_channels, key=lambda c: ((c.category.name if c.category else ""), c.position, c.name)):
+        categoria = canal.category.name if canal.category else "Sem categoria"
+        try:
+            ultima = None
+            async for mensagem in canal.history(limit=1):
+                ultima = mensagem
+            if ultima is None:
+                status = "SEM MENSAGENS VISÍVEIS"
+                vazios += 1
+            else:
+                status = f"TEM MENSAGENS (última: {ultima.created_at.strftime('%d/%m/%Y %H:%M UTC')})"
+                com_mensagens += 1
+        except discord.Forbidden:
+            status = "SEM PERMISSÃO PARA LER HISTÓRICO"
+            sem_acesso += 1
+        except discord.HTTPException as exc:
+            status = f"ERRO DO DISCORD ({exc.status})"
+            sem_acesso += 1
+        linhas.append(f"[{categoria}] #{canal.name} | ID {canal.id} | {status}")
+
+    linhas.extend([
+        "",
+        "RESUMO",
+        f"Canais de texto analisados: {len(guild.text_channels)}",
+        f"Com mensagens visíveis: {com_mensagens}",
+        f"Sem mensagens visíveis: {vazios}",
+        f"Sem acesso/erro: {sem_acesso}",
+        "",
+        "Nota: 'sem mensagens visíveis' significa que o bot não encontrou mensagem no histórico acessível."
+    ])
+    relatorio = "\\n".join(linhas)
+    arquivo = discord.File(
+        io.BytesIO(relatorio.encode("utf-8")),
+        filename="diagnostico_servidor.txt"
+    )
+    await interaction.followup.send(
+        content=(
+            "📋 **Diagnóstico concluído**\n"
+            f"• Canais com mensagens: **{com_mensagens}**\n"
+            f"• Sem mensagens visíveis: **{vazios}**\n"
+            f"• Sem acesso/erro: **{sem_acesso}**\n"
+            "O relatório completo está anexado."
+        ),
+        file=arquivo
+    )
+
+
 
 
 
