@@ -20,52 +20,22 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertIn("ADMIN_ID = 1366109646934380614", self.source)
         self.assertIn("ORDERS_CHANNEL_ID = 1561513284191125625", self.source)
 
-    def test_diagnostic_is_registered_as_slash_command(self):
-        registered = False
-        for node in ast.walk(self.tree):
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            if node.name != "diagnostico":
-                continue
-            for decorator in node.decorator_list:
-                if not isinstance(decorator, ast.Call):
-                    continue
-                if isinstance(decorator.func, ast.Attribute) and decorator.func.attr == "command":
-                    for keyword in decorator.keywords:
-                        if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
-                            registered = keyword.value.value == "diagnostico"
-        self.assertTrue(registered, "/diagnostico deve ser um comando slash registrado")
+    def test_diagnostic_commands_are_moved_to_github_bridge(self):
+        self.assertIn("import github_bridge", self.source)
+        self.assertNotIn('name="diagnostico"', self.source)
+        self.assertNotIn('name="saude"', self.source)
+        bridge = (ROOT / "github_bridge.py").read_text(encoding="utf-8")
+        self.assertIn('"diagnostico"', bridge)
+        self.assertIn('"saude"', bridge)
+        self.assertIn("reports/", bridge)
+        self.assertIn("asyncio.sleep(POLL_SECONDS)", bridge)
 
-    def test_diagnostic_is_read_only(self):
-        node = next(
-            n for n in ast.walk(self.tree)
-            if isinstance(n, ast.AsyncFunctionDef) and n.name == "diagnostico"
-        )
-        source_segment = ast.get_source_segment(self.source, node) or ""
-        forbidden_mutations = (".send(", ".edit(", ".delete(", ".set_permissions(")
-        # A resposta do relatório usa followup.send; isso é permitido. O teste só
-        # garante que não há mutações de canais/mensagens do servidor.
-        self.assertNotIn(".set_permissions(", source_segment)
-        self.assertNotIn("await canal.edit(", source_segment)
-        self.assertNotIn("await canal.delete(", source_segment)
-        self.assertIn("canal.history(limit=1", source_segment)
-
-
-    def test_health_command_is_registered_and_read_only(self):
-        found = False
-        for node in ast.walk(self.tree):
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            if node.name != "saude":
-                continue
-            for decorator in node.decorator_list:
-                if not isinstance(decorator, ast.Call):
-                    continue
-                if isinstance(decorator.func, ast.Attribute) and decorator.func.attr == "command":
-                    for keyword in decorator.keywords:
-                        if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
-                            found = keyword.value.value == "saude"
-        self.assertTrue(found, "/saude deve ser um comando slash")
+    def test_github_bridge_has_allowlist_and_no_shell_execution(self):
+        bridge = (ROOT / "github_bridge.py").read_text(encoding="utf-8")
+        self.assertIn('ALLOWED_ACTIONS = {"diagnostico", "saude"}', bridge)
+        self.assertNotIn("os.system(", bridge)
+        self.assertNotIn("subprocess.", bridge)
+        self.assertIn("GITHUB_TOKEN_FILE", bridge)
 
 
 if __name__ == "__main__":
