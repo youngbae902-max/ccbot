@@ -3603,11 +3603,11 @@ async def antes_de_atualizar_contador_vendas():
 async def on_member_join(member: discord.Member):
     try:
         roles = await garantir_cargos(member.guild)
-        role = roles.get("cliente")
+        role = roles.get("membro")
         if role and role not in member.roles:
-            await member.add_roles(role, reason="Cargo Cliente automático ao entrar no servidor")
+            await member.add_roles(role, reason="Cargo Membro automático ao entrar no servidor")
     except Exception:
-        log.exception("Falha ao atribuir cargo Cliente na entrada.")
+        log.exception("Falha ao atribuir cargo Membro na entrada.")
     try:
         channel = bot.get_channel(WELCOME_CHANNEL_ID)
         if channel is None:
