@@ -497,8 +497,7 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             log.exception("Falha ao baixar/salvar a prévia do beat")
             await interaction.edit_original_response(
                 content=f"❌ Não consegui preparar a prévia ({type(exc).__name__}: {str(exc)[:180]}). Tente enviar o arquivo como anexo normal MP3, WAV ou OGG.",
-                view=None
-            )
+                view=None            )
             return
 
         preco = f"R$ {valor_numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -997,8 +996,7 @@ class PackPerguntasView(discord.ui.LayoutView):
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "Confira os dados acima. Se estiver tudo certo, toque em **Enviar pedido**."
             )
-            enviar = discord.ui.Button(label="Enviar pedido", emoji="📨", style=discord.ButtonStyle.success, custom_id="ccbot:pack:finalizar")
-            voltar = discord.ui.Button(label="Voltar", style=discord.ButtonStyle.secondary, custom_id="ccbot:pack:voltar")
+            enviar = discord.ui.Button(label="Enviar pedido", emoji="📨", style=discord.ButtonStyle.success, custom_id="ccbot:pack:finalizar")            voltar = discord.ui.Button(label="Voltar", style=discord.ButtonStyle.secondary, custom_id="ccbot:pack:voltar")
             enviar.callback = self.finalizar
             voltar.callback = self.voltar
             itens = [voltar, enviar]
@@ -1481,13 +1479,11 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
         embed.add_field(name="Detalhes do pedido", value=str(detalhes)[:1024], inline=False)
     embed.set_footer(text=f"Referência técnica: {txid} • Pagamento pendente")
     await ticket.send(
-        content=(
-            "📋 **PIX COPIA E COLA — toque e segure para copiar**\n"
-            "Copie todo o conteúdo dentro do bloco abaixo e cole no aplicativo do seu banco:\n"
-            f"```\n{payload}\n```"
-        ),
+        content="📱 **Pagamento Pix** — escaneie o QR Code ou use o botão abaixo para ver o código copia e cola.\n"
+                "Depois de pagar, envie o comprovante neste tópico/canal. A confirmação continua manual.",
         embed=embed,
-        file=discord.File(buffer, filename="pix_cc.png")
+        file=discord.File(buffer, filename="pix_cc.png"),
+        view=CopiarCodigoPixView(payload, txid)
     )
 
     try:
@@ -1497,8 +1493,7 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
             description=(
                 f"**Produto:** {produto}\n"
                 f"**Valor:** {formatar_reais(valor)}\n"
-                f"**Status:** AGUARDANDO CONFERÊNCIA"
-            ),
+                f"**Status:** AGUARDANDO CONFERÊNCIA"            ),
             color=discord.Color.orange(), timestamp=discord.utils.utcnow()
         )
         # Dados do comprador em campos próprios para ficarem visíveis no comprovante administrativo.
@@ -1509,7 +1504,10 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
         if detalhes:
             aviso.add_field(name="Resumo do pedido", value=str(detalhes)[:1024], inline=False)
         aviso.set_footer(text=f"Referência técnica: {txid}")
-        await canal_admin.send(embed=aviso, view=ConfirmarPagamentoView())
+        mensagem_admin = await canal_admin.send(embed=aviso, view=ConfirmarPagamentoView())
+        pix_orders[txid]["admin_channel_id"] = str(canal_admin.id)
+        pix_orders[txid]["admin_message_id"] = str(mensagem_admin.id)
+        save_json(PIX_ORDERS_FILE, pix_orders)
     except Exception:
         log.exception("Falha ao publicar aprovação manual para o pedido %s", txid)
         try:
@@ -1520,6 +1518,32 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
         save_json(PIX_ORDERS_FILE, pix_orders)
         raise
     return ticket, txid
+
+
+class CopiarCodigoPixView(discord.ui.View):
+    """Mostra o Pix copia e cola em uma resposta privada para facilitar copiar no celular."""
+    def __init__(self, payload: str, txid: str):
+        super().__init__(timeout=3600)
+        self.payload = payload
+        self.txid = txid
+        botao = discord.ui.Button(
+            label="Copiar código Pix",
+            emoji="📋",
+            style=discord.ButtonStyle.primary,
+            custom_id=f"ccbot:pix:copiar:{txid}"
+        )
+        botao.callback = self.copiar
+        self.add_item(botao)
+
+    async def copiar(self, interaction: discord.Interaction):
+        # O Discord não permite que bots gravem diretamente na área de transferência.
+        # A resposta privada deixa o código isolado, pronto para copiar/segurar no celular.
+        await interaction.response.send_message(
+            content=f"**Pix copia e cola — pedido {self.txid}**\n"
+                    "Toque e segure o código abaixo para copiar tudo:\n"
+                    f"```\n{self.payload}\n```",
+            ephemeral=True
+        )
 
 
 class ConfirmarPagamentoView(discord.ui.View):
@@ -1998,7 +2022,6 @@ class AlterarDJModal(discord.ui.Modal, title="Alterar nome de DJ"):
             await interaction.delete_original_response()
         except (discord.NotFound, discord.HTTPException):
             pass
-
 
 class ExcluirDJSelect(discord.ui.Select):
     def __init__(self):
@@ -2497,8 +2520,7 @@ class IconAdicionarButton(discord.ui.Button):
         await interaction.response.send_modal(IconNomeQuantidadeModal())
 
 class IconImportarButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(
+    def __init__(self):        super().__init__(
             label="Importar fotos da pasta",
             emoji="🖼️",
             style=discord.ButtonStyle.primary,
@@ -2997,8 +3019,7 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
             log.exception("Falha ao organizar a hierarquia")
             await interaction.edit_original_response(
                 content=f"❌ A organização parou em {type(exc).__name__}. Algumas etapas podem já ter sido aplicadas; gere um novo relatório para conferir.",
-                view=None
-            )
+                view=None            )
 
     @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.danger)
     async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -3497,8 +3518,7 @@ async def painel_acapellas(interaction: discord.Interaction):
                 mensagem.author.id == bot.user.id
                 and mensagem.embeds
                 and mensagem.embeds[0].title == "🎙️ ACAPELLAS DE MCs FAMOSOS"
-            ):
-                painel_existente = mensagem
+            ):                painel_existente = mensagem
                 break
 
         if painel_existente:
@@ -3997,8 +4017,7 @@ def criar_embed_trampar_conosco() -> discord.Embed:
         inline=True
     )
     embed.add_field(
-        name="🎬  EDIÇÃO DE VÍDEO",
-        value="Área prevista para o futuro",
+        name="🎬  EDIÇÃO DE VÍDEO",        value="Área prevista para o futuro",
         inline=True
     )
     embed.add_field(
@@ -4484,6 +4503,80 @@ async def on_ready():
         log.exception("Falha ao iniciar ou sincronizar comandos")
         await notify_admin(f"Falha ao iniciar o CC BOT: {exc}")
 
+
+
+@bot.listen("on_message")
+async def receber_comprovante_pix(message: discord.Message):
+    """Encaminha comprovantes do comprador para o canal administrativo de confirmação."""
+    if message.author.bot or message.guild is None or not message.attachments:
+        return
+    pedido = next(
+        (
+            item for item in pix_orders.values()
+            if str(item.get("ticket_channel_id")) == str(message.channel.id)
+            and str(item.get("discord_id")) == str(message.author.id)
+            and item.get("status") == "aguardando_confirmacao_manual"
+        ),
+        None
+    )
+    if not pedido:
+        return
+    arquivos_validos = []
+    for anexo in message.attachments[:5]:
+        nome = Path(anexo.filename).name
+        tipo = (anexo.content_type or "").lower()
+        extensao = Path(nome).suffix.lower()
+        if tipo.startswith("image/") or tipo == "application/pdf" or extensao in {".png", ".jpg", ".jpeg", ".webp", ".pdf"}:
+            try:
+                dados = await anexo.read(use_cached=True)
+                if dados and len(dados) <= 10 * 1024 * 1024:
+                    arquivos_validos.append(discord.File(io.BytesIO(dados), filename=nome[:180]))
+            except Exception:
+                log.exception("Falha ao ler comprovante do pedido %s", pedido.get("txid"))
+    if not arquivos_validos:
+        try:
+            await message.channel.send(
+                f"{message.author.mention} Não consegui ler o arquivo. Envie uma imagem PNG/JPG/WEBP ou PDF de até 10 MB."
+            )
+        except discord.HTTPException:
+            pass
+        return
+    guild = message.guild
+    canal_admin = guild.get_channel(int(pedido.get("admin_channel_id", 0))) if pedido.get("admin_channel_id") else None
+    if canal_admin is None:
+        try:
+            canal_admin = await obter_canal_confirmacao(guild)
+        except Exception:
+            log.exception("Não consegui localizar o canal de comprovantes do pedido %s", pedido.get("txid"))
+            return
+    aviso = discord.Embed(
+        title="🧾 COMPROVANTE RECEBIDO",
+        description=(
+            f"**Pedido:** {pedido.get('txid')}\n"
+            f"**Produto:** {pedido.get('product')}\n"
+            f"**Valor esperado:** {formatar_reais(pedido.get('amount', 0))}\n"
+            f"**Cliente:** {message.author.mention} (ID {message.author.id})\n"
+            f"**Pedido original:** <#{message.channel.id}>\n\n"
+            "Confira o recebimento na conta antes de aprovar. O anexo não confirma o pagamento automaticamente."
+        ),
+        color=discord.Color.gold(),
+        timestamp=discord.utils.utcnow()
+    )
+    try:
+        await canal_admin.send(embed=aviso, files=arquivos_validos)
+        pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
+        pedido["receipt_message_id"] = str(message.id)
+        save_json(PIX_ORDERS_FILE, pix_orders)
+        await message.reply("✅ Comprovante encaminhado para **Confirmar pagamentos**. Aguarde a conferência manual.", mention_author=False)
+    except Exception:
+        log.exception("Falha ao encaminhar comprovante do pedido %s", pedido.get("txid"))
+        for arquivo in arquivos_validos:
+            try:
+                arquivo.close()
+            except Exception:
+                pass
+
+
 @bot.event
 async def on_app_command_error(interaction, error):
     if not is_admin(interaction):
@@ -4497,8 +4590,7 @@ async def on_app_command_error(interaction, error):
         else:
             await interaction.response.send_message(
                 "Ocorreu um erro. O administrador foi avisado.", ephemeral=True
-            )
-    except Exception:
+            )    except Exception:
         pass
     await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
