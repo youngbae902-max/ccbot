@@ -559,6 +559,96 @@ class OuvirPreviaBeatButton(discord.ui.Button):
                 log.exception("Falha ao informar erro da prévia do beat")
 
 
+class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
+    nome_cliente = discord.ui.TextInput(label="Nome completo do pagador", max_length=120)
+    cpf_cnpj = discord.ui.TextInput(label="CPF ou CNPJ", placeholder="Somente números", max_length=18)
+    email = discord.ui.TextInput(label="E-mail do pagador", max_length=254)
+
+    def __init__(self, nome_beat: str, preco_texto: str, valor: float):
+        super().__init__(timeout=300)
+        self.nome_beat = nome_beat
+        self.preco_texto = preco_texto
+        self.valor = valor
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        config_path = Path("/sdcard/Download/CC/evopay_config.json")
+        try:
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            api_key = str(config.get("CC_BOT_API_KEY", "")).strip()
+            if not api_key:
+                raise ValueError("A chave CC_BOT_API_KEY não está configurada.")
+        except Exception as exc:
+            await interaction.edit_original_response(
+                content="❌ O Pix ainda não está configurado neste Termux. O administrador precisa configurar o arquivo evopay_config.json na pasta CC.",
+                view=None
+            )
+            log.error("Configuração local da EvoPay indisponível: %s", exc)
+            return
+
+        external_reference = "CC-" + uuid.uuid4().hex
+        payload = {
+            "amount": self.valor,
+            "payerName": str(self.nome_cliente.value).strip(),
+            "payerDocument": str(self.cpf_cnpj.value).strip(),
+            "payerEmail": str(self.email.value).strip(),
+            "externalReference": external_reference
+        }
+        endpoint = "https://hgxitwvlrrzystojaies.supabase.co/functions/v1/evopay-pix"
+
+        def criar_cobranca():
+            request = urllib.request.Request(
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "x-api-key": api_key},
+                method="POST"
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=25) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                detalhe = exc.read().decode("utf-8", errors="replace")[:800]
+                raise RuntimeError(f"Supabase/EvoPay HTTP {exc.code}: {detalhe}") from exc
+
+        try:
+            result = await asyncio.wait_for(asyncio.to_thread(criar_cobranca), timeout=30)
+            pix = result.get("pix", result)
+            qr_text = str(pix.get("qrCodeText") or pix.get("copyPaste") or "")
+            qr_url = str(pix.get("qrCodeUrl") or "")
+            transaction_id = str(pix.get("id") or "não informado")
+            status_pagamento = str(pix.get("status") or "PENDING")
+            if not qr_text and not qr_url:
+                raise ValueError("A EvoPay respondeu sem código Pix nem URL do QR Code.")
+
+            embed = discord.Embed(
+                title="💠 Pix gerado — CC BOT",
+                description=f"**Produto:** {self.nome_beat}\n**Valor:** {self.preco_texto}\n**Status:** {status_pagamento}",
+                color=discord.Color.blurple()
+            )
+            embed.add_field(name="Pix copia e cola", value=(qr_text[:1000] or "Use o link do QR Code abaixo."), inline=False)
+            if qr_url:
+                embed.add_field(name="QR Code", value=f"[Abrir QR Code]({qr_url})", inline=False)
+            embed.set_footer(text=f"Referência: {external_reference} • ID: {transaction_id}")
+            await interaction.edit_original_response(content="Cobrança criada. Pague pelo QR Code/código abaixo.", embed=embed, view=None)
+
+            pedido = discord.Embed(
+                title="🧾 Pedido de beat — aguardando Pix",
+                description=f"**Beat:** {self.nome_beat}\n**Valor:** {self.preco_texto}\n**Referência:** {external_reference}",
+                color=discord.Color.orange()
+            )
+            pedido.add_field(name="Comprador", value=f"{interaction.user} (ID {interaction.user.id})", inline=False)
+            pedido.add_field(name="Transação EvoPay", value=transaction_id, inline=False)
+            pedido.set_footer(text="Pagamento pendente — confirmar antes de entregar o produto.")
+            await enviar_pedido_admin(None, embed=pedido)
+        except Exception as exc:
+            log.exception("Falha ao criar cobrança Pix para beat %s", self.nome_beat)
+            await interaction.edit_original_response(
+                content="❌ Não consegui gerar o Pix. Nenhuma entrega foi liberada. Confira a configuração e tente novamente.",
+                embed=None,
+                view=None
+            )
+
+
 class ComprarBeatButton(discord.ui.Button):
     def __init__(self, nome: str, preco: str):
         super().__init__(label="Comprar beat", emoji="🛒", style=discord.ButtonStyle.success, custom_id="ccbot:beat:buy")
@@ -566,61 +656,22 @@ class ComprarBeatButton(discord.ui.Button):
         self.preco = preco
 
     async def callback(self, interaction: discord.Interaction):
-        # PRIMEIRA operação: confirmar o clique antes de ler embed ou acessar o canal.
+        nome = self.nome
+        preco = self.preco
+        if interaction.message and interaction.message.embeds:
+            embed_beat = interaction.message.embeds[0]
+            if not nome:
+                nome = (embed_beat.title or "Beat").replace("🎧 ", "", 1).strip()
+            if not preco:
+                preco = next((field.value for field in embed_beat.fields if field.name.casefold() == "valor"), "")
         try:
-            await interaction.response.defer(ephemeral=True, thinking=True)
-        except discord.HTTPException:
-            log.exception("Não foi possível confirmar a interação de compra de beat.")
+            valor = float(str(preco).replace("R$", "").replace(" ", "").replace(".", "").replace(",", "."))
+        except (ValueError, TypeError):
+            valor = 0.0
+        if valor <= 0:
+            await interaction.response.send_message("❌ Este beat não tem um preço válido cadastrado. Avise a administração.", ephemeral=True)
             return
-
-        try:
-            nome = self.nome
-            preco = self.preco
-            if interaction.message and interaction.message.embeds:
-                embed_beat = interaction.message.embeds[0]
-                if not nome:
-                    nome = (embed_beat.title or "Beat").replace("🎧 ", "", 1).strip()
-                if not preco:
-                    preco = next(
-                        (campo.value for campo in embed_beat.fields if campo.name.casefold() == "valor"),
-                        "A combinar"
-                    )
-
-            pedido = discord.Embed(
-                title="🛒 Pedido de compra de beat",
-                color=discord.Color.green(),
-                timestamp=discord.utils.utcnow()
-            )
-            pedido.add_field(name="🎧 Beat", value=nome or "Não identificado", inline=False)
-            pedido.add_field(name="💰 Valor", value=preco or "A combinar", inline=True)
-            pedido.add_field(
-                name="👤 Comprador",
-                value=f"{interaction.user.mention}\n{interaction.user}",
-                inline=True
-            )
-            pedido.add_field(name="🆔 ID do comprador", value=str(interaction.user.id), inline=False)
-            pedido.add_field(
-                name="🏠 Servidor",
-                value=interaction.guild.name if interaction.guild else "Mensagem privada",
-                inline=False
-            )
-            pedido.set_footer(text="CC BOT • Vendas")
-
-            await enviar_pedido_admin(None, embed=pedido)
-            await interaction.followup.send(
-                f"🛒 Seu pedido de compra de **{nome}** ({preco}) foi enviado à aba de vendas. Aguarde o contato para concluir a compra.",
-                ephemeral=True
-            )
-        except Exception as exc:
-            log.exception("Falha ao registrar interesse de compra de beat")
-            try:
-                await interaction.followup.send(
-                    f"Não consegui registrar seu pedido agora ({type(exc).__name__}). Tente novamente mais tarde.",
-                    ephemeral=True
-                )
-            except Exception:
-                log.exception("Falha ao informar erro no pedido de compra de beat")
-
+        await interaction.response.send_modal(PagamentoPixModal(nome or "Beat", preco or f"R$ {valor:.2f}", valor))
 
 class VendaBeatView(discord.ui.View):
     def __init__(self, nome: str, preco: str, preview_path):
