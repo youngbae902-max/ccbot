@@ -699,7 +699,12 @@ class ComprarBeatButton(discord.ui.Button):
             if not preco:
                 preco = next((field.value for field in embed_beat.fields if field.name.casefold() == "valor"), "")
         try:
-            valor = float(str(preco).replace("R$", "").replace(" ", "").replace(".", "").replace(",", "."))
+            valor_texto = str(preco).replace("R$", "").replace(" ", "").strip()
+            if "," in valor_texto and "." in valor_texto:
+                valor_texto = valor_texto.replace(".", "").replace(",", ".")
+            elif "," in valor_texto:
+                valor_texto = valor_texto.replace(",", ".")
+            valor = float(valor_texto)
         except (ValueError, TypeError):
             valor = 0.0
         if valor <= 0:
