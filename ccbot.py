@@ -1331,8 +1331,16 @@ def formatar_reais(valor):
 def extrair_txid_da_mensagem(message):
     if not message or not message.embeds:
         return None
-    for field in message.embeds[0].fields:
-        if field.name.casefold() in ("identificador", "identificador pix", "pedido"):
+    embed = message.embeds[0]
+    # A referência técnica fica no rodapé; o campo principal mostra o nome completo.
+    rodape = getattr(embed.footer, "text", "") or ""
+    encontrado = re.search(r"Referência técnica: ([A-Za-z0-9]+)", rodape)
+    if encontrado:
+        candidato = encontrado.group(1).upper()
+        if candidato in pix_orders:
+            return candidato
+    for field in embed.fields:
+        if field.name.casefold() in ("identificador pix", "código interno do pedido"):
             candidato = re.sub(r"[^A-Za-z0-9]", "", field.value).upper()
             if candidato in pix_orders:
                 return candidato
@@ -1445,7 +1453,7 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
         description=(
             f"Produto: {produto}\nValor: {formatar_reais(valor)}\n"
             f"Comprador: {nome_usuario}\nID Discord: {user.id}\n"
-            f"Identificador: {txid}\n\n"
+            f"Identificador: {nome_usuario}\n\n"
             "Escaneie o QR Code ou copie o código Pix enviado. Após pagar, aguarde a conferência manual.\n"
             "O pagamento não libera o produto automaticamente."
         ),
@@ -1454,7 +1462,7 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
     embed.set_image(url="attachment://pix_cc.png")
     if detalhes:
         embed.add_field(name="Detalhes do pedido", value=str(detalhes)[:1024], inline=False)
-    embed.set_footer(text=f"Pedido {txid} • Pagamento pendente")
+    embed.set_footer(text=f"Referência técnica: {txid} • Pagamento pendente")
     await ticket.send(
         content=payload, embed=embed,
         file=discord.File(buffer, filename="pix_cc.png")
@@ -1474,10 +1482,11 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
         # Dados do comprador em campos próprios para ficarem visíveis no comprovante administrativo.
         aviso.add_field(name="👤 Nome no Discord", value=f"{nome_usuario}\n{user.mention}", inline=True)
         aviso.add_field(name="🆔 ID DO USUÁRIO", value=f"`{user.id}`", inline=True)
-        aviso.add_field(name="🔖 IDENTIFICADOR ÚNICO DO PEDIDO", value=f"`{txid}`", inline=False)
+        aviso.add_field(name="🔖 IDENTIFICADOR", value=nome_usuario[:1024], inline=False)
         aviso.add_field(name="Canal privado do pedido", value=ticket.mention, inline=False)
         if detalhes:
             aviso.add_field(name="Resumo do pedido", value=str(detalhes)[:1024], inline=False)
+        aviso.set_footer(text=f"Referência técnica: {txid}")
         await canal_admin.send(embed=aviso, view=ConfirmarPagamentoView())
     except Exception:
         log.exception("Falha ao publicar aprovação manual para o pedido %s", txid)
