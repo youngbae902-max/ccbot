@@ -677,6 +677,7 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                         embed.set_image(url="attachment://ccbot-pix-qrcode.png")
                 except Exception:
                     log.exception("A EvoPay retornou qrCodeBase64, mas não foi possível decodificar a imagem.")
+            # Primeiro tenta obter a imagem da URL oficial da EvoPay.
             if qr_file is None and qr_url:
                 try:
                     parsed_qr = urlparse(qr_url)
@@ -698,10 +699,30 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                             qr_file = discord.File(io.BytesIO(qr_download), filename="ccbot-pix-qrcode.png")
                             embed.set_image(url="attachment://ccbot-pix-qrcode.png")
                 except Exception:
-                    log.warning("Não consegui baixar a imagem do QR Code pela URL da EvoPay.")
-                if qr_file is None:
-                    embed.add_field(name="QR Code", value=f"[Abrir QR Code]({qr_url})", inline=False)
-                    embed.set_image(url=qr_url)
+                    log.warning("A URL da EvoPay não entregou uma imagem de QR Code utilizável.")
+
+            # Plano B local: desenha o QR a partir do Pix copia-e-cola, sem enviar
+            # os dados de pagamento para sites externos de geração de QR.
+            if qr_file is None and qr_text:
+                try:
+                    import qrcode
+                    imagem_qr = qrcode.make(qr_text)
+                    buffer_qr = io.BytesIO()
+                    imagem_qr.save(buffer_qr, format="PNG")
+                    buffer_qr.seek(0)
+                    qr_file = discord.File(buffer_qr, filename="ccbot-pix-qrcode.png")
+                    embed.set_image(url="attachment://ccbot-pix-qrcode.png")
+                    log.info("QR Code Pix gerado localmente a partir do copia-e-cola.")
+                except ImportError:
+                    log.warning("Pacote qrcode/Pillow ausente; QR local não pode ser gerado.")
+                except Exception:
+                    log.exception("Falha ao gerar QR Code Pix localmente.")
+
+            if qr_file is None and qr_url:
+                embed.add_field(name="QR Code", value=f"[Tentar abrir QR Code]({qr_url})", inline=False)
+                embed.add_field(name="Alternativa", value="Copie o conteúdo do campo **Pix copia e cola** e use a opção Pix Copia e Cola do seu banco.", inline=False)
+            elif qr_file is None:
+                embed.add_field(name="Alternativa", value="Copie o conteúdo do campo **Pix copia e cola** e use a opção Pix Copia e Cola do seu banco.", inline=False)
             embed.set_footer(text=f"Referência: {external_reference} • ID: {transaction_id}")
             if qr_file is not None:
                 await interaction.edit_original_response(content="Cobrança criada. Pague pelo QR Code/código abaixo.", embed=embed, attachments=[qr_file], view=None)
