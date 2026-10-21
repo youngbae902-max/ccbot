@@ -1394,42 +1394,12 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
 
     user = interaction.user
     nome_usuario = str(getattr(user, "global_name", None) or user.name)
-    # O identificador começa pelo nome; sufixo curto só é usado para distinguir compras repetidas.
-    nome_txid = re.sub(r"[^A-Za-z0-9]", "", nome_usuario.upper())[:20] or "USUARIO"
-    txid = nome_txid
-    if txid in pix_orders:
-        pedido_antigo = pix_orders[txid]
-        if pedido_antigo.get("status") == "aguardando_confirmacao_manual":
-            ticket_antigo_id = pedido_antigo.get("ticket_channel_id")
-            ticket_antigo = None
-            if ticket_antigo_id:
-                ticket_antigo = (
-                    interaction.guild.get_channel(int(ticket_antigo_id))
-                    or interaction.guild.get_thread(int(ticket_antigo_id))
-                )
-                if ticket_antigo is None:
-                    try:
-                        ticket_antigo = await bot.fetch_channel(int(ticket_antigo_id))
-                    except (discord.HTTPException, ValueError, TypeError):
-                        ticket_antigo = None
-            if ticket_antigo is None:
-                # Checkout apagado/ausente: não deixa o pedido abandonado preso como pendente.
-                pedido_antigo["status"] = "cancelado_checkout_removido"
-                pedido_antigo["processed_at"] = datetime.now().isoformat(timespec="seconds")
-                pedido_antigo["processed_by"] = "sistema"
-                save_json(PIX_ORDERS_FILE, pix_orders)
-            else:
-                # Permite novas cobranças mesmo quando há outra pendente ativa.
-                # Cada pedido mantém seu próprio TXID e registro, sem bloquear o comprador.
-                pass
-        # Nunca sobrescreve o pedido antigo: cria um identificador técnico único.
-        sufixo = 2
-        while True:
-            final = f"{nome_txid[:22]}{sufixo}"
-            if final not in pix_orders:
-                txid = final
-                break
-            sufixo += 1
+    # Cada cobrança recebe um TXID próprio; compras anteriores nunca bloqueiam uma nova.
+    # Mantém parte do nome para facilitar a identificação e acrescenta sufixo aleatório.
+    prefixo_txid = re.sub(r"[^A-Za-z0-9]", "", nome_usuario.upper())[:15] or "USUARIO"
+    txid = f"{prefixo_txid}{uuid.uuid4().hex[:8].upper()}"
+    while txid in pix_orders:
+        txid = f"{prefixo_txid}{uuid.uuid4().hex[:8].upper()}"
     payload = gerar_payload_pix(chave, nome_recebedor, cidade, float(valor), txid)
     imagem = qrcode.make(payload)
     buffer = io.BytesIO()
