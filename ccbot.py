@@ -1459,15 +1459,19 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
     try:
         canal_admin = await obter_canal_confirmacao(guild)
         aviso = discord.Embed(
-            title="Confirmar pagamento",
+            title="🧾 PAGAMENTO PENDENTE — CONFERÊNCIA MANUAL",
             description=(
-                f"Produto: {produto}\nValor: {formatar_reais(valor)}\n"
-                f"Cliente: {nome_usuario}\nID Discord: {user.id}\n"
-                f"Canal privado: {ticket.mention}\nIdentificador Pix: {txid}\nStatus: PENDENTE"
+                f"**Produto:** {produto}\n"
+                f"**Valor:** {formatar_reais(valor)}\n"
+                f"**Status:** AGUARDANDO CONFERÊNCIA"
             ),
             color=discord.Color.orange(), timestamp=discord.utils.utcnow()
         )
-        aviso.add_field(name="Identificador", value=txid, inline=False)
+        # Dados do comprador em campos próprios para ficarem visíveis no comprovante administrativo.
+        aviso.add_field(name="👤 Nome no Discord", value=f"{nome_usuario}\n{user.mention}", inline=True)
+        aviso.add_field(name="🆔 ID DO USUÁRIO", value=f"`{user.id}`", inline=True)
+        aviso.add_field(name="🔖 IDENTIFICADOR ÚNICO DO PEDIDO", value=f"`{txid}`", inline=False)
+        aviso.add_field(name="Canal privado do pedido", value=ticket.mention, inline=False)
         if detalhes:
             aviso.add_field(name="Resumo do pedido", value=str(detalhes)[:1024], inline=False)
         await canal_admin.send(embed=aviso, view=ConfirmarPagamentoView())
