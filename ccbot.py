@@ -1601,12 +1601,21 @@ class ConfirmarPagamentoView(discord.ui.View):
             if ticket is not None:
                 try:
                     if aprovado and isinstance(ticket, discord.Thread) and comprador:
-                        # Avisa no tópico e apaga o tópico após 1 minuto.
+                        # Avisa no tópico e agenda a exclusão sem atrasar a resposta do botão do Discord.
                         await ticket.send(
                             f"{comprador.mention} **Tudo feito! Olha a sua DM para receber seu produto.**"
                         )
-                        await asyncio.sleep(60)
-                        await ticket.delete(reason=f"Tópico do pedido {txid} encerrado após 1 minuto")
+
+                        async def apagar_topico_depois_de_um_minuto(topico, pedido_id):
+                            await asyncio.sleep(60)
+                            try:
+                                await topico.delete(
+                                    reason=f"Tópico do pedido {pedido_id} encerrado após 1 minuto"
+                                )
+                            except discord.HTTPException:
+                                log.exception("Falha ao apagar o tópico do pedido %s após 1 minuto", pedido_id)
+
+                        asyncio.create_task(apagar_topico_depois_de_um_minuto(ticket, txid))
                     else:
                         # Pedidos cancelados e cobranças que não são tópicos de beat continuam sendo apagados.
                         await ticket.delete(
