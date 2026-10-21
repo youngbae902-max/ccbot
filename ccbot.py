@@ -11,11 +11,13 @@ import uuid
 import urllib.request
 import urllib.error
 import fcntl
+import unicodedata
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse
 
 import discord
+import qrcode
 from discord.ext import commands, tasks
 from discord import app_commands
 
@@ -1214,6 +1216,210 @@ class Cargos(app_commands.Group):
             await interaction.response.send_message("O Discord não aceitou a alteração. Tente novamente.", ephemeral=True)
 
 bot.tree.add_command(Cargos())
+
+
+# Checkout Pix direto: QR Code por compra e registro local de cada pedido.
+PIX_ORDERS_FILE = CONFIG / "pix_pedidos.json"
+pix_orders = load_json(PIX_ORDERS_FILE, {})
+if not isinstance(pix_orders, dict):
+    pix_orders = {}
+    save_json(PIX_ORDERS_FILE, pix_orders)
+
+
+def pix_tlv(campo: str, valor: str) -> str:
+    tamanho = len(valor.encode("utf-8"))
+    if tamanho > 99:
+        raise ValueError(f"Campo Pix excede o limite: {campo}")
+    return f"{campo}{tamanho:02d}{valor}"
+
+
+def pix_crc16(texto: str) -> str:
+    crc = 0xFFFF
+    for byte in texto.encode("utf-8"):
+        crc ^= byte << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
+    return f"{crc:04X}"
+
+
+def pix_texto_ascii(texto: str, limite: int) -> str:
+    texto = unicodedata.normalize("NFKD", str(texto))
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    texto = re.sub(r"[^A-Za-z0-9 .'-]", "", texto).strip().upper()
+    texto = re.sub(r"\s+", " ", texto)
+    if not texto:
+        raise ValueError("Nome do recebedor e cidade não podem ficar vazios.")
+    return texto[:limite]
+
+
+def gerar_payload_pix(chave: str, nome: str, cidade: str, valor: float, txid: str) -> str:
+    chave = str(chave).strip()
+    if not chave:
+        raise ValueError("Configure a chave Pix primeiro.")
+    if not 0.01 <= float(valor) <= 99999999.99:
+        raise ValueError("O valor deve ser maior que zero.")
+    nome = pix_texto_ascii(nome, 25)
+    cidade = pix_texto_ascii(cidade, 15)
+    txid = re.sub(r"[^A-Za-z0-9]", "", str(txid))[:25] or "***"
+    conta_pix = pix_tlv("00", "BR.GOV.BCB.PIX") + pix_tlv("01", chave)
+    campos = (
+        pix_tlv("00", "01")
+        + pix_tlv("26", conta_pix)
+        + pix_tlv("52", "0000")
+        + pix_tlv("53", "986")
+        + pix_tlv("54", f"{float(valor):.2f}")
+        + pix_tlv("58", "BR")
+        + pix_tlv("59", nome)
+        + pix_tlv("60", cidade)
+        + pix_tlv("62", pix_tlv("05", txid))
+    )
+    sem_crc = campos + "6304"
+    return sem_crc + pix_crc16(sem_crc)
+
+
+class Pix(app_commands.Group):
+    def __init__(self):
+        super().__init__(name="pix", description="Gerar Pix e identificar pedidos do CC BOT")
+
+    @app_commands.command(name="configurar", description="Configurar a chave Pix e os dados do recebedor")
+    async def configurar(self, interaction: discord.Interaction, chave: str, nome_recebedor: str, cidade: str):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode configurar o Pix.", ephemeral=True)
+            return
+        try:
+            nome = pix_texto_ascii(nome_recebedor, 25)
+            local = pix_texto_ascii(cidade, 15)
+            if not chave.strip():
+                raise ValueError("A chave Pix não pode ficar vazia.")
+        except ValueError as exc:
+            await interaction.response.send_message(f"Configuração inválida: {exc}", ephemeral=True)
+            return
+        settings["pix_key"] = chave.strip()
+        settings["pix_receiver_name"] = nome
+        settings["pix_city"] = local
+        save_json(DATA_FILE, settings)
+        await interaction.response.send_message(
+            "Pix configurado. A chave foi salva localmente em config/config.json, não no código do GitHub.",
+            ephemeral=True
+        )
+
+    @app_commands.command(name="gerar", description="Gerar QR Code Pix para uma compra individual")
+    async def gerar(
+        self,
+        interaction: discord.Interaction,
+        valor: app_commands.Range[float, 0.01, 999999.99],
+        produto: app_commands.Range[str, 1, 80]
+    ):
+        chave = str(settings.get("pix_key", "")).strip()
+        nome_recebedor = str(settings.get("pix_receiver_name", "")).strip()
+        cidade = str(settings.get("pix_city", "")).strip()
+        if not chave or not nome_recebedor or not cidade:
+            await interaction.response.send_message(
+                "O Pix ainda não está configurado. O administrador deve executar /pix configurar primeiro.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        txid = "CC" + uuid.uuid4().hex[:20].upper()
+        nome_usuario = str(getattr(interaction.user, "global_name", None) or interaction.user.name)
+        registro = {
+            "txid": txid,
+            "discord_name": nome_usuario,
+            "discord_id": str(interaction.user.id),
+            "product": str(produto),
+            "amount": round(float(valor), 2),
+            "status": "aguardando_confirmacao_manual",
+            "created_at": datetime.now().isoformat(timespec="seconds")
+        }
+        try:
+            payload = gerar_payload_pix(chave, nome_recebedor, cidade, float(valor), txid)
+            imagem = qrcode.make(payload)
+            buffer = io.BytesIO()
+            imagem.save(buffer, format="PNG")
+            buffer.seek(0)
+        except Exception as exc:
+            log.exception("Falha ao montar QR Pix para pedido %s", txid)
+            await interaction.followup.send(
+                f"Não consegui gerar o Pix ({type(exc).__name__}). Confira a chave e os dados do recebedor.",
+                ephemeral=True
+            )
+            return
+
+        pix_orders[txid] = registro
+        save_json(PIX_ORDERS_FILE, pix_orders)
+        embed = discord.Embed(
+            title="Pix para sua compra",
+            description=(
+                f"Produto: {produto}\n"
+                f"Valor: R$ {float(valor):.2f}\n"
+                f"Comprador: {nome_usuario}\n"
+                f"ID Discord: {interaction.user.id}\n"
+                f"Identificador: {txid}\n\n"
+                "Escaneie o QR Code ou copie o código Pix enviado. Após pagar, aguarde a confirmação do administrador."
+            ),
+            color=discord.Color.blurple()
+        )
+        embed.set_image(url="attachment://pix_cc.png")
+        embed.set_footer(text="O identificador relaciona o pagamento ao pedido; não confirma o recebimento automaticamente.")
+        await interaction.followup.send(
+            embed=embed,
+            file=discord.File(buffer, filename="pix_cc.png"),
+            content=payload,
+            ephemeral=True
+        )
+
+        aviso = discord.Embed(
+            title="Novo pedido Pix",
+            description=f"Produto: {produto}\nValor: R$ {float(valor):.2f}\nStatus: Aguardando confirmação manual",
+            color=discord.Color.orange()
+        )
+        aviso.add_field(name="Cliente", value=f"{nome_usuario} (ID {interaction.user.id})", inline=False)
+        aviso.add_field(name="Identificador Pix", value=txid, inline=False)
+        try:
+            await enviar_pedido_admin(None, embed=aviso)
+        except Exception:
+            log.exception("QR Pix gerado, mas não foi possível enviar o aviso do pedido %s", txid)
+
+    @app_commands.command(name="pedidos", description="Listar os pedidos Pix recentes")
+    async def pedidos(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode consultar os pedidos.", ephemeral=True)
+            return
+        recentes = sorted(pix_orders.values(), key=lambda item: item.get("created_at", ""), reverse=True)[:10]
+        if not recentes:
+            await interaction.response.send_message("Ainda não há pedidos Pix registrados.", ephemeral=True)
+            return
+        linhas = []
+        for pedido in recentes:
+            linhas.append(
+                f"{pedido.get('txid', '?')} — {pedido.get('discord_name', '?')} "
+                f"(ID {pedido.get('discord_id', '?')}) — {pedido.get('product', '?')} — "
+                f"R$ {float(pedido.get('amount', 0)):.2f} — {pedido.get('status', '?')}"
+            )
+        await interaction.response.send_message("\n".join(linhas)[:1900], ephemeral=True)
+
+    @app_commands.command(name="confirmar", description="Marcar manualmente um pedido Pix como pago")
+    async def confirmar(self, interaction: discord.Interaction, identificador: str):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode confirmar pagamentos.", ephemeral=True)
+            return
+        pedido = pix_orders.get(identificador.strip().upper())
+        if not pedido:
+            await interaction.response.send_message("Não encontrei esse identificador Pix.", ephemeral=True)
+            return
+        pedido["status"] = "pago_confirmado_manualmente"
+        pedido["confirmed_at"] = datetime.now().isoformat(timespec="seconds")
+        pedido["confirmed_by"] = str(interaction.user.id)
+        save_json(PIX_ORDERS_FILE, pix_orders)
+        await interaction.response.send_message(
+            f"Pedido {identificador.upper()} marcado como pago. Confira o recebimento no Nubank antes de confirmar.",
+            ephemeral=True
+        )
+
+
+bot.tree.add_command(Pix())
+
 
 @bot.tree.command(name="status", description="Verificar se o CC BOT está funcionando")
 async def status(interaction: discord.Interaction):
