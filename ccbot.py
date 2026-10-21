@@ -1,4 +1,20 @@
 import os
+import sys
+import subprocess
+
+# CC BOT: instalação automática das dependências ausentes
+try:
+    import discord
+    import qrcode
+except ModuleNotFoundError as exc:
+    if exc.name not in ("discord", "qrcode", "PIL"):
+        raise
+    _requirements = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+    if not os.path.isfile(_requirements):
+        raise RuntimeError("requirements.txt não encontrado; não foi possível instalar as dependências.") from exc
+    print(f"CC BOT: instalando dependências ausentes usando {sys.executable}...", flush=True)
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", _requirements])
+    os.execv(sys.executable, [sys.executable, *sys.argv])
 import base64
 import random
 import asyncio
