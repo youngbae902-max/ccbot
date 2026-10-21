@@ -676,8 +676,23 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                 log.exception("Pix criado, mas não consegui publicar o aviso do pedido no canal de vendas.")
         except Exception as exc:
             log.exception("Falha ao criar cobrança Pix para beat %s", self.nome_beat)
+            # Mostra somente diagnóstico não sensível; nunca expõe CPF, e-mail ou chaves.
+            detalhe_seguro = ""
+            texto_erro = str(exc)
+            if "invalidFields" in texto_erro:
+                try:
+                    dados_erro = json.loads(texto_erro[texto_erro.index("{"):])
+                    campos = dados_erro.get("invalidFields", [])
+                    if campos:
+                        detalhe_seguro = "\\nCampos recusados: " + ", ".join(str(c) for c in campos)
+                except Exception:
+                    pass
             await interaction.edit_original_response(
-                content="❌ Não consegui gerar o Pix. Nenhuma entrega foi liberada. Confira a configuração e tente novamente.",
+                content=(
+                    "❌ Não consegui gerar o Pix. Nenhuma entrega foi liberada."
+                    + detalhe_seguro
+                    + "\\nO administrador pode consultar o diagnóstico técnico nos logs do CC BOT."
+                ),
                 embed=None,
                 view=None
             )
