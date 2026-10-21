@@ -1386,9 +1386,11 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
 
     user = interaction.user
     nome_usuario = str(getattr(user, "global_name", None) or user.name)
-    # Identificador Pix baseado somente no nome do usuário, sem prefixo nem sufixo aleatório.
-    nome_txid = re.sub(r"[^A-Za-z0-9]", "", nome_usuario.upper())[:25] or "USUARIO"
-    txid = nome_txid
+    # Identificador baseado no nome do usuário + ID Discord, sem número aleatório.
+    nome_txid = re.sub(r"[^A-Za-z0-9]", "", nome_usuario.upper()) or "USUARIO"
+    id_discord_txid = str(user.id)
+    espaco_nome = max(1, 25 - len(id_discord_txid))
+    txid = f"{nome_txid[:espaco_nome]}{id_discord_txid}"[:25]
     payload = gerar_payload_pix(chave, nome_recebedor, cidade, float(valor), txid)
     imagem = qrcode.make(payload)
     buffer = io.BytesIO()
