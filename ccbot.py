@@ -27,6 +27,7 @@ TOKEN_FILE = Path("/sdcard/Download/CC/token.txt")
 BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
 BEAT_PREVIEWS_DIR = Path("/sdcard/Download/CC/BeatPreviews")
 BEATS_FILE = CONFIG / "beats.json"
+EVOPAY_PENDING_FILE = CONFIG / "evopay_pending.json"
 
 ADMIN_ID = 1366109646934380614
 ORDERS_CHANNEL_ID = 1561513284191125625
@@ -80,6 +81,11 @@ settings = load_json(DATA_FILE, {
     "notice_channel": DEFAULT_NOTICE_CHANNEL,
     "sales_count": 0
 })
+
+pending_pix = load_json(EVOPAY_PENDING_FILE, {})
+if not isinstance(pending_pix, dict):
+    pending_pix = {}
+    save_json(EVOPAY_PENDING_FILE, pending_pix)
 
 models = load_json(MODELS_FILE, {
     "gerador-sample": "",
@@ -594,7 +600,11 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
             "payerName": str(self.nome_cliente.value).strip(),
             "payerDocument": str(self.cpf_cnpj.value).strip(),
             "payerEmail": str(self.email.value).strip(),
-            "externalReference": external_reference
+            "externalReference": external_reference,
+            "discordUserId": str(interaction.user.id),
+            "guildId": str(interaction.guild.id) if interaction.guild else "",
+            "productType": "beat",
+            "productName": self.nome_beat
         }
         endpoint = "https://hgxitwvlrrzystojaies.supabase.co/functions/v1/evopay-pix"
 
@@ -617,10 +627,22 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
             pix = result.get("pix", result)
             qr_text = str(pix.get("qrCodeText") or pix.get("copyPaste") or "")
             qr_url = str(pix.get("qrCodeUrl") or "")
-            transaction_id = str(pix.get("id") or "não informado")
+            transaction_id = str(pix.get("id") or "")
             status_pagamento = str(pix.get("status") or "PENDING")
             if not qr_text and not qr_url:
                 raise ValueError("A EvoPay respondeu sem código Pix nem URL do QR Code.")
+            if transaction_id:
+                pending_pix[transaction_id] = {
+                    "transaction_id": transaction_id,
+                    "external_reference": external_reference,
+                    "discord_user_id": str(interaction.user.id),
+                    "guild_id": str(interaction.guild.id) if interaction.guild else "",
+                    "product_name": self.nome_beat,
+                    "amount": self.valor,
+                    "status": status_pagamento,
+                    "created_at": datetime.now().isoformat()
+                }
+                save_json(EVOPAY_PENDING_FILE, pending_pix)
 
             embed = discord.Embed(
                 title="💠 Pix gerado — CC BOT",
@@ -3840,6 +3862,70 @@ async def restaurar_paineis_existentes():
     log.info("Restauração de painéis concluída: %s mensagens existentes atualizadas.", atualizados)
 
 
+
+@tasks.loop(seconds=45)
+async def verificar_pagamentos_pix():
+    config_path = Path("/sdcard/Download/CC/evopay_config.json")
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        api_key = str(config.get("CC_BOT_API_KEY", "")).strip()
+    except Exception:
+        return
+    if not api_key:
+        return
+
+    for transaction_id, registro in list(pending_pix.items()):
+        if str(registro.get("status", "")).upper() in {"COMPLETED", "CANCELED", "EXPIRED", "REFUNDED"}:
+            continue
+
+        def consultar_status():
+            payload = json.dumps({"action": "status", "transactionId": transaction_id}).encode("utf-8")
+            request = urllib.request.Request(
+                "https://hgxitwvlrrzystojaies.supabase.co/functions/v1/evopay-pix",
+                data=payload,
+                headers={"Content-Type": "application/json", "x-api-key": api_key},
+                method="POST"
+            )
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return json.loads(response.read().decode("utf-8"))
+
+        try:
+            result = await asyncio.wait_for(asyncio.to_thread(consultar_status), timeout=25)
+            pix = result.get("pix", result)
+            if isinstance(pix, list):
+                pix = pix[0] if pix else {}
+            status_atual = str(pix.get("status", "")).upper()
+            if not status_atual:
+                continue
+            registro["status"] = status_atual
+            registro["last_checked_at"] = datetime.now().isoformat()
+            save_json(EVOPAY_PENDING_FILE, pending_pix)
+
+            if status_atual == "COMPLETED" and not registro.get("processed"):
+                guild_id = int(registro.get("guild_id") or 0)
+                user_id = int(registro.get("discord_user_id") or 0)
+                guild = bot.get_guild(guild_id) if guild_id else None
+                if guild and user_id:
+                    try:
+                        member = guild.get_member(user_id) or await guild.fetch_member(user_id)
+                        roles = await garantir_cargos(guild)
+                        role_cliente = roles.get("cliente")
+                        if role_cliente and role_cliente not in member.roles:
+                            await member.add_roles(role_cliente, reason="Pagamento Pix confirmado pela EvoPay")
+                    except Exception:
+                        log.exception("Pix pago, mas não consegui atribuir Cliente ao usuário %s", user_id)
+                registro["processed"] = True
+                registro["paid_at"] = datetime.now().isoformat()
+                save_json(EVOPAY_PENDING_FILE, pending_pix)
+                await notify_admin(
+                    f"PIX CONFIRMADO AUTOMATICAMENTE\\nProduto: {registro.get('product_name', 'Beat')}\\n"
+                    f"Valor: R$ {float(registro.get('amount', 0)):.2f}\\n"
+                    f"Cliente ID: {user_id}\\nTransação: {transaction_id}\\n"
+                    "Cargo Cliente atribuído quando possível. A entrega do arquivo ainda precisa ser feita pela administração."
+                )
+        except Exception:
+            log.exception("Falha ao consultar status do Pix %s", transaction_id)
+
 @bot.event
 async def on_ready():
     try:
@@ -3889,6 +3975,9 @@ async def on_ready():
 
         if not atualizar_contador_vendas.is_running():
             atualizar_contador_vendas.start()
+
+        if not verificar_pagamentos_pix.is_running():
+            verificar_pagamentos_pix.start()
 
         channel_id = settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)
         channel = bot.get_channel(int(channel_id))
