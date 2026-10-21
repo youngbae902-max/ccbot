@@ -738,7 +738,7 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                     )
             embed.set_footer(text="CC BOT • O pedido só será liberado após a confirmação do pagamento.")
             pix_view = None
-            if qr_text or (qr_file is None and qr_url):
+            if qr_text:
                 class PixCopyView(discord.ui.View):
                     def __init__(self):
                         super().__init__(timeout=900)
@@ -751,13 +751,16 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                         )
 
                 pix_view = PixCopyView()
-                if qr_file is None and qr_url:
-                    pix_view.add_item(discord.ui.Button(
-                        label="Abrir QR Code",
-                        emoji="🔗",
-                        style=discord.ButtonStyle.link,
-                        url=qr_url
-                    ))
+
+            if qr_file is None and qr_url:
+                if pix_view is None:
+                    pix_view = discord.ui.View(timeout=900)
+                pix_view.add_item(discord.ui.Button(
+                    label="Abrir QR Code",
+                    emoji="🔗",
+                    style=discord.ButtonStyle.link,
+                    url=qr_url
+                ))
 
             if qr_file is not None:
                 await interaction.edit_original_response(
