@@ -723,14 +723,22 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                 except Exception:
                     log.exception("Falha ao gerar QR Code Pix localmente.")
 
-            if qr_file is None and qr_url:
-                embed.add_field(name="QR Code", value=f"[Tentar abrir QR Code]({qr_url})", inline=False)
-                embed.add_field(name="Alternativa", value="Copie o conteúdo do campo **Pix copia e cola** e use a opção Pix Copia e Cola do seu banco.", inline=False)
-            elif qr_file is None:
-                embed.add_field(name="Alternativa", value="Copie o conteúdo do campo **Pix copia e cola** e use a opção Pix Copia e Cola do seu banco.", inline=False)
+            if qr_file is None:
+                if qr_url:
+                    embed.add_field(
+                        name="📷 QR Code",
+                        value="A imagem não pôde ser exibida aqui. Use o botão **Abrir QR Code** abaixo ou copie o Pix.",
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name="📷 QR Code",
+                        value="A imagem não ficou disponível. Use **Ver código Pix** e escolha Pix Copia e Cola no aplicativo do banco.",
+                        inline=False
+                    )
             embed.set_footer(text="CC BOT • O pedido só será liberado após a confirmação do pagamento.")
             pix_view = None
-            if qr_text:
+            if qr_text or (qr_file is None and qr_url):
                 class PixCopyView(discord.ui.View):
                     def __init__(self):
                         super().__init__(timeout=900)
@@ -743,6 +751,13 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                         )
 
                 pix_view = PixCopyView()
+                if qr_file is None and qr_url:
+                    pix_view.add_item(discord.ui.Button(
+                        label="Abrir QR Code",
+                        emoji="🔗",
+                        style=discord.ButtonStyle.link,
+                        url=qr_url
+                    ))
 
             if qr_file is not None:
                 await interaction.edit_original_response(
