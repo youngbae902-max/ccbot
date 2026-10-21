@@ -659,11 +659,16 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
             save_json(EVOPAY_PENDING_FILE, pending_pix)
 
             embed = discord.Embed(
-                title="💠 Pix gerado — CC BOT",
-                description=f"**Produto:** {self.nome_beat}\n**Valor:** {self.preco_texto}\n**Status:** {status_pagamento}",
-                color=discord.Color.blurple()
+                title="💚 Pagamento via Pix",
+                description=(
+                    "Seu pedido foi registrado. Escaneie o QR Code abaixo ou "
+                    "toque em **📋 Ver código Pix** para abrir o código em uma mensagem privada."
+                ),
+                color=discord.Color.from_rgb(46, 204, 113)
             )
-            embed.add_field(name="Pix copia e cola", value=(qr_text[:1000] or "Use o QR Code abaixo."), inline=False)
+            embed.add_field(name="🛍️ Produto", value=self.nome_beat[:1024], inline=True)
+            embed.add_field(name="💰 Total", value=self.preco_texto, inline=True)
+            embed.add_field(name="⏳ Situação", value="Aguardando pagamento", inline=True)
             qr_file = None
             qr_base64 = pix.get("qrCodeBase64")
             if isinstance(qr_base64, str) and qr_base64.strip():
@@ -723,11 +728,30 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                 embed.add_field(name="Alternativa", value="Copie o conteúdo do campo **Pix copia e cola** e use a opção Pix Copia e Cola do seu banco.", inline=False)
             elif qr_file is None:
                 embed.add_field(name="Alternativa", value="Copie o conteúdo do campo **Pix copia e cola** e use a opção Pix Copia e Cola do seu banco.", inline=False)
-            embed.set_footer(text=f"Referência: {external_reference} • ID: {transaction_id}")
+            embed.set_footer(text="CC BOT • O pedido só será liberado após a confirmação do pagamento.")
+            pix_view = None
+            if qr_text:
+                class PixCopyView(discord.ui.View):
+                    def __init__(self):
+                        super().__init__(timeout=900)
+
+                    @discord.ui.button(label="Ver código Pix", emoji="📋", style=discord.ButtonStyle.success)
+                    async def mostrar_codigo(self, button_interaction: discord.Interaction, button: discord.ui.Button):
+                        await button_interaction.response.send_message(
+                            content=f"**Pix copia e cola — toque e segure para copiar:**\n{qr_text}",
+                            ephemeral=True
+                        )
+
+                pix_view = PixCopyView()
+
             if qr_file is not None:
-                await interaction.edit_original_response(content="Cobrança criada. Pague pelo QR Code/código abaixo.", embed=embed, attachments=[qr_file], view=None)
+                await interaction.edit_original_response(
+                    content=None, embed=embed, attachments=[qr_file], view=pix_view
+                )
             else:
-                await interaction.edit_original_response(content="Cobrança criada. Pague pelo QR Code/código abaixo.", embed=embed, view=None)
+                await interaction.edit_original_response(
+                    content=None, embed=embed, view=pix_view
+                )
 
             pedido = discord.Embed(
                 title="🧾 Pedido de beat — aguardando Pix",
