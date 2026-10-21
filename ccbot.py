@@ -4071,6 +4071,30 @@ async def verificar_pagamentos_pix():
                     except Exception:
                         log.exception("Pix pago, mas não consegui atribuir Cliente ao usuário %s", user_id)
                 registro["paid_at"] = registro.get("paid_at") or datetime.now().isoformat()
+
+                # Registra a venda no canal automático assim que a EvoPay confirma o Pix.
+                if not registro.get("sale_announced"):
+                    try:
+                        sales_channel = bot.get_channel(SALES_SOURCE_CHANNEL_ID)
+                        if sales_channel is None:
+                            sales_channel = await bot.fetch_channel(SALES_SOURCE_CHANNEL_ID)
+                        sale_embed = discord.Embed(
+                            title="🛍️ Venda confirmada!",
+                            description="Uma compra foi paga e confirmada automaticamente pela EvoPay.",
+                            color=discord.Color.green(),
+                            timestamp=datetime.now()
+                        )
+                        sale_embed.add_field(name="Produto", value=str(registro.get("product_name", "Beat")), inline=False)
+                        sale_embed.add_field(name="Valor", value=f"R$ {float(registro.get('amount', 0)):.2f}", inline=True)
+                        sale_embed.add_field(name="Comprador", value=f"<@{user_id}>" if user_id else "Não identificado", inline=True)
+                        sale_embed.add_field(name="Pagamento", value="✅ Pix confirmado", inline=True)
+                        sale_embed.set_footer(text=f"CC BOT • Transação {transaction_id}")
+                        await sales_channel.send(embed=sale_embed)
+                        registro["sale_announced"] = True
+                        log.info("Venda %s anunciada no canal automático %s", transaction_id, SALES_SOURCE_CHANNEL_ID)
+                    except Exception:
+                        log.exception("Pix confirmado, mas falhou o anúncio da venda %s", transaction_id)
+
                 registro["processed"] = bool(role_ok)
                 save_json(EVOPAY_PENDING_FILE, pending_pix)
                 if not registro.get("admin_notified"):
