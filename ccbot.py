@@ -1295,12 +1295,11 @@ class PackPersonalizadoView(discord.ui.LayoutView):
         basico.callback = self.abrir_basico
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
-                "## <:box:1561761831587160140> ENCOMENDAR PACK PERSONALIZADO\n"
-                "### <:tag:1561787923865665667> PACK PERSONALIZADO — R$ 50,00\n"
-                "Responda sobre nome, estilo e ideia do pack. Depois, escolha se deseja adicionais.\n"
-                "**Adicionais:** organização de pastas (+ R$ 10), samples personalizadas (+ R$ 10) "
-                "e samples de outros packs (+ R$ 20).\n\n"
-                "**Como funciona:** responda uma pergunta por vez, revise e envie o pedido."
+                "## <:box:1561761831587160140> PACK PERSONALIZADO\n"
+                "### <:tag:1561787923865665667> R$ 50,00\n"
+                "Informe nome, estilo e ideia do pack.\n"
+                "**Adicionais:** organização (+ R$ 10), samples personalizadas (+ R$ 10) "
+                "ou samples de outros packs (+ R$ 20)."
             )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
             discord.ui.ActionRow(basico)
