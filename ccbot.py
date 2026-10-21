@@ -1381,6 +1381,41 @@ async def obter_canal_confirmacao(guild):
     save_json(DATA_FILE, settings)
     return canal
 
+async def obter_canal_cancelados(guild):
+    canal_id = settings.get("payment_cancelled_channel_id")
+    canal = guild.get_channel(int(canal_id)) if canal_id else None
+    if isinstance(canal, discord.TextChannel):
+        return canal
+    admin = guild.get_member(ADMIN_ID)
+    if admin is None:
+        try:
+            admin = await guild.fetch_member(ADMIN_ID)
+        except discord.HTTPException:
+            admin = None
+    overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False)}
+    if admin:
+        overwrites[admin] = discord.PermissionOverwrite(
+            view_channel=True, send_messages=True, read_message_history=True,
+            attach_files=True, embed_links=True
+        )
+    categoria = discord.utils.get(guild.categories, name=PAYMENT_ADMIN_CATEGORY_NAME)
+    if categoria is None:
+        categoria = await guild.create_category(
+            PAYMENT_ADMIN_CATEGORY_NAME, overwrites=overwrites,
+            reason="Configuração do histórico de pagamentos"
+        )
+    canal = discord.utils.get(guild.text_channels, name="pagamentos-cancelados")
+    if canal is None:
+        canal = await guild.create_text_channel(
+            "pagamentos-cancelados", category=categoria, overwrites=overwrites,
+            topic="Histórico de pedidos Pix cancelados ou negados."
+        )
+    else:
+        await canal.edit(overwrites=overwrites, category=categoria)
+    settings["payment_cancelled_channel_id"] = canal.id
+    save_json(DATA_FILE, settings)
+    return canal
+
 
 async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tipo="digital"):
     if interaction.guild is None:
@@ -1681,10 +1716,17 @@ class ConfirmarPagamentoView(discord.ui.View):
             embed.color = discord.Color.green() if aprovado else discord.Color.red()
             embed.description = (embed.description or "") + (
                 "\n\nSTATUS FINAL: PAGAMENTO CONFIRMADO MANUALMENTE"
-                if aprovado else "\n\nSTATUS FINAL: PEDIDO CANCELADO"
+                if aprovado else "\n\nSTATUS FINAL: PEDIDO CANCELADO / NEGADO"
             )
             embed.set_footer(text=f"Identificador: {txid} • Processado por {interaction.user.id}")
-            await interaction.response.edit_message(embed=embed, view=None)
+            if aprovado:
+                # A fila deve mostrar somente pedidos pendentes; pedidos aprovados saem dela.
+                await interaction.response.delete_message()
+            else:
+                # Guarda o registro no canal de cancelados antes de remover da fila pendente.
+                canal_cancelados = await obter_canal_cancelados(interaction.guild)
+                await canal_cancelados.send(embed=embed)
+                await interaction.response.delete_message()
         else:
             await interaction.response.send_message(
                 f"Pedido {txid}: {'confirmado' if aprovado else 'cancelado'}.", ephemeral=True
