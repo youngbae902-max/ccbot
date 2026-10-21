@@ -678,8 +678,30 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                 except Exception:
                     log.exception("A EvoPay retornou qrCodeBase64, mas não foi possível decodificar a imagem.")
             if qr_file is None and qr_url:
-                embed.add_field(name="QR Code", value=f"[Abrir QR Code]({qr_url})", inline=False)
-                embed.set_image(url=qr_url)
+                try:
+                    parsed_qr = urlparse(qr_url)
+                    if parsed_qr.scheme == "https" and parsed_qr.hostname == "pix.evopay.cash":
+                        def baixar_qr():
+                            request_qr = urllib.request.Request(
+                                qr_url,
+                                headers={"Accept": "image/png,image/*;q=0.9,*/*;q=0.1"},
+                                method="GET"
+                            )
+                            with urllib.request.urlopen(request_qr, timeout=10) as response_qr:
+                                tipo = response_qr.headers.get("Content-Type", "").lower()
+                                dados_qr = response_qr.read(5 * 1024 * 1024 + 1)
+                                if tipo.startswith("image/") and 0 < len(dados_qr) <= 5 * 1024 * 1024:
+                                    return dados_qr
+                            return None
+                        qr_download = await asyncio.wait_for(asyncio.to_thread(baixar_qr), timeout=12)
+                        if qr_download:
+                            qr_file = discord.File(io.BytesIO(qr_download), filename="ccbot-pix-qrcode.png")
+                            embed.set_image(url="attachment://ccbot-pix-qrcode.png")
+                except Exception:
+                    log.warning("Não consegui baixar a imagem do QR Code pela URL da EvoPay.")
+                if qr_file is None:
+                    embed.add_field(name="QR Code", value=f"[Abrir QR Code]({qr_url})", inline=False)
+                    embed.set_image(url=qr_url)
             embed.set_footer(text=f"Referência: {external_reference} • ID: {transaction_id}")
             if qr_file is not None:
                 await interaction.edit_original_response(content="Cobrança criada. Pague pelo QR Code/código abaixo.", embed=embed, attachments=[qr_file], view=None)
