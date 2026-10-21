@@ -4005,27 +4005,44 @@ def criar_embed_parcerias() -> discord.Embed:
 
 def criar_embed_trampar_conosco() -> discord.Embed:
     embed = discord.Embed(
-        title="💼 Trampar Conosco — C.C ©",
+        title="💼 TRAMPAR CONOSCO • C.C ©",
         description=(
-            "Quer contribuir com o crescimento do C.C ©? Estamos planejando oportunidades "
-            "para pessoas com diferentes habilidades. **Você não precisa saber fazer tudo:** "
-            "cada área é independente.\n\n"
-            "**🛠️ ÁREAS DE INTERESSE**\n"
-            "• **Bots para Discord:** desenvolvimento em Python, com ou sem IA.\n"
-            "• **Design:** banners, artes e materiais para o servidor.\n"
-            "• **Organização de servidor / Staff:** estrutura e organização do Discord.\n"
-            "• **Edição de vídeo:** prevista para uma próxima etapa.\n\n"
-            "**🎁 BENEFÍCIO**\n"
-            "Quem participar poderá ter uma categoria específica no servidor para divulgar "
-            "seus trabalhos, produtos, serviços e projetos. Novas áreas poderão ser adicionadas futuramente.\n\n"
-            "**⚠️ INSCRIÇÕES**\n"
-            "**No momento, não estamos aceitando novos integrantes.** Esta aba informa "
-            "as áreas de interesse para oportunidades futuras.\n\n"
-            "Clique no botão abaixo e selecione a área em que você trabalha para ver as opções de contato."
+            "Escolha sua especialidade e venha divulgar seu trabalho no servidor.\n"
+            "**Não precisa dominar todas as áreas.**"
         ),
         color=discord.Color.from_rgb(0, 0, 0)
     )
-    embed.set_footer(text="C.C © • Trampar Conosco")
+    embed.add_field(
+        name="🤖  BOTS PARA DISCORD",
+        value="Python • Bots com ou sem IA",
+        inline=True
+    )
+    embed.add_field(
+        name="🎨  DESIGN",
+        value="Banners • Artes • Identidade visual",
+        inline=True
+    )
+    embed.add_field(
+        name="🛠️  ORGANIZAÇÃO / STAFF",
+        value="Canais • Estrutura • Moderação",
+        inline=True
+    )
+    embed.add_field(
+        name="🎬  EDIÇÃO DE VÍDEO",
+        value="Área prevista para o futuro",
+        inline=True
+    )
+    embed.add_field(
+        name="🎁 O QUE VOCÊ GANHA?",
+        value="Espaço próprio no servidor para divulgar seus serviços e projetos.",
+        inline=False
+    )
+    embed.add_field(
+        name="⏳ INSCRIÇÕES FECHADAS",
+        value="Ainda não estamos recebendo novos integrantes. Você pode conferir as áreas para oportunidades futuras.",
+        inline=False
+    )
+    embed.set_footer(text="👇 Clique no botão e escolha uma área")
     return embed
 
 
