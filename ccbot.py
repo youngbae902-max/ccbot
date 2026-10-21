@@ -3981,6 +3981,8 @@ async def on_ready():
 
         # on_ready pode disparar novamente após reconexões. Sincronizar comandos
         # em toda chamada gera PUTs repetidos e pode causar HTTP 429.
+        # Inicializa a variável também quando a sincronização já ocorreu nesta execução.
+        synced = bot.tree.get_commands(guild=guild)
         if not getattr(bot, "_commands_synced_this_process", False):
             # Mantém os comandos ativos apenas no servidor de destino.
             bot.tree.clear_commands(guild=guild)
