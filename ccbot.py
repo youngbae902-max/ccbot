@@ -1484,7 +1484,12 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
         embed.add_field(name="Detalhes do pedido", value=str(detalhes)[:1024], inline=False)
     embed.set_footer(text=f"Referência técnica: {txid} • Pagamento pendente")
     await ticket.send(
-        content=payload, embed=embed,
+        content=(
+            "📋 **PIX COPIA E COLA — toque e segure para copiar**\n"
+            "Copie todo o conteúdo dentro do bloco abaixo e cole no aplicativo do seu banco:\n"
+            f"```\n{payload}\n```"
+        ),
+        embed=embed,
         file=discord.File(buffer, filename="pix_cc.png")
     )
 
