@@ -3063,26 +3063,92 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
     )
 
 
-class CategoriaPainelSelect(discord.ui.Select):
+PAINEL_GRUPOS = {
+    "mercado": {
+        "titulo": "🛍️ Mercado e publicações",
+        "descricao": "Gerencie os painéis de venda e os produtos do servidor.",
+        "categorias": ["publicar"],
+    },
+    "comunidade": {
+        "titulo": "👥 Comunidade",
+        "descricao": "Boas-vindas, DJs cadastrados e avisos de trabalhos.",
+        "categorias": ["djs", "boas_vindas", "trabalhos_on"],
+    },
+    "ferramentas": {
+        "titulo": "🧰 Ferramentas",
+        "descricao": "Emojis, backups, canal de avisos, ícones e limpeza do PV.",
+        "categorias": ["ferramentas", "icones", "limpar_pv"],
+    },
+    "servidor": {
+        "titulo": "🗂️ Estrutura do servidor",
+        "descricao": "Permissões, análise e organização da hierarquia.",
+        "categorias": ["permissoes_categorias", "analisar_hierarquia", "organizar_hierarquia"],
+    },
+    "sistema": {
+        "titulo": "🛠️ Sistema",
+        "descricao": "Testes e manutenção do CC BOT.",
+        "categorias": ["manutencao"],
+    },
+}
+
+OPCOES_CATEGORIAS_PAINEL = [
+    discord.SelectOption(label="Gerenciar DJs", description="Adicionar, alterar ou excluir DJs", emoji="🎧", value="djs"),
+    discord.SelectOption(label="Boas-vindas", description="Testar a mensagem de entrada", emoji="👋", value="boas_vindas"),
+    discord.SelectOption(label="Ferramentas administrativas", description="Emojis, backups e canal de avisos", emoji="🧰", value="ferramentas"),
+    discord.SelectOption(label="Publicar painéis", description="Samples, acapellas, arrumador, beats e pack personalizado", emoji="📋", value="publicar"),
+    discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
+    discord.SelectOption(label="Limpar mensagens do PV", description="Apagar mensagens enviadas pelo CC BOT na sua DM", emoji="🧹", value="limpar_pv"),
+    discord.SelectOption(label="Gerenciar ícones", description="Monitorar Pinterest e publicar álbuns de fotos", emoji="🖼️", value="icones"),
+    discord.SelectOption(label="Permissões das categorias", description="Somente leitura, mantendo bots utilizáveis e Comunidade intacta", emoji="🔒", value="permissoes_categorias"),
+    discord.SelectOption(label="Trabalhos ON", description="Publicar aviso no canal e marcar todos", emoji="📣", value="trabalhos_on"),
+    discord.SelectOption(label="Analisar hierarquia", description="Enviar categorias, canais, cargos e permissões no PV", emoji="🧭", value="analisar_hierarquia"),
+    discord.SelectOption(label="Organizar hierarquia", description="Reordenar categorias e canais com confirmação", emoji="🗂️", value="organizar_hierarquia"),
+]
+
+
+class PainelGrupoSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
-            placeholder="Selecione uma área para gerenciar...",
+            placeholder="Escolha uma categoria principal...",
             min_values=1,
             max_values=1,
-            custom_id="ccbot:painel_categoria",
+            custom_id="ccbot:painel_grupo",
             options=[
-                discord.SelectOption(label="Gerenciar DJs", description="Adicionar, alterar ou excluir DJs", emoji="🎧", value="djs"),
-                discord.SelectOption(label="Boas-vindas", description="Testar a mensagem de entrada", emoji="👋", value="boas_vindas"),
-                discord.SelectOption(label="Emojis, backup e avisos", description="Importar emojis, criar backup e definir canal de avisos", emoji="🧰", value="ferramentas"),
-                discord.SelectOption(label="Publicar painéis", description="Samples, acapellas, arrumador, beats e pack personalizado", emoji="📋", value="publicar"),
-                discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
-                discord.SelectOption(label="Limpar mensagens do PV", description="Apagar mensagens enviadas pelo CC BOT na sua DM", emoji="🧹", value="limpar_pv"),
-                discord.SelectOption(label="Gerenciar ícones", description="Monitorar Pinterest e publicar álbuns de fotos", emoji="🖼️", value="icones"),
-                discord.SelectOption(label="Permissões das categorias", description="Somente leitura, mantendo bots utilizáveis e Comunidade intacta", emoji="🔒", value="permissoes_categorias"),
-                discord.SelectOption(label="Trabalhos ON", description="Publicar aviso no canal e marcar todos", emoji="📣", value="trabalhos_on"),
-                discord.SelectOption(label="Analisar hierarquia", description="Enviar categorias, canais, cargos e permissões no PV", emoji="🧭", value="analisar_hierarquia"),
-                discord.SelectOption(label="Organizar hierarquia", description="Reordenar categorias e canais com confirmação", emoji="🗂️", value="organizar_hierarquia"),
+                discord.SelectOption(label="Mercado e publicações", description="Samples, Beats, Packs e Arrumador", emoji="🛍️", value="mercado"),
+                discord.SelectOption(label="Comunidade", description="DJs, boas-vindas e trabalhos", emoji="👥", value="comunidade"),
+                discord.SelectOption(label="Ferramentas", description="Emojis, backups, avisos, ícones e limpeza", emoji="🧰", value="ferramentas"),
+                discord.SelectOption(label="Estrutura do servidor", description="Categorias, permissões e hierarquia", emoji="🗂️", value="servidor"),
+                discord.SelectOption(label="Sistema", description="Testes e manutenção", emoji="🛠️", value="sistema"),
             ]
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        grupo = self.values[0]
+        info = PAINEL_GRUPOS[grupo]
+        await interaction.response.edit_message(
+            embed=discord.Embed(
+                title=info["titulo"],
+                description=info["descricao"] + "\n\nSelecione uma função específica abaixo.",
+                color=discord.Color.from_rgb(22, 24, 29)
+            ),
+            view=PainelSubcategoriasView(grupo)
+        )
+
+
+class CategoriaPainelSelect(discord.ui.Select):
+    def __init__(self, grupo):
+        self.grupo = grupo
+        valores = PAINEL_GRUPOS[grupo]["categorias"]
+        opcoes = [op for op in OPCOES_CATEGORIAS_PAINEL if op.value in valores]
+        super().__init__(
+            placeholder="Selecione uma função desta categoria...",
+            min_values=1,
+            max_values=1,
+            custom_id=f"ccbot:painel_categoria:{grupo}",
+            options=opcoes
         )
 
     async def callback(self, interaction: discord.Interaction):
@@ -3213,10 +3279,17 @@ class PainelPublicarView(discord.ui.View):
         self.add_item(VoltarPainelButton())
 
 
+class PainelSubcategoriasView(discord.ui.View):
+    def __init__(self, grupo):
+        super().__init__(timeout=300)
+        self.add_item(CategoriaPainelSelect(grupo))
+        self.add_item(VoltarPainelButton())
+
+
 class PainelAdminView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(CategoriaPainelSelect())
+        self.add_item(PainelGrupoSelect())
 
 
 class PainelDJsView(discord.ui.View):
@@ -3274,34 +3347,34 @@ def criar_embed_painel():
         icon_url=bot.user.display_avatar.url if bot.user else discord.Embed.Empty
     )
     embed.add_field(
-        name="🎧  DJs & SAMPLES",
-        value="Gerencie os DJs disponíveis no gerador de samples.",
-        inline=True
+        name="🛍️  MERCADO E PUBLICAÇÕES",
+        value="Samples, Acapellas, Beats, Packs personalizados e Arrumador.",
+        inline=False
     )
     embed.add_field(
-        name="👋  BOAS-VINDAS",
-        value="Confira e teste a mensagem de entrada do servidor.",
+        name="👥  COMUNIDADE",
+        value="Gerenciamento de DJs, boas-vindas e avisos de trabalhos.",
         inline=True
     )
     embed.add_field(
         name="🧰  FERRAMENTAS",
-        value="Adicione emojis, crie backups e escolha o canal de avisos.",
+        value="Emojis, backups, canal de avisos, ícones e limpeza do PV.",
         inline=True
     )
     embed.add_field(
-        name="📦  PUBLICAÇÃO",
-        value="Samples · Acapellas · Arrumador · Venda de beats · Pack personalizado",
+        name="🗂️  ESTRUTURA DO SERVIDOR",
+        value="Permissões, análise e organização da hierarquia.",
         inline=True
     )
     embed.add_field(
         name="🛠️  SISTEMA",
-        value="Verifique a resposta do bot e consulte a latência.",
+        value="Testes e manutenção do CC BOT.",
         inline=True
     )
     embed.add_field(
-        name="⚙️  ACESSO RÁPIDO",
-        value="Use o seletor abaixo. As opções administrativas são restritas ao proprietário configurado.",
-        inline=True
+        name="⚙️  COMO USAR",
+        value="Escolha primeiro uma categoria principal; depois selecione a função dentro dela. Acesso restrito ao administrador configurado.",
+        inline=False
     )
     embed.set_thumbnail(
         url="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561721929583566858/605081.jpg?ex=6ad76263&is=6ad610e3&hm=23259b8d57737e9607039f616c91ceea22a3e99d47e000691c14e7115ac69edd&"
