@@ -142,6 +142,11 @@ class CCBot(commands.Bot):
                 log.info("View persistente registrada antes da conexão: %s", nome_view)
             except Exception:
                 log.exception("Falha ao registrar view persistente: %s", nome_view)
+        try:
+            self.add_view(ConfirmarPagamentoView())
+            log.info("View persistente de confirmação manual de pagamentos registrada.")
+        except Exception:
+            log.exception("Falha ao registrar a view de confirmação manual de pagamentos.")
 
 bot = CCBot(command_prefix="!", intents=intents)
 
@@ -1053,31 +1058,33 @@ class PackPerguntasView(discord.ui.LayoutView):
     async def finalizar(self, interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
         total = 50 + sum(preco for _, preco in self.extras_escolhidos) if self.plano == "Pack Personalizado" else 100
-        embed = discord.Embed(
-            title="📦 Novo pedido • Pack Personalizado",
-            description=f"**Plano:** {self.plano}\n**Valor estimado:** R$ {total},00",
-            color=discord.Color.blurple()
+        detalhes = (
+            "Adicionais: " + (", ".join(f"{n} (+ {formatar_reais(p)})" for n, p in self.extras_escolhidos) or "Nenhum")
+            + "\n" + "\n".join(f"{titulo}: {texto}" for titulo, texto in self.respostas.items())
         )
-        embed.add_field(name="Cliente", value=f"{interaction.user} (ID {interaction.user.id})", inline=False)
-        guild = bot.get_guild(self.guild_id)
-        embed.add_field(name="Servidor", value=guild.name if guild else "Não informado", inline=False)
-        embed.add_field(name="Adicionais", value=", ".join(f"{n} (+ R$ {p})" for n, p in self.extras_escolhidos) or "Nenhum", inline=False)
-        for titulo, texto in self.respostas.items():
-            embed.add_field(name=titulo[:256], value=texto[:1024], inline=False)
-        embed.set_footer(text="CC BOT • Encomenda guiada de pack")
         try:
-            await enviar_pedido_admin(None, embed=embed)
+            ticket, txid = await criar_pedido_pagamento(
+                interaction, self.plano, total, detalhes, tipo="pack"
+            )
             self.clear_items()
             self.add_item(discord.ui.Container(discord.ui.TextDisplay(
-                content=f"## ✅ PEDIDO ENVIADO\nSeu pedido de **{self.plano}** foi enviado ao administrador.\n**Valor estimado:** R$ {total},00"
+                content=(
+                    f"## PAGAMENTO PENDENTE\n"
+                    f"Seu pedido de **{self.plano}** foi criado.\n"
+                    f"Valor: {formatar_reais(total)}\n"
+                    f"Identificador: {txid}\n"
+                    f"Entre no canal privado {ticket.mention} para ver o QR Code e o código Pix copia e cola. "
+                    "Aguarde o administrador confirmar o pagamento."
+                )
             )))
             await interaction.edit_original_response(view=self)
-        except Exception:
-            log.exception("Falha ao enviar pedido de pack")
-            try:
-                await interaction.edit_original_response(content="❌ Não consegui enviar o pedido. Tente novamente.", view=None)
-            except Exception:
-                log.exception("Falha ao atualizar a confirmação do pedido de pack")
+        except Exception as exc:
+            log.exception("Falha ao criar checkout manual do Pack Personalizado")
+            await interaction.edit_original_response(
+                content=f"Não consegui abrir o pagamento: {str(exc)[:500]}",
+                view=None
+            )
+
 
 
 class PackPersonalizadoView(discord.ui.LayoutView):
@@ -1293,6 +1300,275 @@ def gerar_payload_pix(chave: str, nome: str, cidade: str, valor: float, txid: st
     return sem_crc + pix_crc16(sem_crc)
 
 
+# Checkout unificado do Mercado: QR Pix, canal privado e aprovação manual.
+PAYMENT_CATEGORY_NAME = "Mercado"
+PAYMENT_ADMIN_CATEGORY_NAME = "Administração"
+PAYMENT_ADMIN_CHANNEL_NAME = "confirmar-pagamentos"
+
+
+def formatar_reais(valor):
+    return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def extrair_txid_da_mensagem(message):
+    if not message or not message.embeds:
+        return None
+    for field in message.embeds[0].fields:
+        if field.name.casefold() in ("identificador", "identificador pix", "pedido"):
+            candidato = re.sub(r"[^A-Za-z0-9]", "", field.value).upper()
+            if candidato in pix_orders:
+                return candidato
+    return None
+
+
+async def obter_canal_confirmacao(guild):
+    canal_id = settings.get("payment_admin_channel_id")
+    canal = guild.get_channel(int(canal_id)) if canal_id else None
+    if isinstance(canal, discord.TextChannel):
+        return canal
+    admin = guild.get_member(ADMIN_ID)
+    if admin is None:
+        try:
+            admin = await guild.fetch_member(ADMIN_ID)
+        except discord.HTTPException:
+            admin = None
+    overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False)}
+    if admin:
+        overwrites[admin] = discord.PermissionOverwrite(
+            view_channel=True, send_messages=True, read_message_history=True,
+            attach_files=True, embed_links=True
+        )
+    categoria = discord.utils.get(guild.categories, name=PAYMENT_ADMIN_CATEGORY_NAME)
+    if categoria is None:
+        categoria = await guild.create_category(
+            PAYMENT_ADMIN_CATEGORY_NAME, overwrites=overwrites,
+            reason="Configuração de confirmação manual de pagamentos"
+        )
+    canal = discord.utils.get(guild.text_channels, name=PAYMENT_ADMIN_CHANNEL_NAME)
+    if canal is None:
+        canal = await guild.create_text_channel(
+            PAYMENT_ADMIN_CHANNEL_NAME, category=categoria, overwrites=overwrites,
+            topic="Pedidos Pix aguardando conferência manual do administrador."
+        )
+    else:
+        await canal.edit(overwrites=overwrites, category=categoria)
+    settings["payment_admin_channel_id"] = canal.id
+    save_json(DATA_FILE, settings)
+    return canal
+
+
+async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tipo="digital"):
+    if interaction.guild is None:
+        raise ValueError("O pagamento precisa ser iniciado dentro do servidor.")
+    chave = str(settings.get("pix_key", "")).strip()
+    nome_recebedor = str(settings.get("pix_receiver_name", "")).strip()
+    cidade = str(settings.get("pix_city", "")).strip()
+    if not chave or not nome_recebedor or not cidade:
+        raise ValueError("Pix não configurado. Use /pix configurar com chave, nome do recebedor e cidade.")
+
+    txid = "CC" + uuid.uuid4().hex[:16].upper()
+    user = interaction.user
+    nome_usuario = str(getattr(user, "global_name", None) or user.name)
+    payload = gerar_payload_pix(chave, nome_recebedor, cidade, float(valor), txid)
+    imagem = qrcode.make(payload)
+    buffer = io.BytesIO()
+    imagem.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    guild = interaction.guild
+    categoria_mercado = discord.utils.get(guild.categories, name=PAYMENT_CATEGORY_NAME)
+    if categoria_mercado is None:
+        categoria_mercado = await guild.create_category(
+            PAYMENT_CATEGORY_NAME, reason="Canais privados de pagamento do Mercado"
+        )
+    admin = guild.get_member(ADMIN_ID)
+    if admin is None:
+        try:
+            admin = await guild.fetch_member(ADMIN_ID)
+        except discord.HTTPException:
+            admin = None
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        user: discord.PermissionOverwrite(
+            view_channel=True, send_messages=True, read_message_history=True,
+            attach_files=True, embed_links=True
+        )
+    }
+    if admin:
+        overwrites[admin] = discord.PermissionOverwrite(
+            view_channel=True, send_messages=True, read_message_history=True,
+            manage_messages=True, attach_files=True, embed_links=True
+        )
+    slug = re.sub(r"[^a-z0-9-]", "-", user.name.lower()).strip("-")[:18] or "cliente"
+    ticket = await guild.create_text_channel(
+        name=f"pagamento-{slug}-{txid[-4:].lower()}",
+        category=categoria_mercado, overwrites=overwrites,
+        topic=f"Pedido {txid} | Comprador {user.id} | Status: pendente",
+        reason=f"Checkout Pix do pedido {txid}"
+    )
+
+    registro = {
+        "txid": txid, "discord_name": nome_usuario, "discord_id": str(user.id),
+        "guild_id": str(guild.id), "ticket_channel_id": str(ticket.id),
+        "product": str(produto)[:100], "amount": round(float(valor), 2),
+        "details": str(detalhes or "")[:4000], "fulfillment_type": tipo,
+        "status": "aguardando_confirmacao_manual",
+        "created_at": datetime.now().isoformat(timespec="seconds")
+    }
+    pix_orders[txid] = registro
+    save_json(PIX_ORDERS_FILE, pix_orders)
+
+    embed = discord.Embed(
+        title="Pagamento Pix pendente",
+        description=(
+            f"Produto: {produto}\nValor: {formatar_reais(valor)}\n"
+            f"Comprador: {nome_usuario}\nID Discord: {user.id}\n"
+            f"Identificador: {txid}\n\n"
+            "Escaneie o QR Code ou copie o código Pix enviado. Após pagar, aguarde a conferência manual.\n"
+            "O pagamento não libera o produto automaticamente."
+        ),
+        color=discord.Color.orange(), timestamp=discord.utils.utcnow()
+    )
+    embed.set_image(url="attachment://pix_cc.png")
+    if detalhes:
+        embed.add_field(name="Detalhes do pedido", value=str(detalhes)[:1024], inline=False)
+    embed.set_footer(text=f"Pedido {txid} • Pagamento pendente")
+    await ticket.send(
+        content=payload, embed=embed,
+        file=discord.File(buffer, filename="pix_cc.png")
+    )
+
+    try:
+        canal_admin = await obter_canal_confirmacao(guild)
+        aviso = discord.Embed(
+            title="Confirmar pagamento",
+            description=(
+                f"Produto: {produto}\nValor: {formatar_reais(valor)}\n"
+                f"Cliente: {nome_usuario}\nID Discord: {user.id}\n"
+                f"Canal privado: {ticket.mention}\nIdentificador Pix: {txid}\nStatus: PENDENTE"
+            ),
+            color=discord.Color.orange(), timestamp=discord.utils.utcnow()
+        )
+        aviso.add_field(name="Identificador", value=txid, inline=False)
+        if detalhes:
+            aviso.add_field(name="Resumo do pedido", value=str(detalhes)[:1024], inline=False)
+        await canal_admin.send(embed=aviso, view=ConfirmarPagamentoView())
+    except Exception:
+        log.exception("Falha ao publicar aprovação manual para o pedido %s", txid)
+        try:
+            await ticket.delete(reason="Não foi possível registrar o pedido na fila administrativa")
+        except Exception:
+            pass
+        pix_orders.pop(txid, None)
+        save_json(PIX_ORDERS_FILE, pix_orders)
+        raise
+    return ticket, txid
+
+
+class ConfirmarPagamentoView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    async def interaction_check(self, interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message(
+                "Apenas o administrador autorizado pode confirmar ou cancelar pagamentos.",
+                ephemeral=True
+            )
+            return False
+        return True
+
+    async def finalizar_pedido(self, interaction, aprovado):
+        txid = extrair_txid_da_mensagem(interaction.message)
+        if not txid:
+            await interaction.response.send_message(
+                "Não consegui localizar o identificador deste pedido. Consulte /pix pedidos.",
+                ephemeral=True
+            )
+            return
+        pedido = pix_orders.get(txid)
+        if not pedido:
+            await interaction.response.send_message("Esse pedido não está registrado.", ephemeral=True)
+            return
+        if pedido.get("status") != "aguardando_confirmacao_manual":
+            await interaction.response.send_message(
+                f"Este pedido já foi processado: {pedido.get('status')}.", ephemeral=True
+            )
+            return
+        pedido["status"] = "pago_confirmado_manualmente" if aprovado else "cancelado_manualmente"
+        pedido["processed_at"] = datetime.now().isoformat(timespec="seconds")
+        pedido["processed_by"] = str(interaction.user.id)
+        save_json(PIX_ORDERS_FILE, pix_orders)
+
+        comprador = None
+        guild = interaction.guild
+        if guild:
+            comprador = guild.get_member(int(pedido.get("discord_id", 0)))
+        if comprador is None:
+            try:
+                comprador = await bot.fetch_user(int(pedido.get("discord_id", 0)))
+            except discord.HTTPException:
+                comprador = None
+        if comprador:
+            if aprovado and pedido.get("fulfillment_type") == "pack":
+                mensagem = (
+                    f"Seu pagamento de {formatar_reais(pedido.get('amount', 0))} para {pedido.get('product', 'seu pedido')} foi confirmado. "
+                    "Seu pedido personalizado foi aprovado e entrou na fila de produção; o administrador enviará o resultado quando estiver pronto."
+                )
+            elif aprovado:
+                mensagem = (
+                    f"Seu pagamento de {formatar_reais(pedido.get('amount', 0))} para {pedido.get('product', 'sua compra')} foi confirmado. "
+                    "O administrador está finalizando a liberação do pedido."
+                )
+            else:
+                mensagem = (
+                    f"Seu pedido {pedido.get('product', 'de compra')} foi cancelado. Nenhum produto foi liberado. "
+                    "Se você já pagou, entre em contato com a administração."
+                )
+            try:
+                await comprador.send(mensagem)
+            except discord.HTTPException:
+                log.warning("Não foi possível enviar o resultado do pedido %s ao PV do usuário %s", txid, pedido.get("discord_id"))
+
+        ticket_id = pedido.get("ticket_channel_id")
+        if guild and ticket_id:
+            ticket = guild.get_channel(int(ticket_id))
+            if isinstance(ticket, discord.TextChannel):
+                try:
+                    if comprador:
+                        await ticket.set_permissions(comprador, view_channel=False, send_messages=False)
+                    prefixo = "pago-" if aprovado else "cancelado-"
+                    await ticket.edit(
+                        name=(prefixo + ticket.name.removeprefix("pagamento-"))[:100],
+                        topic=f"Pedido {txid} | Status: {'confirmado manualmente' if aprovado else 'cancelado'}",
+                        reason="Pedido processado manualmente pelo administrador"
+                    )
+                except discord.HTTPException:
+                    log.exception("Falha ao fechar o canal privado do pedido %s", txid)
+
+        if interaction.message and interaction.message.embeds:
+            embed = interaction.message.embeds[0]
+            embed.color = discord.Color.green() if aprovado else discord.Color.red()
+            embed.description = (embed.description or "") + (
+                "\n\nSTATUS FINAL: PAGAMENTO CONFIRMADO MANUALMENTE"
+                if aprovado else "\n\nSTATUS FINAL: PEDIDO CANCELADO"
+            )
+            embed.set_footer(text=f"Identificador: {txid} • Processado por {interaction.user.id}")
+            await interaction.response.edit_message(embed=embed, view=None)
+        else:
+            await interaction.response.send_message(
+                f"Pedido {txid}: {'confirmado' if aprovado else 'cancelado'}.", ephemeral=True
+            )
+
+    @discord.ui.button(label="Confirmar pagamento", emoji="✅", style=discord.ButtonStyle.success, custom_id="ccbot:pagamento:confirmar")
+    async def confirmar(self, interaction, button):
+        await self.finalizar_pedido(interaction, True)
+
+    @discord.ui.button(label="Cancelar pedido", emoji="❌", style=discord.ButtonStyle.danger, custom_id="ccbot:pagamento:cancelar")
+    async def cancelar(self, interaction, button):
+        await self.finalizar_pedido(interaction, False)
+
+
 class Pix(app_commands.Group):
     def __init__(self):
         super().__init__(name="pix", description="Gerar Pix e identificar pedidos do CC BOT")
@@ -1326,76 +1602,28 @@ class Pix(app_commands.Group):
         valor: app_commands.Range[float, 0.01, 999999.99],
         produto: app_commands.Range[str, 1, 80]
     ):
-        chave = str(settings.get("pix_key", "")).strip()
-        nome_recebedor = str(settings.get("pix_receiver_name", "")).strip()
-        cidade = str(settings.get("pix_city", "")).strip()
-        if not chave or not nome_recebedor or not cidade:
-            await interaction.response.send_message(
-                "O Pix ainda não está configurado. O administrador deve executar /pix configurar primeiro.",
-                ephemeral=True
-            )
+        if interaction.guild is None:
+            await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
             return
-
         await interaction.response.defer(ephemeral=True, thinking=True)
-        txid = "CC" + uuid.uuid4().hex[:20].upper()
-        nome_usuario = str(getattr(interaction.user, "global_name", None) or interaction.user.name)
-        registro = {
-            "txid": txid,
-            "discord_name": nome_usuario,
-            "discord_id": str(interaction.user.id),
-            "product": str(produto),
-            "amount": round(float(valor), 2),
-            "status": "aguardando_confirmacao_manual",
-            "created_at": datetime.now().isoformat(timespec="seconds")
-        }
         try:
-            payload = gerar_payload_pix(chave, nome_recebedor, cidade, float(valor), txid)
-            imagem = qrcode.make(payload)
-            buffer = io.BytesIO()
-            imagem.save(buffer, format="PNG")
-            buffer.seek(0)
-        except Exception as exc:
-            log.exception("Falha ao montar QR Pix para pedido %s", txid)
-            await interaction.followup.send(
-                f"Não consegui gerar o Pix ({type(exc).__name__}). Confira a chave e os dados do recebedor.",
-                ephemeral=True
+            ticket, txid = await criar_pedido_pagamento(
+                interaction, str(produto), float(valor), "Compra iniciada pelo comando /pix gerar", tipo="digital"
             )
-            return
-
-        pix_orders[txid] = registro
-        save_json(PIX_ORDERS_FILE, pix_orders)
-        embed = discord.Embed(
-            title="Pix para sua compra",
-            description=(
-                f"Produto: {produto}\n"
-                f"Valor: R$ {float(valor):.2f}\n"
-                f"Comprador: {nome_usuario}\n"
-                f"ID Discord: {interaction.user.id}\n"
-                f"Identificador: {txid}\n\n"
-                "Escaneie o QR Code ou copie o código Pix enviado. Após pagar, aguarde a confirmação do administrador."
-            ),
-            color=discord.Color.blurple()
-        )
-        embed.set_image(url="attachment://pix_cc.png")
-        embed.set_footer(text="O identificador relaciona o pagamento ao pedido; não confirma o recebimento automaticamente.")
-        await interaction.followup.send(
-            embed=embed,
-            file=discord.File(buffer, filename="pix_cc.png"),
-            content=payload,
-            ephemeral=True
-        )
-
-        aviso = discord.Embed(
-            title="Novo pedido Pix",
-            description=f"Produto: {produto}\nValor: R$ {float(valor):.2f}\nStatus: Aguardando confirmação manual",
-            color=discord.Color.orange()
-        )
-        aviso.add_field(name="Cliente", value=f"{nome_usuario} (ID {interaction.user.id})", inline=False)
-        aviso.add_field(name="Identificador Pix", value=txid, inline=False)
-        try:
-            await enviar_pedido_admin(None, embed=aviso)
-        except Exception:
-            log.exception("QR Pix gerado, mas não foi possível enviar o aviso do pedido %s", txid)
+            await interaction.edit_original_response(
+                content=(
+                    f"Pagamento pendente para **{produto}** ({formatar_reais(valor)}). "
+                    f"Acesse o canal privado {ticket.mention}. Identificador: {txid}. "
+                    "Aguarde a confirmação manual do administrador."
+                ),
+                view=None
+            )
+        except Exception as exc:
+            log.exception("Falha ao abrir checkout Pix pelo comando")
+            await interaction.edit_original_response(
+                content=f"Não consegui criar o pagamento: {str(exc)[:500]}",
+                view=None
+            )
 
     @app_commands.command(name="pedidos", description="Listar os pedidos Pix recentes")
     async def pedidos(self, interaction: discord.Interaction):
