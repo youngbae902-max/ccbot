@@ -3681,6 +3681,7 @@ async def restaurar_paineis_existentes():
     log.info("Restauração de painéis concluída: %s mensagens existentes atualizadas.", atualizados)
 
 
+@bot.event
 async def on_ready():
     try:
         guild = discord.Object(id=1561513043886743562)
