@@ -8,6 +8,7 @@ import io
 import uuid
 import urllib.request
 import urllib.error
+import fcntl
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse
@@ -4166,13 +4167,14 @@ async def diagnostico(interaction: discord.Interaction):
             f"• Sem acesso/erro: **{sem_acesso}**\n"
             "O relatório completo está anexado."
         ),
-        file=arquivo
-    )
-
-
-
-
-
+        file=arquivo# CCBOT_PROCESS_LOCK: impede múltiplas instâncias de iniciar sessões Discord concorrentes.
+# O descritor fica aberto durante toda a execução; o kernel libera o lock ao encerrar o processo.
+_lock_path = CONFIG / "ccbot-process.lock"
+_lock_handle = _lock_path.open("a+", encoding="utf-8")
+try:
+    fcntl.flock(_lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    raise SystemExit("Outra instância do CC BOT já está ativa; esta instância será encerrada.")
 
 if not TOKEN_FILE.is_file():
     raise SystemExit(
