@@ -101,7 +101,26 @@ if not isinstance(mcs, list):
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+class CCBot(commands.Bot):
+    async def setup_hook(self):
+        """Registra componentes persistentes antes de o bot conectar ao Discord."""
+        await super().setup_hook()
+        views_persistentes = [
+            ("Gerador de Samples", GeradorSamplesView),
+            ("Pack Personalizado", PackPersonalizadoView),
+            ("Arrumador de Projetos", ArrumadorPainelView),
+            ("Acapellas", AcapellasActivityView),
+            ("Trampar Conosco", TramparConoscoView),
+            ("Comprar Beats", lambda: VendaBeatView("", "", "")),
+        ]
+        for nome_view, criar_view in views_persistentes:
+            try:
+                self.add_view(criar_view())
+                log.info("View persistente registrada antes da conexão: %s", nome_view)
+            except Exception:
+                log.exception("Falha ao registrar view persistente: %s", nome_view)
+
+bot = CCBot(command_prefix="!", intents=intents)
 
 def is_admin(interaction: discord.Interaction):
     return interaction.user.id == ADMIN_ID
@@ -3593,25 +3612,6 @@ async def restaurar_botoes_beats_existentes():
 
 async def on_ready():
     try:
-        # Registra primeiro os componentes persistentes. Nenhuma tarefa lenta de
-        # inicialização deve deixar os botões sem callback e causar "Interação falhou".
-        if not getattr(bot, "_persistent_views_registered", False):
-            views_persistentes = [
-                ("Gerador de Samples", GeradorSamplesView),
-                ("Pack Personalizado", PackPersonalizadoView),
-                ("Arrumador de Projetos", ArrumadorPainelView),
-                ("Acapellas", AcapellasActivityView),
-                ("Trampar Conosco", TramparConoscoView),
-                ("Comprar Beats — botões persistentes", lambda: VendaBeatView("", "", "")),
-            ]
-            for nome_view, classe_view in views_persistentes:
-                try:
-                    bot.add_view(classe_view())
-                    log.info("View persistente registrada no início: %s", nome_view)
-                except Exception:
-                    log.exception("Falha ao registrar a view persistente: %s", nome_view)
-            bot._persistent_views_registered = True
-
         guild = discord.Object(id=1561513043886743562)
 
         # A sincronização com a árvore global vazia remove comandos globais antigos.
