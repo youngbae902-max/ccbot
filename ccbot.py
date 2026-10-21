@@ -663,7 +663,10 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
             pedido.add_field(name="Comprador", value=f"{interaction.user} (ID {interaction.user.id})", inline=False)
             pedido.add_field(name="Transação EvoPay", value=transaction_id, inline=False)
             pedido.set_footer(text="Pagamento pendente — confirmar antes de entregar o produto.")
-            await enviar_pedido_admin(None, embed=pedido)
+            try:
+                await enviar_pedido_admin(None, embed=pedido)
+            except Exception:
+                log.exception("Pix criado, mas não consegui publicar o aviso do pedido no canal de vendas.")
         except Exception as exc:
             log.exception("Falha ao criar cobrança Pix para beat %s", self.nome_beat)
             await interaction.edit_original_response(
@@ -3918,9 +3921,9 @@ async def verificar_pagamentos_pix():
                 registro["paid_at"] = datetime.now().isoformat()
                 save_json(EVOPAY_PENDING_FILE, pending_pix)
                 await notify_admin(
-                    f"PIX CONFIRMADO AUTOMATICAMENTE\\nProduto: {registro.get('product_name', 'Beat')}\\n"
-                    f"Valor: R$ {float(registro.get('amount', 0)):.2f}\\n"
-                    f"Cliente ID: {user_id}\\nTransação: {transaction_id}\\n"
+                    f"PIX CONFIRMADO AUTOMATICAMENTE\nProduto: {registro.get('product_name', 'Beat')}\n"
+                    f"Valor: R$ {float(registro.get('amount', 0)):.2f}\n"
+                    f"Cliente ID: {user_id}\nTransação: {transaction_id}\n"
                     "Cargo Cliente atribuído quando possível. A entrega do arquivo ainda precisa ser feita pela administração."
                 )
         except Exception:
