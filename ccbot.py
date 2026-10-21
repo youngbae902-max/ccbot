@@ -1384,9 +1384,10 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
     if not chave or not nome_recebedor or not cidade:
         raise ValueError("Pix não configurado. Use /pix configurar com chave, nome do recebedor e cidade.")
 
-    txid = "CC" + uuid.uuid4().hex[:16].upper()
     user = interaction.user
     nome_usuario = str(getattr(user, "global_name", None) or user.name)
+    nome_txid = re.sub(r"[^A-Za-z0-9]", "", nome_usuario.upper())[:10] or "USUARIO"
+    txid = f"CC{nome_txid}{uuid.uuid4().hex[:10].upper()}"
     payload = gerar_payload_pix(chave, nome_recebedor, cidade, float(valor), txid)
     imagem = qrcode.make(payload)
     buffer = io.BytesIO()
