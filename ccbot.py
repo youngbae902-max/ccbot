@@ -1,4 +1,5 @@
 import os
+import base64
 import random
 import asyncio
 import json
@@ -662,12 +663,28 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                 description=f"**Produto:** {self.nome_beat}\n**Valor:** {self.preco_texto}\n**Status:** {status_pagamento}",
                 color=discord.Color.blurple()
             )
-            embed.add_field(name="Pix copia e cola", value=(qr_text[:1000] or "Use o link do QR Code abaixo."), inline=False)
-            if qr_url:
+            embed.add_field(name="Pix copia e cola", value=(qr_text[:1000] or "Use o QR Code abaixo."), inline=False)
+            qr_file = None
+            qr_base64 = pix.get("qrCodeBase64")
+            if isinstance(qr_base64, str) and qr_base64.strip():
+                try:
+                    qr_data = qr_base64.strip()
+                    if "," in qr_data and qr_data.lower().startswith("data:image/"):
+                        qr_data = qr_data.split(",", 1)[1]
+                    qr_bytes = base64.b64decode(qr_data, validate=True)
+                    if qr_bytes:
+                        qr_file = discord.File(io.BytesIO(qr_bytes), filename="ccbot-pix-qrcode.png")
+                        embed.set_image(url="attachment://ccbot-pix-qrcode.png")
+                except Exception:
+                    log.exception("A EvoPay retornou qrCodeBase64, mas não foi possível decodificar a imagem.")
+            if qr_file is None and qr_url:
                 embed.add_field(name="QR Code", value=f"[Abrir QR Code]({qr_url})", inline=False)
                 embed.set_image(url=qr_url)
             embed.set_footer(text=f"Referência: {external_reference} • ID: {transaction_id}")
-            await interaction.edit_original_response(content="Cobrança criada. Pague pelo QR Code/código abaixo.", embed=embed, view=None)
+            if qr_file is not None:
+                await interaction.edit_original_response(content="Cobrança criada. Pague pelo QR Code/código abaixo.", embed=embed, attachments=[qr_file], view=None)
+            else:
+                await interaction.edit_original_response(content="Cobrança criada. Pague pelo QR Code/código abaixo.", embed=embed, view=None)
 
             pedido = discord.Embed(
                 title="🧾 Pedido de beat — aguardando Pix",
