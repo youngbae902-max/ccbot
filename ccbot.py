@@ -1535,6 +1535,14 @@ class CopiarCodigoPixView(discord.ui.View):
         )
         botao.callback = self.copiar
         self.add_item(botao)
+        comprovante = discord.ui.Button(
+            label="Enviar comprovante",
+            emoji="📎",
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"ccbot:pix:comprovante:{txid}"
+        )
+        comprovante.callback = self.instrucoes_comprovante
+        self.add_item(comprovante)
 
     async def copiar(self, interaction: discord.Interaction):
         # O Discord não permite que bots gravem diretamente na área de transferência.
@@ -1543,6 +1551,28 @@ class CopiarCodigoPixView(discord.ui.View):
             content=f"**Pix copia e cola — pedido {self.txid}**\n"
                     "Toque e segure o código abaixo para copiar tudo:\n"
                     f"```\n{self.payload}\n```",
+            ephemeral=True
+        )
+
+    async def instrucoes_comprovante(self, interaction: discord.Interaction):
+        pedido = pix_orders.get(self.txid)
+        if not pedido or str(pedido.get("discord_id")) != str(interaction.user.id):
+            await interaction.response.send_message(
+                "Este botão pertence a outro pedido.", ephemeral=True
+            )
+            return
+        if pedido.get("status") != "aguardando_confirmacao_manual":
+            await interaction.response.send_message(
+                "Este pedido não está mais aguardando pagamento.", ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            "📎 **Como enviar o comprovante**\n"
+            "1. Depois de pagar, toque no **+** ao lado da caixa de mensagem deste canal.\n"
+            "2. Escolha a imagem ou o PDF do comprovante e envie aqui.\n"
+            "3. O bot encaminhará o arquivo para **Confirmar pagamentos**.\n\n"
+            "Aceitamos PNG, JPG, WEBP ou PDF de até 10 MB. "
+            "O pagamento só será liberado depois da conferência manual do administrador.",
             ephemeral=True
         )
 
