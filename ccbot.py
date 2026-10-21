@@ -595,35 +595,53 @@ class ComprarBeatButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         nome = self.nome or "Beat"
-        preco = self.preco or "Consultar"
+        preco_texto = self.preco or "Consultar"
         if interaction.message and interaction.message.embeds:
             embed_beat = interaction.message.embeds[0]
             if not self.nome:
                 nome = (embed_beat.title or "Beat").replace("🎧 ", "", 1).strip()
             if not self.preco:
-                preco = next((field.value for field in embed_beat.fields if field.name.casefold() == "valor"), "Consultar")
-        pedido = discord.Embed(
-            title="🛍️ Solicitação de beat",
-            description="Um usuário demonstrou interesse neste beat. Combine pagamento e entrega manualmente, fora do bot.",
-            color=discord.Color.blurple(),
-            timestamp=discord.utils.utcnow()
-        )
-        pedido.add_field(name="Beat", value=str(nome)[:1024], inline=True)
-        pedido.add_field(name="Preço cadastrado", value=str(preco)[:1024], inline=True)
-        pedido.add_field(name="Interessado", value=f"{interaction.user.mention} (ID {interaction.user.id})", inline=False)
+                preco_texto = next(
+                    (field.value for field in embed_beat.fields if field.name.casefold() == "valor"),
+                    "Consultar"
+                )
+
+        numero = re.sub(r"[^0-9,.]", "", str(preco_texto))
         try:
-            await enviar_pedido_admin(None, embed=pedido)
-        except Exception:
-            log.exception("Não foi possível avisar a administração sobre o interesse em um beat.")
+            if "," in numero:
+                numero = numero.replace(".", "").replace(",", ".")
+            valor = float(numero)
+        except (TypeError, ValueError):
+            valor = 0
+        if valor <= 0:
             await interaction.response.send_message(
-                "Não consegui avisar a administração. Entre em contato diretamente com a equipe para comprar este beat.",
+                "Este beat ainda não tem um preço válido no anúncio. O administrador precisa cadastrar o valor antes de abrir o pagamento.",
                 ephemeral=True
             )
             return
-        await interaction.response.send_message(
-            "✅ Interesse enviado à administração. O pagamento e a entrega serão combinados manualmente, fora do Discord.",
-            ephemeral=True
-        )
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            ticket, txid = await criar_pedido_pagamento(
+                interaction, nome, valor,
+                f"Beat: {nome}\nPreço anunciado: {formatar_reais(valor)}",
+                tipo="beat"
+            )
+            await interaction.edit_original_response(
+                content=(
+                    f"Pagamento pendente para **{nome}** ({formatar_reais(valor)}). "
+                    f"Acesse o canal privado {ticket.mention} para pagar. Identificador: {txid}. "
+                    "O beat só será liberado após a conferência manual do administrador."
+                ),
+                view=None
+            )
+        except Exception as exc:
+            log.exception("Falha ao abrir checkout Pix para o beat %s", nome)
+            await interaction.edit_original_response(
+                content=f"Não consegui abrir o pagamento: {str(exc)[:400]}",
+                view=None
+            )
+
 
 
 class VendaBeatView(discord.ui.View):
