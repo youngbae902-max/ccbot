@@ -1139,17 +1139,41 @@ async def criar_pack_personalizado(interaction: discord.Interaction):
 
 ROLE_NAMES = ("Fundador", "Staff", "Parceiro", "DJ / Produtor", "Cliente", "Membro")
 
+# Cores oficiais dos cargos do C.C (RGB).
+ROLE_COLORS = {
+    "fundador": (255, 190, 45),       # dourado
+    "staff": (237, 66, 69),           # vermelho
+    "parceiro": (46, 134, 222),       # azul
+    "dj / produtor": (155, 89, 182),  # roxo
+    "cliente": (46, 204, 113),        # verde
+    "membro": (26, 188, 156),         # turquesa
+}
+
 async def garantir_cargos(guild):
     if guild is None:
         return {}
     roles = {role.name.casefold(): role for role in guild.roles}
     for name in ROLE_NAMES:
-        if name.casefold() not in roles:
-            try:
-                roles[name.casefold()] = await guild.create_role(name=name, reason="Configuração de cargos do CC BOT")
-            except (discord.Forbidden, discord.HTTPException):
-                log.exception("Não foi possível criar o cargo %s", name)
-                break
+        key = name.casefold()
+        color = discord.Colour.from_rgb(*ROLE_COLORS[key])
+        role = roles.get(key)
+        try:
+            if role is None:
+                role = await guild.create_role(
+                    name=name,
+                    color=color,
+                    reason="Configuração de cargos coloridos do CC BOT"
+                )
+                roles[key] = role
+            elif role.color.value != color.value:
+                # Atualiza somente a cor; mantém nome e permissões existentes.
+                await role.edit(
+                    color=color,
+                    reason="Padronização das cores dos cargos do CC BOT"
+                )
+        except (discord.Forbidden, discord.HTTPException):
+            log.exception("Não foi possível criar/colorir o cargo %s", name)
+            break
     return roles
 
 class Cargos(app_commands.Group):
