@@ -726,35 +726,20 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
             if qr_file is None:
                 if qr_url:
                     embed.add_field(
-                        name="📷 QR Code",
-                        value="A imagem não pôde ser exibida aqui. Use o botão **Abrir QR Code** abaixo ou copie o Pix.",
+                        name="📷 Seu código QR",
+                        value="Toque em **Abrir QR Code** para visualizar o QR. O código Pix em texto será enviado em outra mensagem privada para copiar e colar no aplicativo do banco.",
                         inline=False
                     )
                 else:
                     embed.add_field(
-                        name="📷 QR Code",
-                        value="A imagem não ficou disponível. Use **Ver código Pix** e escolha Pix Copia e Cola no aplicativo do banco.",
+                        name="📷 Seu código QR",
+                        value="Não foi possível montar a imagem do QR Code. Confira a mensagem separada **Código Pix em texto** para copiar e colar no aplicativo do banco.",
                         inline=False
                     )
             embed.set_footer(text="CC BOT • O pedido só será liberado após a confirmação do pagamento.")
             pix_view = None
-            if qr_text:
-                class PixCopyView(discord.ui.View):
-                    def __init__(self):
-                        super().__init__(timeout=900)
-
-                    @discord.ui.button(label="Ver código Pix", emoji="📋", style=discord.ButtonStyle.success)
-                    async def mostrar_codigo(self, button_interaction: discord.Interaction, button: discord.ui.Button):
-                        await button_interaction.response.send_message(
-                            content=f"**Pix copia e cola — toque e segure para copiar:**\n{qr_text}",
-                            ephemeral=True
-                        )
-
-                pix_view = PixCopyView()
-
             if qr_file is None and qr_url:
-                if pix_view is None:
-                    pix_view = discord.ui.View(timeout=900)
+                pix_view = discord.ui.View(timeout=900)
                 pix_view.add_item(discord.ui.Button(
                     label="Abrir QR Code",
                     emoji="🔗",
@@ -770,6 +755,16 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
                 await interaction.edit_original_response(
                     content=None, embed=embed, view=pix_view
                 )
+
+            # Segunda mensagem privada, com o código Pix em texto puro para copiar.
+            if qr_text:
+                try:
+                    await interaction.followup.send(
+                        content="**📄 Código Pix em texto**\nCopie o código abaixo e cole na opção **Pix Copia e Cola** do aplicativo do seu banco.\n\n" + qr_text,
+                        ephemeral=True
+                    )
+                except Exception:
+                    log.exception("Não foi possível enviar a mensagem privada com o código Pix em texto.")
 
             pedido = discord.Embed(
                 title="🧾 Pedido de beat — aguardando Pix",
