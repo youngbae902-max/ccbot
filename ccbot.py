@@ -1394,15 +1394,43 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
 
     user = interaction.user
     nome_usuario = str(getattr(user, "global_name", None) or user.name)
-    # O identificador Pix contém somente o nome do usuário, sem ID nem código extra.
-    nome_txid = re.sub(r"[^A-Za-z0-9]", "", nome_usuario.upper())[:25] or "USUARIO"
+    # O identificador começa pelo nome; sufixo curto só é usado para distinguir compras repetidas.
+    nome_txid = re.sub(r"[^A-Za-z0-9]", "", nome_usuario.upper())[:20] or "USUARIO"
     txid = nome_txid
-    # Evita sobrescrever pedidos quando o mesmo nome fizer outra compra.
     if txid in pix_orders:
-        raise ValueError(
-            "Já existe um pedido com esse nome de usuário. Para evitar confusão, "
-            "confira o pedido pendente antes de criar outro."
-        )
+        pedido_antigo = pix_orders[txid]
+        if pedido_antigo.get("status") == "aguardando_confirmacao_manual":
+            ticket_antigo_id = pedido_antigo.get("ticket_channel_id")
+            ticket_antigo = None
+            if ticket_antigo_id:
+                ticket_antigo = (
+                    interaction.guild.get_channel(int(ticket_antigo_id))
+                    or interaction.guild.get_thread(int(ticket_antigo_id))
+                )
+                if ticket_antigo is None:
+                    try:
+                        ticket_antigo = await bot.fetch_channel(int(ticket_antigo_id))
+                    except (discord.HTTPException, ValueError, TypeError):
+                        ticket_antigo = None
+            if ticket_antigo is None:
+                # Checkout apagado/ausente: não deixa o pedido abandonado preso como pendente.
+                pedido_antigo["status"] = "cancelado_checkout_removido"
+                pedido_antigo["processed_at"] = datetime.now().isoformat(timespec="seconds")
+                pedido_antigo["processed_by"] = "sistema"
+                save_json(PIX_ORDERS_FILE, pix_orders)
+            else:
+                raise ValueError(
+                    "Já existe uma cobrança pendente ativa para esse nome. "
+                    "Finalize ou cancele o pedido anterior antes de abrir outro."
+                )
+        # Nunca sobrescreve o pedido antigo: cria um identificador técnico único.
+        sufixo = 2
+        while True:
+            final = f"{nome_txid[:22]}{sufixo}"
+            if final not in pix_orders:
+                txid = final
+                break
+            sufixo += 1
     payload = gerar_payload_pix(chave, nome_recebedor, cidade, float(valor), txid)
     imagem = qrcode.make(payload)
     buffer = io.BytesIO()
