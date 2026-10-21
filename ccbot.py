@@ -30,7 +30,6 @@ TOKEN_FILE = Path("/sdcard/Download/CC/token.txt")
 BACKUP_DIR = Path("/sdcard/Download/CC/Backups")
 BEAT_PREVIEWS_DIR = Path("/sdcard/Download/CC/BeatPreviews")
 BEATS_FILE = CONFIG / "beats.json"
-EVOPAY_PENDING_FILE = CONFIG / "evopay_pending.json"
 
 ADMIN_ID = 1366109646934380614
 ORDERS_CHANNEL_ID = 1561513284191125625
@@ -84,11 +83,6 @@ settings = load_json(DATA_FILE, {
     "notice_channel": DEFAULT_NOTICE_CHANNEL,
     "sales_count": 0
 })
-
-pending_pix = load_json(EVOPAY_PENDING_FILE, {})
-if not isinstance(pending_pix, dict):
-    pending_pix = {}
-    save_json(EVOPAY_PENDING_FILE, pending_pix)
 
 models = load_json(MODELS_FILE, {
     "gerador-sample": "",
@@ -570,283 +564,44 @@ class OuvirPreviaBeatButton(discord.ui.Button):
                 log.exception("Falha ao informar erro da prévia do beat")
 
 
-class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
-    nome_cliente = discord.ui.TextInput(label="Nome completo do pagador", max_length=120)
-    cpf_cnpj = discord.ui.TextInput(label="CPF ou CNPJ", placeholder="Somente números", max_length=18)
-    email = discord.ui.TextInput(label="E-mail do pagador", max_length=254)
-
-    def __init__(self, nome_beat: str, preco_texto: str, valor: float, nome_usuario: str):
-        super().__init__(timeout=300)
-        nome_preenchido = re.sub(r"[^a-zA-ZÀ-ÖØ-öø-ÿ\s'.-]", "", nome_usuario or "")
-        nome_preenchido = re.sub(r"\s+", " ", nome_preenchido).strip()
-        self.nome_cliente.default = (nome_preenchido or "Comprador")[:120]
-        self.nome_beat = nome_beat
-        self.preco_texto = preco_texto
-        self.valor = valor
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        config_path = Path("/sdcard/Download/CC/evopay_config.json")
-        try:
-            config = json.loads(config_path.read_text(encoding="utf-8"))
-            api_key = str(config.get("CC_BOT_API_KEY", "")).strip()
-            if not api_key:
-                raise ValueError("A chave CC_BOT_API_KEY não está configurada.")
-        except Exception as exc:
-            await interaction.edit_original_response(
-                content="❌ O Pix ainda não está configurado neste Termux. O administrador precisa configurar o arquivo evopay_config.json na pasta CC.",
-                view=None
-            )
-            log.error("Configuração local da EvoPay indisponível: %s", exc)
-            return
-
-        nome_pagador = re.sub(r"[^a-zA-ZÀ-ÖØ-öø-ÿ\s'.-]", "", str(self.nome_cliente.value))
-        nome_pagador = re.sub(r"\s+", " ", nome_pagador).strip() or "Comprador"
-        external_reference = "CC-" + uuid.uuid4().hex
-        payload = {
-            "amount": self.valor,
-            "payerName": nome_pagador,
-            "payerDocument": str(self.cpf_cnpj.value).strip(),
-            "payerEmail": str(self.email.value).strip(),
-            "externalReference": external_reference,
-            "discordUserId": str(interaction.user.id),
-            "guildId": str(interaction.guild.id) if interaction.guild else "",
-            "productType": "beat",
-            "productName": self.nome_beat
-        }
-        endpoint = "https://hgxitwvlrrzystojaies.supabase.co/functions/v1/evopay-pix"
-
-        def criar_cobranca():
-            request = urllib.request.Request(
-                endpoint,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json", "x-api-key": api_key},
-                method="POST"
-            )
-            try:
-                with urllib.request.urlopen(request, timeout=25) as response:
-                    return json.loads(response.read().decode("utf-8"))
-            except urllib.error.HTTPError as exc:
-                detalhe = exc.read().decode("utf-8", errors="replace")[:800]
-                raise RuntimeError(f"Supabase/EvoPay HTTP {exc.code}: {detalhe}") from exc
-
-        try:
-            result = await asyncio.wait_for(asyncio.to_thread(criar_cobranca), timeout=30)
-            pix = result.get("pix", result)
-            if isinstance(pix, list):
-                pix = pix[0] if pix else {}
-            if not isinstance(pix, dict):
-                raise ValueError("Formato inesperado da resposta da EvoPay.")
-            qr_text = str(pix.get("qrCodeText") or pix.get("copyPaste") or pix.get("pixCopyPaste") or "")
-            qr_url = str(pix.get("qrCodeUrl") or "").strip()
-            # A EvoPay pode devolver a URL do QR com ":null" no host; corrige o link antes de exibi-lo.
-            if qr_url:
-                qr_url = qr_url.replace("http://pix.evopay.cash:null/", "https://pix.evopay.cash/")
-                qr_url = qr_url.replace("https://pix.evopay.cash:null/", "https://pix.evopay.cash/")
-                qr_url = qr_url.replace("http://pix.evopay.cash/", "https://pix.evopay.cash/")
-                qr_url = qr_url.replace(":null/", "/")
-            transaction_id = str(pix.get("id") or pix.get("transactionId") or "").strip()
-            status_pagamento = str(pix.get("status") or "PENDING").upper()
-            if not transaction_id:
-                raise ValueError("A EvoPay não retornou o ID da transação; não é seguro acompanhar o pagamento.")
-            if not qr_text and not qr_url and not pix.get("qrCodeBase64"):
-                raise ValueError("A EvoPay respondeu sem código Pix nem QR Code.")
-            pending_pix[transaction_id] = {
-                "transaction_id": transaction_id,
-                "external_reference": external_reference,
-                "discord_user_id": str(interaction.user.id),
-                "guild_id": str(interaction.guild.id) if interaction.guild else "",
-                "product_name": self.nome_beat,
-                "amount": self.valor,
-                "status": status_pagamento,
-                "processed": False,
-                "created_at": datetime.now().isoformat()
-            }
-            save_json(EVOPAY_PENDING_FILE, pending_pix)
-
-            embed = discord.Embed(
-                title="💚 Pagamento via Pix",
-                description=(
-                    "Seu pedido foi registrado. Escaneie o QR Code abaixo ou "
-                    "toque em **📋 Ver código Pix** para abrir o código em uma mensagem privada."
-                ),
-                color=discord.Color.from_rgb(46, 204, 113)
-            )
-            embed.add_field(name="🛍️ Produto", value=self.nome_beat[:1024], inline=True)
-            embed.add_field(name="💰 Total", value=self.preco_texto, inline=True)
-            embed.add_field(name="⏳ Situação", value="Aguardando pagamento", inline=True)
-            qr_file = None
-            qr_base64 = pix.get("qrCodeBase64")
-            if isinstance(qr_base64, str) and qr_base64.strip():
-                try:
-                    qr_data = qr_base64.strip()
-                    if "," in qr_data and qr_data.lower().startswith("data:image/"):
-                        qr_data = qr_data.split(",", 1)[1]
-                    qr_bytes = base64.b64decode(qr_data, validate=True)
-                    if qr_bytes:
-                        qr_file = discord.File(io.BytesIO(qr_bytes), filename="ccbot-pix-qrcode.png")
-                        embed.set_image(url="attachment://ccbot-pix-qrcode.png")
-                except Exception:
-                    log.exception("A EvoPay retornou qrCodeBase64, mas não foi possível decodificar a imagem.")
-            # Primeiro tenta obter a imagem da URL oficial da EvoPay.
-            if qr_file is None and qr_url:
-                try:
-                    parsed_qr = urlparse(qr_url)
-                    if parsed_qr.scheme == "https" and parsed_qr.hostname == "pix.evopay.cash":
-                        def baixar_qr():
-                            request_qr = urllib.request.Request(
-                                qr_url,
-                                headers={"Accept": "image/png,image/*;q=0.9,*/*;q=0.1"},
-                                method="GET"
-                            )
-                            with urllib.request.urlopen(request_qr, timeout=10) as response_qr:
-                                tipo = response_qr.headers.get("Content-Type", "").lower()
-                                dados_qr = response_qr.read(5 * 1024 * 1024 + 1)
-                                if tipo.startswith("image/") and 0 < len(dados_qr) <= 5 * 1024 * 1024:
-                                    return dados_qr
-                            return None
-                        qr_download = await asyncio.wait_for(asyncio.to_thread(baixar_qr), timeout=12)
-                        if qr_download:
-                            qr_file = discord.File(io.BytesIO(qr_download), filename="ccbot-pix-qrcode.png")
-                            embed.set_image(url="attachment://ccbot-pix-qrcode.png")
-                except Exception:
-                    log.warning("A URL da EvoPay não entregou uma imagem de QR Code utilizável.")
-
-            # Plano B local: desenha o QR a partir do Pix copia-e-cola, sem enviar
-            # os dados de pagamento para sites externos de geração de QR.
-            if qr_file is None and qr_text:
-                try:
-                    import qrcode
-                    imagem_qr = qrcode.make(qr_text)
-                    buffer_qr = io.BytesIO()
-                    imagem_qr.save(buffer_qr, format="PNG")
-                    buffer_qr.seek(0)
-                    qr_file = discord.File(buffer_qr, filename="ccbot-pix-qrcode.png")
-                    embed.set_image(url="attachment://ccbot-pix-qrcode.png")
-                    log.info("QR Code Pix gerado localmente a partir do copia-e-cola.")
-                except ImportError:
-                    log.warning("Pacote qrcode/Pillow ausente; QR local não pode ser gerado.")
-                except Exception:
-                    log.exception("Falha ao gerar QR Code Pix localmente.")
-
-            if qr_file is None:
-                if qr_url:
-                    embed.add_field(
-                        name="📷 Seu código QR",
-                        value="Toque em **Abrir QR Code** para visualizar o QR. O código Pix em texto será enviado em outra mensagem privada para copiar e colar no aplicativo do banco.",
-                        inline=False
-                    )
-                else:
-                    embed.add_field(
-                        name="📷 Seu código QR",
-                        value="Não foi possível montar a imagem do QR Code. Confira a mensagem separada **Código Pix em texto** para copiar e colar no aplicativo do banco.",
-                        inline=False
-                    )
-            embed.set_footer(text="CC BOT • O pedido só será liberado após a confirmação do pagamento.")
-            pix_view = None
-            if qr_file is None and qr_url:
-                pix_view = discord.ui.View(timeout=900)
-                pix_view.add_item(discord.ui.Button(
-                    label="Abrir QR Code",
-                    emoji="🔗",
-                    style=discord.ButtonStyle.link,
-                    url=qr_url
-                ))
-
-            if qr_file is not None:
-                await interaction.edit_original_response(
-                    content=None, embed=embed, attachments=[qr_file], view=pix_view
-                )
-            else:
-                await interaction.edit_original_response(
-                    content=None, embed=embed, view=pix_view
-                )
-
-            # Segunda mensagem privada, com o código Pix em texto puro para copiar.
-            if qr_text:
-                try:
-                    await interaction.followup.send(
-                        content="**📄 Código Pix em texto**\nCopie o código abaixo e cole na opção **Pix Copia e Cola** do aplicativo do seu banco.\n\n" + qr_text,
-                        ephemeral=True
-                    )
-                except Exception:
-                    log.exception("Não foi possível enviar a mensagem privada com o código Pix em texto.")
-
-            pedido = discord.Embed(
-                title="🧾 Pedido de beat — aguardando Pix",
-                description=f"**Beat:** {self.nome_beat}\n**Valor:** {self.preco_texto}\n**Referência:** {external_reference}",
-                color=discord.Color.orange()
-            )
-            pedido.add_field(name="Comprador", value=f"{interaction.user} (ID {interaction.user.id})", inline=False)
-            pedido.add_field(name="Transação EvoPay", value=transaction_id, inline=False)
-            pedido.set_footer(text="Pagamento pendente — confirmar antes de entregar o produto.")
-            try:
-                await enviar_pedido_admin(None, embed=pedido)
-            except Exception:
-                log.exception("Pix criado, mas não consegui publicar o aviso do pedido no canal de vendas.")
-        except Exception as exc:
-            log.exception("Falha ao criar cobrança Pix para beat %s", self.nome_beat)
-            # Mostra somente diagnóstico não sensível; nunca expõe CPF, e-mail ou chaves.
-            detalhe_seguro = ""
-            texto_erro = str(exc)
-            try:
-                inicio_json = texto_erro.find("{")
-                if inicio_json >= 0:
-                    dados_erro = json.loads(texto_erro[inicio_json:])
-                    campos = dados_erro.get("invalidFields", [])
-                    if campos:
-                        detalhe_seguro = "\nCampos recusados: " + ", ".join(
-                            str(c) for c in campos if str(c) in {"amount", "payerName", "payerDocument", "payerEmail", "externalReference"}
-                        )
-                    elif dados_erro.get("providerStatus"):
-                        mensagem_provedor = str(dados_erro.get("providerMessage") or "Sem detalhe fornecido").replace("\n", " ")[:180]
-                        detalhe_seguro = (
-                            "\nEvoPay HTTP " + str(dados_erro["providerStatus"])
-                            + ": " + mensagem_provedor
-                        )
-                    elif dados_erro.get("error"):
-                        detalhe_seguro = "\nDetalhe: " + str(dados_erro["error"])[:160]
-            except Exception:
-                pass
-            await interaction.edit_original_response(
-                content=(
-                    "❌ Não consegui gerar o Pix. Nenhuma entrega foi liberada."
-                    + detalhe_seguro
-                    + "\nO administrador pode consultar o diagnóstico técnico nos logs do CC BOT."
-                ),
-                embed=None,
-                view=None
-            )
-
-
 class ComprarBeatButton(discord.ui.Button):
     def __init__(self, nome: str, preco: str):
-        super().__init__(label="Comprar beat", emoji="🛒", style=discord.ButtonStyle.success, custom_id="ccbot:beat:buy")
+        super().__init__(label="Solicitar beat", emoji="🛒", style=discord.ButtonStyle.primary, custom_id="ccbot:beat:buy")
         self.nome = nome
         self.preco = preco
 
     async def callback(self, interaction: discord.Interaction):
-        nome = self.nome
-        preco = self.preco
+        nome = self.nome or "Beat"
+        preco = self.preco or "Consultar"
         if interaction.message and interaction.message.embeds:
             embed_beat = interaction.message.embeds[0]
-            if not nome:
+            if not self.nome:
                 nome = (embed_beat.title or "Beat").replace("🎧 ", "", 1).strip()
-            if not preco:
-                preco = next((field.value for field in embed_beat.fields if field.name.casefold() == "valor"), "")
+            if not self.preco:
+                preco = next((field.value for field in embed_beat.fields if field.name.casefold() == "valor"), "Consultar")
+        pedido = discord.Embed(
+            title="🛍️ Solicitação de beat",
+            description="Um usuário demonstrou interesse neste beat. Combine pagamento e entrega manualmente, fora do bot.",
+            color=discord.Color.blurple(),
+            timestamp=discord.utils.utcnow()
+        )
+        pedido.add_field(name="Beat", value=str(nome)[:1024], inline=True)
+        pedido.add_field(name="Preço cadastrado", value=str(preco)[:1024], inline=True)
+        pedido.add_field(name="Interessado", value=f"{interaction.user.mention} (ID {interaction.user.id})", inline=False)
         try:
-            valor_texto = str(preco).replace("R$", "").replace(" ", "").strip()
-            if "," in valor_texto and "." in valor_texto:
-                valor_texto = valor_texto.replace(".", "").replace(",", ".")
-            elif "," in valor_texto:
-                valor_texto = valor_texto.replace(",", ".")
-            valor = float(valor_texto)
-        except (ValueError, TypeError):
-            valor = 0.0
-        if valor <= 0:
-            await interaction.response.send_message("❌ Este beat não tem um preço válido cadastrado. Avise a administração.", ephemeral=True)
+            await enviar_pedido_admin(None, embed=pedido)
+        except Exception:
+            log.exception("Não foi possível avisar a administração sobre o interesse em um beat.")
+            await interaction.response.send_message(
+                "Não consegui avisar a administração. Entre em contato diretamente com a equipe para comprar este beat.",
+                ephemeral=True
+            )
             return
-        await interaction.response.send_modal(PagamentoPixModal(nome or "Beat", preco or f"R$ {valor:.2f}", valor, interaction.user.name))
+        await interaction.response.send_message(
+            "✅ Interesse enviado à administração. O pagamento e a entrega serão combinados manualmente, fora do Discord.",
+            ephemeral=True
+        )
+
 
 class VendaBeatView(discord.ui.View):
     def __init__(self, nome: str, preco: str, preview_path):
@@ -4013,103 +3768,6 @@ async def restaurar_paineis_existentes():
 
 
 
-@tasks.loop(seconds=45)
-async def verificar_pagamentos_pix():
-    config_path = Path("/sdcard/Download/CC/evopay_config.json")
-    try:
-        config = json.loads(config_path.read_text(encoding="utf-8"))
-        api_key = str(config.get("CC_BOT_API_KEY", "")).strip()
-    except Exception:
-        return
-    if not api_key:
-        return
-
-    for transaction_id, registro in list(pending_pix.items()):
-        status_salvo = str(registro.get("status", "")).upper()
-        if status_salvo in {"CANCELED", "EXPIRED", "REFUNDED"}:
-            continue
-        if status_salvo == "COMPLETED" and registro.get("processed") and registro.get("sale_announced"):
-            continue
-
-        def consultar_status():
-            payload = json.dumps({"action": "status", "transactionId": transaction_id}).encode("utf-8")
-            request = urllib.request.Request(
-                "https://hgxitwvlrrzystojaies.supabase.co/functions/v1/evopay-pix",
-                data=payload,
-                headers={"Content-Type": "application/json", "x-api-key": api_key},
-                method="POST"
-            )
-            with urllib.request.urlopen(request, timeout=20) as response:
-                return json.loads(response.read().decode("utf-8"))
-
-        try:
-            result = await asyncio.wait_for(asyncio.to_thread(consultar_status), timeout=25)
-            pix = result.get("pix", result)
-            if isinstance(pix, list):
-                pix = pix[0] if pix else {}
-            status_atual = str(pix.get("status", "")).upper()
-            if not status_atual:
-                continue
-            registro["status"] = status_atual
-            registro["last_checked_at"] = datetime.now().isoformat()
-            save_json(EVOPAY_PENDING_FILE, pending_pix)
-
-            if status_atual == "COMPLETED" and (not registro.get("processed") or not registro.get("sale_announced")):
-                guild_id = int(registro.get("guild_id") or 0)
-                user_id = int(registro.get("discord_user_id") or 0)
-                role_ok = False
-                guild = bot.get_guild(guild_id) if guild_id else None
-                if guild and user_id:
-                    try:
-                        member = guild.get_member(user_id) or await guild.fetch_member(user_id)
-                        roles = await garantir_cargos(guild)
-                        role_cliente = roles.get("cliente")
-                        if role_cliente:
-                            if role_cliente not in member.roles:
-                                await member.add_roles(role_cliente, reason="Pagamento Pix confirmado pela EvoPay")
-                            role_ok = role_cliente in member.roles or role_cliente in getattr(member, "roles", [])
-                    except Exception:
-                        log.exception("Pix pago, mas não consegui atribuir Cliente ao usuário %s", user_id)
-                registro["paid_at"] = registro.get("paid_at") or datetime.now().isoformat()
-
-                # Registra a venda no canal automático assim que a EvoPay confirma o Pix.
-                if not registro.get("sale_announced"):
-                    try:
-                        sales_channel = bot.get_channel(SALES_SOURCE_CHANNEL_ID)
-                        if sales_channel is None:
-                            sales_channel = await bot.fetch_channel(SALES_SOURCE_CHANNEL_ID)
-                        sale_embed = discord.Embed(
-                            title="🛍️ Venda confirmada!",
-                            description="Uma compra foi paga e confirmada automaticamente pela EvoPay.",
-                            color=discord.Color.green(),
-                            timestamp=datetime.now()
-                        )
-                        sale_embed.add_field(name="Produto", value=str(registro.get("product_name", "Beat")), inline=False)
-                        sale_embed.add_field(name="Valor", value=f"R$ {float(registro.get('amount', 0)):.2f}", inline=True)
-                        sale_embed.add_field(name="Comprador", value=f"<@{user_id}>" if user_id else "Não identificado", inline=True)
-                        sale_embed.add_field(name="Pagamento", value="✅ Pix confirmado", inline=True)
-                        sale_embed.set_footer(text=f"CC BOT • Transação {transaction_id}")
-                        await sales_channel.send(embed=sale_embed)
-                        registro["sale_announced"] = True
-                        log.info("Venda %s anunciada no canal automático %s", transaction_id, SALES_SOURCE_CHANNEL_ID)
-                    except Exception:
-                        log.exception("Pix confirmado, mas falhou o anúncio da venda %s", transaction_id)
-
-                registro["processed"] = bool(role_ok)
-                save_json(EVOPAY_PENDING_FILE, pending_pix)
-                if not registro.get("admin_notified"):
-                    await notify_admin(
-                        f"PIX CONFIRMADO AUTOMATICAMENTE\nProduto: {registro.get('product_name', 'Beat')}\n"
-                        f"Valor: R$ {float(registro.get('amount', 0)):.2f}\n"
-                        f"Cliente ID: {user_id}\nTransação: {transaction_id}\n"
-                        + ("Cargo Cliente atribuído. " if role_ok else "Cargo Cliente ainda precisa ser atribuído manualmente. ")
-                        + "A entrega do arquivo ainda precisa ser feita pela administração."
-                    )
-                    registro["admin_notified"] = True
-                    save_json(EVOPAY_PENDING_FILE, pending_pix)
-        except Exception:
-            log.exception("Falha ao consultar status do Pix %s", transaction_id)
-
 @bot.event
 async def on_ready():
     try:
@@ -4167,8 +3825,6 @@ async def on_ready():
         if not atualizar_contador_vendas.is_running():
             atualizar_contador_vendas.start()
 
-        if not verificar_pagamentos_pix.is_running():
-            verificar_pagamentos_pix.start()
 
         channel_id = settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)
         channel = bot.get_channel(int(channel_id))
