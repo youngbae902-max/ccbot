@@ -6,6 +6,8 @@ import logging
 import zipfile
 import io
 import uuid
+import urllib.request
+import urllib.error
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse
