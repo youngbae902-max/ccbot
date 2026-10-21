@@ -499,32 +499,41 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
 class OuvirPreviaBeatButton(discord.ui.Button):
     def __init__(self, preview_path):
         super().__init__(label="Ouvir prévia", emoji="🎧", style=discord.ButtonStyle.primary, custom_id="ccbot:beat:preview")
-        self.preview_path = Path(preview_path)
+        self.preview_path = str(preview_path or "")
 
     async def callback(self, interaction: discord.Interaction):
-        preview_path = self.preview_path
-        if not preview_path.is_file() and interaction.message:
-            registro = beat_records.get(str(interaction.message.id), {})
-            preview_path = Path(registro.get("preview_path", ""))
-        if not preview_path.is_file():
-            await interaction.response.send_message(
-                "A prévia não está disponível no armazenamento do bot. O administrador precisa cadastrar o beat novamente.",
-                ephemeral=True
-            )
-            return
+        # PRIMEIRA operação: reconhecer o clique antes de acessar disco ou enviar arquivo.
         try:
-            # Reconhece a interação imediatamente; enviar áudio pode demorar.
             await interaction.response.defer(ephemeral=True, thinking=True)
+        except discord.HTTPException:
+            log.exception("Não foi possível confirmar a interação de prévia.")
+            return
+
+        try:
+            caminho = self.preview_path
+            if not caminho or not Path(caminho).is_file():
+                if interaction.message:
+                    registro = beat_records.get(str(interaction.message.id), {})
+                    caminho = str(registro.get("preview_path", "") or "")
+
+            if not caminho or not Path(caminho).is_file():
+                await interaction.followup.send(
+                    "A prévia não está disponível no armazenamento do bot. O administrador precisa cadastrar o beat novamente.",
+                    ephemeral=True
+                )
+                return
+
+            preview_path = Path(caminho)
             await interaction.followup.send(
                 content="🎧 **Prévia do beat** — toque no áudio anexado para ouvir.",
                 file=discord.File(preview_path, filename=preview_path.name),
                 ephemeral=True
             )
-        except Exception:
+        except Exception as exc:
             log.exception("Falha ao enviar a prévia do beat: %s", self.preview_path)
             try:
                 await interaction.followup.send(
-                    "❌ Não consegui enviar o áudio da prévia. O arquivo pode estar grande demais ou indisponível.",
+                    f"❌ Não consegui enviar o áudio da prévia ({type(exc).__name__}). O arquivo pode estar grande demais ou indisponível.",
                     ephemeral=True
                 )
             except Exception:
@@ -538,21 +547,25 @@ class ComprarBeatButton(discord.ui.Button):
         self.preco = preco
 
     async def callback(self, interaction: discord.Interaction):
-        nome = self.nome
-        preco = self.preco
-        if interaction.message and interaction.message.embeds:
-            embed_beat = interaction.message.embeds[0]
-            if not nome:
-                nome = (embed_beat.title or "Beat").replace("🎧 ", "", 1).strip()
-            if not preco:
-                preco = next(
-                    (campo.value for campo in embed_beat.fields if campo.name.casefold() == "valor"),
-                    "A combinar"
-                )
+        # PRIMEIRA operação: confirmar o clique antes de ler embed ou acessar o canal.
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+        except discord.HTTPException:
+            log.exception("Não foi possível confirmar a interação de compra de beat.")
+            return
 
         try:
-            # Confirma o clique primeiro para evitar que a interação expire.
-            await interaction.response.defer(ephemeral=True, thinking=True)
+            nome = self.nome
+            preco = self.preco
+            if interaction.message and interaction.message.embeds:
+                embed_beat = interaction.message.embeds[0]
+                if not nome:
+                    nome = (embed_beat.title or "Beat").replace("🎧 ", "", 1).strip()
+                if not preco:
+                    preco = next(
+                        (campo.value for campo in embed_beat.fields if campo.name.casefold() == "valor"),
+                        "A combinar"
+                    )
 
             pedido = discord.Embed(
                 title="🛒 Pedido de compra de beat",
@@ -563,7 +576,7 @@ class ComprarBeatButton(discord.ui.Button):
             pedido.add_field(name="💰 Valor", value=preco or "A combinar", inline=True)
             pedido.add_field(
                 name="👤 Comprador",
-                value=f"{interaction.user.mention}\\n{interaction.user}",
+                value=f"{interaction.user.mention}\n{interaction.user}",
                 inline=True
             )
             pedido.add_field(name="🆔 ID do comprador", value=str(interaction.user.id), inline=False)
@@ -579,11 +592,11 @@ class ComprarBeatButton(discord.ui.Button):
                 f"🛒 Seu pedido de compra de **{nome}** ({preco}) foi enviado à aba de vendas. Aguarde o contato para concluir a compra.",
                 ephemeral=True
             )
-        except Exception:
+        except Exception as exc:
             log.exception("Falha ao registrar interesse de compra de beat")
             try:
                 await interaction.followup.send(
-                    "Não consegui registrar seu pedido agora. Tente novamente mais tarde.",
+                    f"Não consegui registrar seu pedido agora ({type(exc).__name__}). Tente novamente mais tarde.",
                     ephemeral=True
                 )
             except Exception:
