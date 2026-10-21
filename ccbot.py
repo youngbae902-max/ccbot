@@ -630,7 +630,7 @@ class ComprarBeatButton(discord.ui.Button):
             await interaction.edit_original_response(
                 content=(
                     f"Pagamento pendente para **{nome}** ({formatar_reais(valor)}). "
-                    f"Acesse o canal privado {ticket.mention} para pagar. Identificador: {txid}. "
+                    f"Acesse o tópico privado {ticket.mention} para pagar. Identificador: {txid}. "
                     "O beat só será liberado após a conferência manual do administrador."
                 ),
                 view=None
@@ -1410,40 +1410,56 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
     buffer.seek(0)
 
     guild = interaction.guild
-    categoria_mercado = discord.utils.get(guild.categories, name=PAYMENT_CATEGORY_NAME)
-    if categoria_mercado is None:
-        categoria_mercado = await guild.create_category(
-            PAYMENT_CATEGORY_NAME, reason="Canais privados de pagamento do Mercado"
-        )
     admin = guild.get_member(ADMIN_ID)
     if admin is None:
         try:
             admin = await guild.fetch_member(ADMIN_ID)
         except discord.HTTPException:
             admin = None
-    overwrites = {
-        guild.default_role: discord.PermissionOverwrite(view_channel=False),
-        user: discord.PermissionOverwrite(
-            view_channel=True, send_messages=True, read_message_history=True,
-            attach_files=True, embed_links=True
+
+    # Compra de beat: abrir cobrança como tópico privado dentro do canal onde está o painel.
+    # Os demais tipos de pedido mantêm o canal privado atual.
+    if tipo == "beat" and isinstance(interaction.channel, discord.TextChannel):
+        ticket = await interaction.channel.create_thread(
+            name=f"cobranca-{user.name[:70]}",
+            type=discord.ChannelType.private_thread,
+            invitable=False,
+            auto_archive_duration=1440,
+            reason=f"Checkout Pix do beat; comprador {user.id}"
         )
-    }
-    if admin:
-        overwrites[admin] = discord.PermissionOverwrite(
-            view_channel=True, send_messages=True, read_message_history=True,
-            manage_messages=True, attach_files=True, embed_links=True
+        await ticket.add_user(user)
+        if admin:
+            await ticket.add_user(admin)
+    else:
+        categoria_mercado = discord.utils.get(guild.categories, name=PAYMENT_CATEGORY_NAME)
+        if categoria_mercado is None:
+            categoria_mercado = await guild.create_category(
+                PAYMENT_CATEGORY_NAME, reason="Canais privados de pagamento do Mercado"
+            )
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            user: discord.PermissionOverwrite(
+                view_channel=True, send_messages=True, read_message_history=True,
+                attach_files=True, embed_links=True
+            )
+        }
+        if admin:
+            overwrites[admin] = discord.PermissionOverwrite(
+                view_channel=True, send_messages=True, read_message_history=True,
+                manage_messages=True, attach_files=True, embed_links=True
+            )
+        slug = re.sub(r"[^a-z0-9-]", "-", user.name.lower()).strip("-")[:18] or "cliente"
+        ticket = await guild.create_text_channel(
+            name=f"pagamento-{slug}-{txid[-4:].lower()}",
+            category=categoria_mercado, overwrites=overwrites,
+            topic=f"Pedido {txid} | Comprador {user.id} | Status: pendente",
+            reason=f"Checkout Pix do pedido {txid}"
         )
-    slug = re.sub(r"[^a-z0-9-]", "-", user.name.lower()).strip("-")[:18] or "cliente"
-    ticket = await guild.create_text_channel(
-        name=f"pagamento-{slug}-{txid[-4:].lower()}",
-        category=categoria_mercado, overwrites=overwrites,
-        topic=f"Pedido {txid} | Comprador {user.id} | Status: pendente",
-        reason=f"Checkout Pix do pedido {txid}"
-    )
 
     registro = {
         "txid": txid, "discord_name": nome_usuario, "discord_id": str(user.id),
         "guild_id": str(guild.id), "ticket_channel_id": str(ticket.id),
+        "ticket_is_thread": isinstance(ticket, discord.Thread),
         "product": str(produto)[:100], "amount": round(float(valor), 2),
         "details": str(detalhes or "")[:4000], "fulfillment_type": tipo,
         "status": "aguardando_confirmacao_manual",
@@ -1487,7 +1503,7 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
         aviso.add_field(name="👤 Nome no Discord", value=f"{nome_usuario}\n{user.mention}", inline=True)
         aviso.add_field(name="🆔 ID DO USUÁRIO", value=f"`{user.id}`", inline=True)
         aviso.add_field(name="🔖 IDENTIFICADOR", value=nome_usuario[:1024], inline=False)
-        aviso.add_field(name="Canal privado do pedido", value=ticket.mention, inline=False)
+        aviso.add_field(name="Tópico/canal privado do pedido", value=ticket.mention, inline=False)
         if detalhes:
             aviso.add_field(name="Resumo do pedido", value=str(detalhes)[:1024], inline=False)
         aviso.set_footer(text=f"Referência técnica: {txid}")
@@ -1571,19 +1587,18 @@ class ConfirmarPagamentoView(discord.ui.View):
 
         ticket_id = pedido.get("ticket_channel_id")
         if guild and ticket_id:
-            ticket = guild.get_channel(int(ticket_id))
-            if isinstance(ticket, discord.TextChannel):
+            ticket = guild.get_channel(int(ticket_id)) or guild.get_thread(int(ticket_id))
+            if ticket is None:
                 try:
-                    if comprador:
-                        await ticket.set_permissions(comprador, view_channel=False, send_messages=False)
-                    prefixo = "pago-" if aprovado else "cancelado-"
-                    await ticket.edit(
-                        name=(prefixo + ticket.name.removeprefix("pagamento-"))[:100],
-                        topic=f"Pedido {txid} | Status: {'confirmado manualmente' if aprovado else 'cancelado'}",
-                        reason="Pedido processado manualmente pelo administrador"
-                    )
+                    ticket = await bot.fetch_channel(int(ticket_id))
                 except discord.HTTPException:
-                    log.exception("Falha ao fechar o canal privado do pedido %s", txid)
+                    ticket = None
+            if ticket is not None:
+                try:
+                    # Depois de confirmar ou cancelar, apagar a cobrança para não deixar tópico/canal aberto.
+                    await ticket.delete(reason=f"Pedido {txid} processado: {'pago' if aprovado else 'cancelado'}")
+                except discord.HTTPException:
+                    log.exception("Falha ao apagar o tópico/canal do pedido %s", txid)
 
         if interaction.message and interaction.message.embeds:
             embed = interaction.message.embeds[0]
