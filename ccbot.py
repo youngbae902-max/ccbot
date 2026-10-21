@@ -4028,7 +4028,7 @@ async def verificar_pagamentos_pix():
         status_salvo = str(registro.get("status", "")).upper()
         if status_salvo in {"CANCELED", "EXPIRED", "REFUNDED"}:
             continue
-        if status_salvo == "COMPLETED" and registro.get("processed"):
+        if status_salvo == "COMPLETED" and registro.get("processed") and registro.get("sale_announced"):
             continue
 
         def consultar_status():
@@ -4054,7 +4054,7 @@ async def verificar_pagamentos_pix():
             registro["last_checked_at"] = datetime.now().isoformat()
             save_json(EVOPAY_PENDING_FILE, pending_pix)
 
-            if status_atual == "COMPLETED" and not registro.get("processed"):
+            if status_atual == "COMPLETED" and (not registro.get("processed") or not registro.get("sale_announced")):
                 guild_id = int(registro.get("guild_id") or 0)
                 user_id = int(registro.get("discord_user_id") or 0)
                 role_ok = False
