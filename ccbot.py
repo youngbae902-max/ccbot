@@ -631,7 +631,13 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
             if not isinstance(pix, dict):
                 raise ValueError("Formato inesperado da resposta da EvoPay.")
             qr_text = str(pix.get("qrCodeText") or pix.get("copyPaste") or pix.get("pixCopyPaste") or "")
-            qr_url = str(pix.get("qrCodeUrl") or "")
+            qr_url = str(pix.get("qrCodeUrl") or "").strip()
+            # A EvoPay pode devolver a URL do QR com ":null" no host; corrige o link antes de exibi-lo.
+            if qr_url:
+                qr_url = qr_url.replace("http://pix.evopay.cash:null/", "https://pix.evopay.cash/")
+                qr_url = qr_url.replace("https://pix.evopay.cash:null/", "https://pix.evopay.cash/")
+                qr_url = qr_url.replace("http://pix.evopay.cash/", "https://pix.evopay.cash/")
+                qr_url = qr_url.replace(":null/", "/")
             transaction_id = str(pix.get("id") or pix.get("transactionId") or "").strip()
             status_pagamento = str(pix.get("status") or "PENDING").upper()
             if not transaction_id:
@@ -659,6 +665,7 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
             embed.add_field(name="Pix copia e cola", value=(qr_text[:1000] or "Use o link do QR Code abaixo."), inline=False)
             if qr_url:
                 embed.add_field(name="QR Code", value=f"[Abrir QR Code]({qr_url})", inline=False)
+                embed.set_image(url=qr_url)
             embed.set_footer(text=f"Referência: {external_reference} • ID: {transaction_id}")
             await interaction.edit_original_response(content="Cobrança criada. Pague pelo QR Code/código abaixo.", embed=embed, view=None)
 
