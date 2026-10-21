@@ -4579,6 +4579,23 @@ async def on_ready():
             log.info("Sincronização de comandos já realizada nesta execução; ignorando repetição.")
         log.info("Conectado como %s", bot.user)
 
+        # Limpeza única do histórico antigo de Confirmar pagamentos, solicitada pelo administrador.
+        if not settings.get("payment_admin_history_cleared", False):
+            servidor_limpeza = bot.get_guild(1561513043886743562)
+            if servidor_limpeza is None:
+                raise RuntimeError("Servidor não encontrado para limpar o histórico de pagamentos.")
+            canal_limpeza = await obter_canal_confirmacao(servidor_limpeza)
+            apagadas = 0
+            async for mensagem_antiga in canal_limpeza.history(limit=None, oldest_first=True):
+                try:
+                    await mensagem_antiga.delete()
+                    apagadas += 1
+                except discord.NotFound:
+                    continue
+            settings["payment_admin_history_cleared"] = True
+            save_json(DATA_FILE, settings)
+            log.info("Limpeza única de #%s concluída: %s mensagens apagadas.", canal_limpeza.name, apagadas)
+
         try:
             await garantir_painel_info_vendas(bot.get_guild(1561513043886743562))
         except Exception:
