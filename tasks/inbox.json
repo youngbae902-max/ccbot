@@ -1,3 +1,12 @@
 {
-  "requests": []
+  "requests": [
+    {
+      "id": "auditoria-ccbot-20261020",
+      "action": "diagnostico"
+    },
+    {
+      "id": "saude-ccbot-20261020",
+      "action": "saude"
+    }
+  ]
 }
