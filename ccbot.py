@@ -4374,6 +4374,81 @@ async def restaurar_paineis_existentes():
 
 
 
+# Categoria pública com explicação do fluxo de compras. Atualiza a mensagem existente sem duplicar.
+SALES_INFO_CATEGORY = "INFORMAÇÕES DE VENDAS"
+SALES_INFO_CHANNEL = "como-funcionam-as-vendas"
+SALES_INFO_TITLE = "🛒 COMO FUNCIONAM AS VENDAS"
+
+async def garantir_painel_info_vendas(guild):
+    if guild is None:
+        return
+    categoria = discord.utils.get(guild.categories, name=SALES_INFO_CATEGORY)
+    if categoria is None:
+        categoria = await guild.create_category(
+            SALES_INFO_CATEGORY,
+            reason="Criar área pública com instruções do fluxo de vendas"
+        )
+
+    canal = discord.utils.get(guild.text_channels, name=SALES_INFO_CHANNEL)
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(
+            view_channel=True, read_message_history=True, send_messages=False,
+            add_reactions=False, create_public_threads=False, create_private_threads=False
+        )
+    }
+    if guild.me:
+        overwrites[guild.me] = discord.PermissionOverwrite(
+            view_channel=True, read_message_history=True, send_messages=True,
+            embed_links=True, attach_files=True, manage_messages=True
+        )
+
+    if canal is None:
+        canal = await guild.create_text_channel(
+            SALES_INFO_CHANNEL,
+            category=categoria,
+            overwrites=overwrites,
+            topic="Leia aqui como funciona o pagamento, a conferência manual e a entrega dos pedidos.",
+            reason="Publicar instruções de compra do CC BOT"
+        )
+    else:
+        await canal.edit(category=categoria, overwrites=overwrites)
+
+    embed = discord.Embed(
+        title=SALES_INFO_TITLE,
+        description=(
+            "As compras são liberadas **após a confirmação manual do pagamento**. "
+            "Veja o passo a passo:\\n\\n"
+            "🛍️ **1. Escolha o produto**\\n"
+            "Inicie a compra pelo painel e siga as instruções do pedido privado.\\n\\n"
+            "💸 **2. Faça o Pix**\\n"
+            "Pague o valor mostrado no pedido. Use o QR Code ou o botão **Copiar código Pix**.\\n\\n"
+            "🧾 **3. Envie o comprovante**\\n"
+            "Depois de pagar, mande a imagem ou o PDF do comprovante no próprio canal do pedido. "
+            "O comprovante será encaminhado ao administrador.\\n\\n"
+            "👨‍💻 **4. Aguarde a conferência do ADM**\\n"
+            "O administrador recebe mensagens de aviso sobre os pedidos e confere o pagamento manualmente. "
+            "Até essa verificação, o pedido fica como **aguardando confirmação**.\\n\\n"
+            "📦 **5. Receba seu produto**\\n"
+            "Após o ADM confirmar o pagamento, o produto é liberado ou enviado normalmente em **poucas horas**. "
+            "O prazo pode variar conforme o produto e a demanda.\\n\\n"
+            "⚠️ **Importante:** enviar comprovante não confirma automaticamente o pagamento. "
+            "Não abra pedidos duplicados para a mesma compra; aguarde a resposta do ADM no seu pedido."
+        ),
+        color=discord.Color.dark_grey()
+    )
+    embed.set_footer(text="CC BOT • Pagamentos conferidos manualmente")
+    mensagem_existente = None
+    async for mensagem in canal.history(limit=50):
+        if mensagem.author.id == bot.user.id and mensagem.embeds and mensagem.embeds[0].title == SALES_INFO_TITLE:
+            mensagem_existente = mensagem
+            break
+    if mensagem_existente:
+        await mensagem_existente.edit(embed=embed)
+    else:
+        await canal.send(embed=embed)
+    log.info("Painel de informações de vendas garantido em #%s.", canal.name)
+
+
 @bot.event
 async def on_ready():
     try:
@@ -4400,6 +4475,11 @@ async def on_ready():
         else:
             log.info("Sincronização de comandos já realizada nesta execução; ignorando repetição.")
         log.info("Conectado como %s", bot.user)
+
+        try:
+            await garantir_painel_info_vendas(bot.get_guild(1561513043886743562))
+        except Exception:
+            log.exception("Falha ao criar/atualizar a área de informações de vendas.")
 
         try:
             servidor = bot.get_guild(1561513043886743562)
