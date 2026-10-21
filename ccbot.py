@@ -3884,7 +3884,10 @@ async def verificar_pagamentos_pix():
         return
 
     for transaction_id, registro in list(pending_pix.items()):
-        if str(registro.get("status", "")).upper() in {"COMPLETED", "CANCELED", "EXPIRED", "REFUNDED"}:
+        status_salvo = str(registro.get("status", "")).upper()
+        if status_salvo in {"CANCELED", "EXPIRED", "REFUNDED"}:
+            continue
+        if status_salvo == "COMPLETED" and registro.get("processed"):
             continue
 
         def consultar_status():
