@@ -4265,7 +4265,11 @@ async def diagnostico(interaction: discord.Interaction):
             f"• Sem acesso/erro: **{sem_acesso}**\n"
             "O relatório completo está anexado."
         ),
-        file=arquivo# CCBOT_PROCESS_LOCK: impede múltiplas instâncias de iniciar sessões Discord concorrentes.
+        file=arquivo
+    )
+
+
+# CCBOT_PROCESS_LOCK: impede múltiplas instâncias de iniciar sessões Discord concorrentes.
 # O descritor fica aberto durante toda a execução; o kernel libera o lock ao encerrar o processo.
 _lock_path = CONFIG / "ccbot-process.lock"
 _lock_handle = _lock_path.open("a+", encoding="utf-8")
