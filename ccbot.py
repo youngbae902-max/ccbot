@@ -3950,17 +3950,24 @@ async def on_ready():
     try:
         guild = discord.Object(id=1561513043886743562)
 
-        # A sincronização com a árvore global vazia remove comandos globais antigos.
-        # Os comandos ativos são registrados somente no servidor de destino.
-
-        # Registra uma única cópia de cada comando no servidor de destino.
-        bot.tree.clear_commands(guild=guild)
-        bot.tree.copy_global_to(guild=guild)
-        bot.tree.clear_commands(guild=None)
-        # Não sincronize a árvore global vazia: o Discord protege o comando Entry Point
-        # das Activities contra exclusão em atualizações em lote.
-        synced = await bot.tree.sync(guild=guild)
-        log.info("Comandos sincronizados somente no servidor %s: %s", guild.id, len(synced))
+        # on_ready pode disparar novamente após reconexões. Sincronizar comandos
+        # em toda chamada gera PUTs repetidos e pode causar HTTP 429.
+        if not getattr(bot, "_commands_synced_this_process", False):
+            # Mantém os comandos ativos apenas no servidor de destino.
+            bot.tree.clear_commands(guild=guild)
+            bot.tree.copy_global_to(guild=guild)
+            bot.tree.clear_commands(guild=None)
+            # Não sincronize a árvore global vazia: o Discord protege o comando
+            # Entry Point das Activities contra exclusão em atualizações em lote.
+            try:
+                synced = await bot.tree.sync(guild=guild)
+                bot._commands_synced_this_process = True
+                log.info("Comandos sincronizados somente no servidor %s: %s", guild.id, len(synced))
+            except Exception:
+                log.exception("Falha ao sincronizar comandos; será tentado novamente na próxima conexão.")
+                raise
+        else:
+            log.info("Sincronização de comandos já realizada nesta execução; ignorando repetição.")
         log.info("Conectado como %s", bot.user)
 
         try:
