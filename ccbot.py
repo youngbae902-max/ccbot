@@ -543,34 +543,49 @@ class ComprarBeatButton(discord.ui.Button):
         if interaction.message and interaction.message.embeds:
             embed_beat = interaction.message.embeds[0]
             if not nome:
-                nome = (embed_beat.title or "Beat").replace("🎧 ", "", 1)
+                nome = (embed_beat.title or "Beat").replace("🎧 ", "", 1).strip()
             if not preco:
-                preco = next((campo.value for campo in embed_beat.fields if campo.name.lower() == "valor"), "A combinar")
+                preco = next(
+                    (campo.value for campo in embed_beat.fields if campo.name.casefold() == "valor"),
+                    "A combinar"
+                )
+
         try:
-            # Reconhece o clique antes de avisar o administrador.
+            # Confirma o clique primeiro para evitar que a interação expire.
             await interaction.response.defer(ephemeral=True, thinking=True)
-            await enviar_pedido_admin(
-                f"🛒 **Pedido de compra de beat**\\nBeat: {nome}\\nValor: {preco}\\n"
-                f"Comprador: {interaction.user} (ID {interaction.user.id})\\n"
-                f"Servidor: {interaction.guild.name if interaction.guild else 'DM'}"
+
+            pedido = discord.Embed(
+                title="🛒 Pedido de compra de beat",
+                color=discord.Color.green(),
+                timestamp=discord.utils.utcnow()
             )
+            pedido.add_field(name="🎧 Beat", value=nome or "Não identificado", inline=False)
+            pedido.add_field(name="💰 Valor", value=preco or "A combinar", inline=True)
+            pedido.add_field(
+                name="👤 Comprador",
+                value=f"{interaction.user.mention}\\n{interaction.user}",
+                inline=True
+            )
+            pedido.add_field(name="🆔 ID do comprador", value=str(interaction.user.id), inline=False)
+            pedido.add_field(
+                name="🏠 Servidor",
+                value=interaction.guild.name if interaction.guild else "Mensagem privada",
+                inline=False
+            )
+            pedido.set_footer(text="CC BOT • Vendas")
+
+            await enviar_pedido_admin(None, embed=pedido)
             await interaction.followup.send(
-                f"🛒 Seu interesse em **{nome}** ({preco}) foi enviado ao administrador. Aguarde o contato para concluir a compra.",
+                f"🛒 Seu pedido de compra de **{nome}** ({preco}) foi enviado à aba de vendas. Aguarde o contato para concluir a compra.",
                 ephemeral=True
             )
         except Exception:
             log.exception("Falha ao registrar interesse de compra de beat")
             try:
-                if interaction.response.is_done():
-                    await interaction.followup.send(
-                        "Não consegui registrar seu pedido agora. Tente novamente mais tarde.",
-                        ephemeral=True
-                    )
-                else:
-                    await interaction.response.send_message(
-                        "Não consegui registrar seu pedido agora. Tente novamente mais tarde.",
-                        ephemeral=True
-                    )
+                await interaction.followup.send(
+                    "Não consegui registrar seu pedido agora. Tente novamente mais tarde.",
+                    ephemeral=True
+                )
             except Exception:
                 log.exception("Falha ao informar erro no pedido de compra de beat")
 
