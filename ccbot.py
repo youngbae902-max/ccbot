@@ -574,8 +574,9 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
     cpf_cnpj = discord.ui.TextInput(label="CPF ou CNPJ", placeholder="Somente números", max_length=18)
     email = discord.ui.TextInput(label="E-mail do pagador", max_length=254)
 
-    def __init__(self, nome_beat: str, preco_texto: str, valor: float):
+    def __init__(self, nome_beat: str, preco_texto: str, valor: float, nome_usuario: str):
         super().__init__(timeout=300)
+        self.nome_cliente.default = (nome_usuario or "")[:120]
         self.nome_beat = nome_beat
         self.preco_texto = preco_texto
         self.valor = valor
@@ -840,7 +841,7 @@ class ComprarBeatButton(discord.ui.Button):
         if valor <= 0:
             await interaction.response.send_message("❌ Este beat não tem um preço válido cadastrado. Avise a administração.", ephemeral=True)
             return
-        await interaction.response.send_modal(PagamentoPixModal(nome or "Beat", preco or f"R$ {valor:.2f}", valor))
+        await interaction.response.send_modal(PagamentoPixModal(nome or "Beat", preco or f"R$ {valor:.2f}", valor, interaction.user.name))
 
 class VendaBeatView(discord.ui.View):
     def __init__(self, nome: str, preco: str, preview_path):
