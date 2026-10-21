@@ -1136,6 +1136,81 @@ async def criar_pack_personalizado(interaction: discord.Interaction):
             await interaction.response.send_message("Não consegui publicar o painel. Verifique as permissões do bot.", ephemeral=True)
 
 
+
+ROLE_NAMES = ("Fundador", "Staff", "Parceiro", "DJ / Produtor", "Cliente", "Membro")
+
+async def garantir_cargos(guild):
+    if guild is None:
+        return {}
+    roles = {role.name.casefold(): role for role in guild.roles}
+    for name in ROLE_NAMES:
+        if name.casefold() not in roles:
+            try:
+                roles[name.casefold()] = await guild.create_role(name=name, reason="Configuração de cargos do CC BOT")
+            except (discord.Forbidden, discord.HTTPException):
+                log.exception("Não foi possível criar o cargo %s", name)
+                break
+    return roles
+
+class Cargos(app_commands.Group):
+    def __init__(self):
+        super().__init__(name="cargos", description="Configurar e atribuir cargos da comunidade")
+
+    @app_commands.command(name="configurar", description="Criar os cargos padrão do C.C")
+    async def configurar(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode configurar os cargos.", ephemeral=True)
+            return
+        if interaction.guild is None:
+            await interaction.response.send_message("Use no servidor.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        roles = await garantir_cargos(interaction.guild)
+        faltam = [name for name in ROLE_NAMES if name.casefold() not in roles]
+        if faltam:
+            await interaction.followup.send("Não consegui criar todos. Confira a permissão **Gerenciar cargos** e a hierarquia do bot.", ephemeral=True)
+        else:
+            await interaction.followup.send("Cargos conferidos/criados: " + ", ".join(ROLE_NAMES), ephemeral=True)
+
+    @app_commands.command(name="cliente", description="Atribuir Cliente após confirmar pagamento")
+    async def cliente(self, interaction: discord.Interaction, membro: discord.Member):
+        await self.atribuir(interaction, membro, "Cliente")
+
+    @app_commands.command(name="parceiro", description="Atribuir Parceiro após aprovar parceria")
+    async def parceiro(self, interaction: discord.Interaction, membro: discord.Member):
+        await self.atribuir(interaction, membro, "Parceiro")
+
+    @app_commands.command(name="dj-produtor", description="Atribuir DJ / Produtor")
+    async def dj_produtor(self, interaction: discord.Interaction, membro: discord.Member):
+        await self.atribuir(interaction, membro, "DJ / Produtor")
+
+    @app_commands.command(name="staff", description="Atribuir Staff")
+    async def staff(self, interaction: discord.Interaction, membro: discord.Member):
+        await self.atribuir(interaction, membro, "Staff")
+
+    async def atribuir(self, interaction, membro, nome):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode atribuir cargos.", ephemeral=True)
+            return
+        if interaction.guild is None:
+            await interaction.response.send_message("Use no servidor.", ephemeral=True)
+            return
+        roles = await garantir_cargos(interaction.guild)
+        role = roles.get(nome.casefold())
+        if role is None:
+            await interaction.response.send_message("Não consegui localizar o cargo. Confira as permissões do bot.", ephemeral=True)
+            return
+        try:
+            await membro.add_roles(role, reason="Atribuição pelo administrador do CC BOT")
+            await interaction.response.send_message("Cargo **" + nome + "** atribuído a " + membro.mention + ".", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("Sem permissão. Coloque o cargo do bot acima do cargo que deseja atribuir.", ephemeral=True)
+        except discord.HTTPException:
+            log.exception("Falha ao atribuir %s a %s", nome, membro.id)
+            await interaction.response.send_message("O Discord não aceitou a alteração. Tente novamente.", ephemeral=True)
+
+bot.tree.add_command(Cargos())
+
 @bot.tree.command(name="status", description="Verificar se o CC BOT está funcionando")
 async def status(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
@@ -3503,6 +3578,13 @@ async def antes_de_atualizar_contador_vendas():
 @bot.event
 async def on_member_join(member: discord.Member):
     try:
+        roles = await garantir_cargos(member.guild)
+        role = roles.get("membro")
+        if role and role not in member.roles:
+            await member.add_roles(role, reason="Cargo automático de entrada")
+    except Exception:
+        log.exception("Falha ao atribuir cargo Membro na entrada.")
+    try:
         channel = bot.get_channel(WELCOME_CHANNEL_ID)
         if channel is None:
             channel = await bot.fetch_channel(WELCOME_CHANNEL_ID)
@@ -3698,6 +3780,16 @@ async def on_ready():
         synced = await bot.tree.sync(guild=guild)
         log.info("Comandos sincronizados somente no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
+
+        try:
+            servidor = bot.get_guild(1561513043886743562)
+            roles = await garantir_cargos(servidor)
+            fundador = roles.get("fundador")
+            administrador = servidor.get_member(ADMIN_ID) if servidor else None
+            if fundador and administrador and fundador not in administrador.roles:
+                await administrador.add_roles(fundador, reason="Cargo Fundador da comunidade")
+        except Exception:
+            log.exception("Falha ao configurar cargos na inicialização.")
 
         # Repara mensagens existentes antes das tarefas secundárias de inicialização.
         if not getattr(bot, "_panels_restored_this_process", False):
