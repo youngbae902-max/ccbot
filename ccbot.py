@@ -1600,10 +1600,18 @@ class ConfirmarPagamentoView(discord.ui.View):
                     ticket = None
             if ticket is not None:
                 try:
-                    # Depois de confirmar ou cancelar, apagar a cobrança para não deixar tópico/canal aberto.
-                    await ticket.delete(reason=f"Pedido {txid} processado: {'pago' if aprovado else 'cancelado'}")
+                    if aprovado and isinstance(ticket, discord.Thread) and comprador:
+                        # Mantém o tópico do beat visível para o comprador ver a confirmação.
+                        await ticket.send(
+                            f"{comprador.mention} **Tudo feito! Olha a sua DM para receber seu produto.**"
+                        )
+                    else:
+                        # Pedidos cancelados e cobranças que não são tópicos de beat continuam sendo apagados.
+                        await ticket.delete(
+                            reason=f"Pedido {txid} processado: {'pago' if aprovado else 'cancelado'}"
+                        )
                 except discord.HTTPException:
-                    log.exception("Falha ao apagar o tópico/canal do pedido %s", txid)
+                    log.exception("Falha ao avisar/apagar o tópico/canal do pedido %s", txid)
 
         if interaction.message and interaction.message.embeds:
             embed = interaction.message.embeds[0]
