@@ -625,24 +625,30 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
         try:
             result = await asyncio.wait_for(asyncio.to_thread(criar_cobranca), timeout=30)
             pix = result.get("pix", result)
-            qr_text = str(pix.get("qrCodeText") or pix.get("copyPaste") or "")
+            if isinstance(pix, list):
+                pix = pix[0] if pix else {}
+            if not isinstance(pix, dict):
+                raise ValueError("Formato inesperado da resposta da EvoPay.")
+            qr_text = str(pix.get("qrCodeText") or pix.get("copyPaste") or pix.get("pixCopyPaste") or "")
             qr_url = str(pix.get("qrCodeUrl") or "")
-            transaction_id = str(pix.get("id") or "")
-            status_pagamento = str(pix.get("status") or "PENDING")
-            if not qr_text and not qr_url:
-                raise ValueError("A EvoPay respondeu sem código Pix nem URL do QR Code.")
-            if transaction_id:
-                pending_pix[transaction_id] = {
-                    "transaction_id": transaction_id,
-                    "external_reference": external_reference,
-                    "discord_user_id": str(interaction.user.id),
-                    "guild_id": str(interaction.guild.id) if interaction.guild else "",
-                    "product_name": self.nome_beat,
-                    "amount": self.valor,
-                    "status": status_pagamento,
-                    "created_at": datetime.now().isoformat()
-                }
-                save_json(EVOPAY_PENDING_FILE, pending_pix)
+            transaction_id = str(pix.get("id") or pix.get("transactionId") or "").strip()
+            status_pagamento = str(pix.get("status") or "PENDING").upper()
+            if not transaction_id:
+                raise ValueError("A EvoPay não retornou o ID da transação; não é seguro acompanhar o pagamento.")
+            if not qr_text and not qr_url and not pix.get("qrCodeBase64"):
+                raise ValueError("A EvoPay respondeu sem código Pix nem QR Code.")
+            pending_pix[transaction_id] = {
+                "transaction_id": transaction_id,
+                "external_reference": external_reference,
+                "discord_user_id": str(interaction.user.id),
+                "guild_id": str(interaction.guild.id) if interaction.guild else "",
+                "product_name": self.nome_beat,
+                "amount": self.valor,
+                "status": status_pagamento,
+                "processed": False,
+                "created_at": datetime.now().isoformat()
+            }
+            save_json(EVOPAY_PENDING_FILE, pending_pix)
 
             embed = discord.Embed(
                 title="💠 Pix gerado — CC BOT",
@@ -3907,25 +3913,32 @@ async def verificar_pagamentos_pix():
             if status_atual == "COMPLETED" and not registro.get("processed"):
                 guild_id = int(registro.get("guild_id") or 0)
                 user_id = int(registro.get("discord_user_id") or 0)
+                role_ok = False
                 guild = bot.get_guild(guild_id) if guild_id else None
                 if guild and user_id:
                     try:
                         member = guild.get_member(user_id) or await guild.fetch_member(user_id)
                         roles = await garantir_cargos(guild)
                         role_cliente = roles.get("cliente")
-                        if role_cliente and role_cliente not in member.roles:
-                            await member.add_roles(role_cliente, reason="Pagamento Pix confirmado pela EvoPay")
+                        if role_cliente:
+                            if role_cliente not in member.roles:
+                                await member.add_roles(role_cliente, reason="Pagamento Pix confirmado pela EvoPay")
+                            role_ok = role_cliente in member.roles or role_cliente in getattr(member, "roles", [])
                     except Exception:
                         log.exception("Pix pago, mas não consegui atribuir Cliente ao usuário %s", user_id)
-                registro["processed"] = True
-                registro["paid_at"] = datetime.now().isoformat()
+                registro["paid_at"] = registro.get("paid_at") or datetime.now().isoformat()
+                registro["processed"] = bool(role_ok)
                 save_json(EVOPAY_PENDING_FILE, pending_pix)
-                await notify_admin(
-                    f"PIX CONFIRMADO AUTOMATICAMENTE\nProduto: {registro.get('product_name', 'Beat')}\n"
-                    f"Valor: R$ {float(registro.get('amount', 0)):.2f}\n"
-                    f"Cliente ID: {user_id}\nTransação: {transaction_id}\n"
-                    "Cargo Cliente atribuído quando possível. A entrega do arquivo ainda precisa ser feita pela administração."
-                )
+                if not registro.get("admin_notified"):
+                    await notify_admin(
+                        f"PIX CONFIRMADO AUTOMATICAMENTE\nProduto: {registro.get('product_name', 'Beat')}\n"
+                        f"Valor: R$ {float(registro.get('amount', 0)):.2f}\n"
+                        f"Cliente ID: {user_id}\nTransação: {transaction_id}\n"
+                        + ("Cargo Cliente atribuído. " if role_ok else "Cargo Cliente ainda precisa ser atribuído manualmente. ")
+                        + "A entrega do arquivo ainda precisa ser feita pela administração."
+                    )
+                    registro["admin_notified"] = True
+                    save_json(EVOPAY_PENDING_FILE, pending_pix)
         except Exception:
             log.exception("Falha ao consultar status do Pix %s", transaction_id)
 
