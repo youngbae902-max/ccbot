@@ -996,7 +996,8 @@ class PackPerguntasView(discord.ui.LayoutView):
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "Confira os dados acima. Se estiver tudo certo, toque em **Enviar pedido**."
             )
-            enviar = discord.ui.Button(label="Enviar pedido", emoji="📨", style=discord.ButtonStyle.success, custom_id="ccbot:pack:finalizar")            voltar = discord.ui.Button(label="Voltar", style=discord.ButtonStyle.secondary, custom_id="ccbot:pack:voltar")
+            enviar = discord.ui.Button(label="Enviar pedido", emoji="📨", style=discord.ButtonStyle.success, custom_id="ccbot:pack:finalizar")
+            voltar = discord.ui.Button(label="Voltar", style=discord.ButtonStyle.secondary, custom_id="ccbot:pack:voltar")
             enviar.callback = self.finalizar
             voltar.callback = self.voltar
             itens = [voltar, enviar]
@@ -3518,7 +3519,8 @@ async def painel_acapellas(interaction: discord.Interaction):
                 mensagem.author.id == bot.user.id
                 and mensagem.embeds
                 and mensagem.embeds[0].title == "🎙️ ACAPELLAS DE MCs FAMOSOS"
-            ):                painel_existente = mensagem
+            ):
+                painel_existente = mensagem
                 break
 
         if painel_existente:
@@ -4670,7 +4672,8 @@ async def on_app_command_error(interaction, error):
         else:
             await interaction.response.send_message(
                 "Ocorreu um erro. O administrador foi avisado.", ephemeral=True
-            )    except Exception:
+            )
+    except Exception:
         pass
     await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
