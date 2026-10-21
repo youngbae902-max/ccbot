@@ -1601,10 +1601,12 @@ class ConfirmarPagamentoView(discord.ui.View):
             if ticket is not None:
                 try:
                     if aprovado and isinstance(ticket, discord.Thread) and comprador:
-                        # Mantém o tópico do beat visível para o comprador ver a confirmação.
+                        # Avisa no tópico e apaga o tópico após 1 minuto.
                         await ticket.send(
                             f"{comprador.mention} **Tudo feito! Olha a sua DM para receber seu produto.**"
                         )
+                        await asyncio.sleep(60)
+                        await ticket.delete(reason=f"Tópico do pedido {txid} encerrado após 1 minuto")
                     else:
                         # Pedidos cancelados e cobranças que não são tópicos de beat continuam sendo apagados.
                         await ticket.delete(
