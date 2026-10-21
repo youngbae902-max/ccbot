@@ -3785,6 +3785,51 @@ async def antes_de_atualizar_contador_vendas():
     await bot.wait_until_ready()
 
 
+@bot.tree.command(name="limpar-boas-vindas", description="Apagar as mensagens do canal de boas-vindas")
+async def limpar_boas_vindas(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador pode executar esta limpeza.", ephemeral=True
+        )
+        return
+    canal = bot.get_channel(WELCOME_CHANNEL_ID)
+    if canal is None:
+        try:
+            canal = await bot.fetch_channel(WELCOME_CHANNEL_ID)
+        except Exception:
+            await interaction.response.send_message(
+                "Não consegui acessar o canal de boas-vindas.", ephemeral=True
+            )
+            return
+    if not isinstance(canal, discord.TextChannel):
+        await interaction.response.send_message(
+            "O canal configurado não é um canal de texto.", ephemeral=True
+        )
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    apagadas = 0
+    try:
+        async for mensagem in canal.history(limit=None, oldest_first=True):
+            try:
+                await mensagem.delete()
+                apagadas += 1
+            except discord.NotFound:
+                continue
+            except discord.HTTPException:
+                log.exception("Falha ao apagar mensagem %s do canal de boas-vindas.", mensagem.id)
+        await interaction.followup.send(
+            f"Limpeza concluída: {apagadas} mensagens apagadas de <#{WELCOME_CHANNEL_ID}>. Nenhum comando ou função do bot foi removido.",
+            ephemeral=True
+        )
+        log.info("Limpeza do canal de boas-vindas concluída: %s mensagens apagadas.", apagadas)
+    except Exception as exc:
+        log.exception("Falha na limpeza do canal de boas-vindas.")
+        await interaction.followup.send(
+            f"A limpeza parou por um erro ({type(exc).__name__}). Verifique as permissões do bot.",
+            ephemeral=True
+        )
+
+
 @bot.event
 async def on_member_join(member: discord.Member):
     try:
