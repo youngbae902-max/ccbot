@@ -3610,6 +3610,77 @@ async def restaurar_botoes_beats_existentes():
     )
 
 
+async def restaurar_paineis_existentes():
+    """Reanexa callbacks aos painéis já publicados, editando as mensagens existentes."""
+    guild = bot.get_guild(1561513043886743562)
+    if guild is None:
+        log.warning("Restauração de painéis adiada: servidor não está disponível.")
+        return
+
+    conhecidos = [
+        ("Gerador de Samples", SAMPLES_PANEL_CHANNEL_ID, SAMPLES_PANEL_MESSAGE_ID, GeradorSamplesView),
+        ("Pack Personalizado", PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID, PackPersonalizadoView),
+    ]
+    atualizados = 0
+    vistos = set()
+
+    # Atualiza as mensagens conhecidas pelos IDs, sem criar cópias.
+    for nome, canal_id, mensagem_id, criar_view in conhecidos:
+        try:
+            canal = bot.get_channel(canal_id) or await bot.fetch_channel(canal_id)
+            mensagem = await canal.fetch_message(mensagem_id)
+            await mensagem.edit(view=criar_view())
+            vistos.add(mensagem.id)
+            atualizados += 1
+            log.info("Painel existente restaurado: %s canal=%s mensagem=%s", nome, canal_id, mensagem_id)
+        except discord.NotFound:
+            log.warning("Painel conhecido não encontrado: %s canal=%s mensagem=%s", nome, canal_id, mensagem_id)
+        except Exception:
+            log.exception("Falha ao restaurar painel conhecido: %s", nome)
+
+    # Procura outros painéis pelos seus embeds e atualiza as mensagens encontradas.
+    for canal in guild.text_channels:
+        try:
+            async for mensagem in canal.history(limit=200):
+                if mensagem.id in vistos or mensagem.author.id != bot.user.id or not mensagem.embeds:
+                    continue
+
+                embed = mensagem.embeds[0]
+                titulo = (embed.title or "").casefold()
+                rodape = (embed.footer.text or "").casefold() if embed.footer else ""
+                view = None
+                nome = None
+
+                if "arrumador de projetos" in rodape or "arrumador de arquivos" in titulo:
+                    view, nome = ArrumadorPainelView(), "Arrumador de Projetos"
+                elif "busca de acapellas" in rodape or "acapellas de mcs famosos" in titulo:
+                    view, nome = AcapellasActivityView(), "Acapellas"
+                elif "c.c © • trampar conosco" in rodape:
+                    view, nome = TramparConoscoView(), "Trampar Conosco"
+                elif "venda de beats" in rodape:
+                    # Beats são restaurados pela migração específica, que recupera a prévia.
+                    continue
+
+                if view is None:
+                    continue
+
+                try:
+                    await mensagem.edit(view=view)
+                    vistos.add(mensagem.id)
+                    atualizados += 1
+                    log.info("Painel existente restaurado: %s canal=%s mensagem=%s", nome, canal.id, mensagem.id)
+                except discord.NotFound:
+                    continue
+                except discord.HTTPException:
+                    log.exception("Falha ao editar painel existente: %s mensagem=%s", nome, mensagem.id)
+        except discord.Forbidden:
+            log.warning("Sem permissão para ler histórico do canal %s durante restauração.", canal.id)
+        except discord.HTTPException:
+            log.exception("Falha ao examinar histórico do canal %s durante restauração.", canal.id)
+
+    log.info("Restauração de painéis concluída: %s mensagens existentes atualizadas.", atualizados)
+
+
 async def on_ready():
     try:
         guild = discord.Object(id=1561513043886743562)
@@ -3627,7 +3698,12 @@ async def on_ready():
         log.info("Comandos sincronizados somente no servidor %s: %s", guild.id, len(synced))
         log.info("Conectado como %s", bot.user)
 
-        # Corrige publicações antigas cujos botões não tinham IDs persistentes.
+        # Repara mensagens existentes antes das tarefas secundárias de inicialização.
+        if not getattr(bot, "_panels_restored_this_process", False):
+            await restaurar_paineis_existentes()
+            bot._panels_restored_this_process = True
+
+        # Corrige publicações antigas de beats cujos botões não tinham IDs persistentes.
         if not getattr(bot, "_beats_migrated_this_process", False):
             await restaurar_botoes_beats_existentes()
             bot._beats_migrated_this_process = True
