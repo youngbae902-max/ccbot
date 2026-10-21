@@ -679,19 +679,30 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
             # Mostra somente diagnóstico não sensível; nunca expõe CPF, e-mail ou chaves.
             detalhe_seguro = ""
             texto_erro = str(exc)
-            if "invalidFields" in texto_erro:
-                try:
-                    dados_erro = json.loads(texto_erro[texto_erro.index("{"):])
+            try:
+                inicio_json = texto_erro.find("{")
+                if inicio_json >= 0:
+                    dados_erro = json.loads(texto_erro[inicio_json:])
                     campos = dados_erro.get("invalidFields", [])
                     if campos:
-                        detalhe_seguro = "\\nCampos recusados: " + ", ".join(str(c) for c in campos)
-                except Exception:
-                    pass
+                        detalhe_seguro = "\nCampos recusados: " + ", ".join(
+                            str(c) for c in campos if str(c) in {"amount", "payerName", "payerDocument", "payerEmail", "externalReference"}
+                        )
+                    elif dados_erro.get("providerStatus"):
+                        mensagem_provedor = str(dados_erro.get("providerMessage") or "Sem detalhe fornecido").replace("\n", " ")[:180]
+                        detalhe_seguro = (
+                            "\nEvoPay HTTP " + str(dados_erro["providerStatus"])
+                            + ": " + mensagem_provedor
+                        )
+                    elif dados_erro.get("error"):
+                        detalhe_seguro = "\nDetalhe: " + str(dados_erro["error"])[:160]
+            except Exception:
+                pass
             await interaction.edit_original_response(
                 content=(
                     "❌ Não consegui gerar o Pix. Nenhuma entrega foi liberada."
                     + detalhe_seguro
-                    + "\\nO administrador pode consultar o diagnóstico técnico nos logs do CC BOT."
+                    + "\nO administrador pode consultar o diagnóstico técnico nos logs do CC BOT."
                 ),
                 embed=None,
                 view=None
