@@ -1386,8 +1386,9 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
 
     user = interaction.user
     nome_usuario = str(getattr(user, "global_name", None) or user.name)
-    nome_txid = re.sub(r"[^A-Za-z0-9]", "", nome_usuario.upper())[:10] or "USUARIO"
-    txid = f"CC{nome_txid}{uuid.uuid4().hex[:10].upper()}"
+    # Identificador Pix baseado somente no nome do usuário, sem prefixo nem sufixo aleatório.
+    nome_txid = re.sub(r"[^A-Za-z0-9]", "", nome_usuario.upper())[:25] or "USUARIO"
+    txid = nome_txid
     payload = gerar_payload_pix(chave, nome_recebedor, cidade, float(valor), txid)
     imagem = qrcode.make(payload)
     buffer = io.BytesIO()
