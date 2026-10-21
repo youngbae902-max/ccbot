@@ -1419,10 +1419,9 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
                 pedido_antigo["processed_by"] = "sistema"
                 save_json(PIX_ORDERS_FILE, pix_orders)
             else:
-                raise ValueError(
-                    "Já existe uma cobrança pendente ativa para esse nome. "
-                    "Finalize ou cancele o pedido anterior antes de abrir outro."
-                )
+                # Permite novas cobranças mesmo quando há outra pendente ativa.
+                # Cada pedido mantém seu próprio TXID e registro, sem bloquear o comprador.
+                pass
         # Nunca sobrescreve o pedido antigo: cria um identificador técnico único.
         sufixo = 2
         while True:
