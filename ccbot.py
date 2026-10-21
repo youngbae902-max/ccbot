@@ -6,6 +6,7 @@ import json
 import logging
 import zipfile
 import io
+import re
 import uuid
 import urllib.request
 import urllib.error
@@ -576,7 +577,9 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
 
     def __init__(self, nome_beat: str, preco_texto: str, valor: float, nome_usuario: str):
         super().__init__(timeout=300)
-        self.nome_cliente.default = (nome_usuario or "")[:120]
+        nome_preenchido = re.sub(r"[^a-zA-ZÀ-ÖØ-öø-ÿ\s'.-]", "", nome_usuario or "")
+        nome_preenchido = re.sub(r"\s+", " ", nome_preenchido).strip()
+        self.nome_cliente.default = (nome_preenchido or "Comprador")[:120]
         self.nome_beat = nome_beat
         self.preco_texto = preco_texto
         self.valor = valor
@@ -597,10 +600,12 @@ class PagamentoPixModal(discord.ui.Modal, title="Pagar beat por Pix"):
             log.error("Configuração local da EvoPay indisponível: %s", exc)
             return
 
+        nome_pagador = re.sub(r"[^a-zA-ZÀ-ÖØ-öø-ÿ\s'.-]", "", str(self.nome_cliente.value))
+        nome_pagador = re.sub(r"\s+", " ", nome_pagador).strip() or "Comprador"
         external_reference = "CC-" + uuid.uuid4().hex
         payload = {
             "amount": self.valor,
-            "payerName": str(self.nome_cliente.value).strip(),
+            "payerName": nome_pagador,
             "payerDocument": str(self.cpf_cnpj.value).strip(),
             "payerEmail": str(self.email.value).strip(),
             "externalReference": external_reference,
