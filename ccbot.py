@@ -2791,8 +2791,9 @@ def criar_embed_painel_icones():
             "1. Ative o monitoramento.\n"
             "2. Cadastre o nome e a quantidade.\n"
             "3. Baixe as fotos do Pinterest para a pasta Pins.\n"
-            "4. Ao atingir a quantidade, o bot publica o álbum automaticamente.\n\n"
-            "A opção de importar publica as fotos que já estão na pasta."
+            "4. Ao atingir a quantidade, o canal recebe uma prévia com o botão **Ver icons**.\n"
+            "5. O botão abre uma categoria privada com todas as fotos daquele álbum.\n\n"
+            "A opção de importar usa as fotos que já estão na pasta."
         ),
         color=discord.Color.from_rgb(190, 45, 75)
     )
