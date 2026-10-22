@@ -1602,12 +1602,12 @@ class CopiarCodigoPixView(discord.ui.View):
             )
             return
         await interaction.response.send_message(
-            "📎 **Como enviar o comprovante**\n"
-            "1. Depois de pagar, toque no **+** ao lado da caixa de mensagem deste canal.\n"
-            "2. Escolha a imagem ou o PDF do comprovante e envie aqui.\n"
-            "3. O bot encaminhará o arquivo para **Confirmar pagamentos**.\n\n"
+            "📎 **Enviar comprovante sem publicar no chat**\n"
+            "Use o comando **/comprovante** e selecione o arquivo no campo **arquivo**.\n"
+            "O arquivo será encaminhado diretamente para a conferência do administrador; "
+            "ele não será publicado como mensagem no canal.\n\n"
             "Aceitamos PNG, JPG, WEBP ou PDF de até 10 MB. "
-            "O pagamento só será liberado depois da conferência manual do administrador.",
+            "O pagamento só será liberado depois da conferência manual.",
             ephemeral=True
         )
 
@@ -4703,6 +4703,96 @@ async def on_ready():
         log.exception("Falha ao iniciar ou sincronizar comandos")
         await notify_admin(f"Falha ao iniciar o CC BOT: {exc}")
 
+
+
+@bot.tree.command(name="comprovante", description="Enviar o arquivo do comprovante Pix sem publicar no chat")
+@app_commands.describe(arquivo="Imagem ou PDF do comprovante (até 10 MB)")
+async def enviar_comprovante_pix(interaction: discord.Interaction, arquivo: discord.Attachment):
+    if interaction.guild is None:
+        await interaction.response.send_message("Use este comando dentro do canal privado do seu pedido.", ephemeral=True)
+        return
+
+    pedido = next(
+        (
+            item for item in pix_orders.values()
+            if str(item.get("ticket_channel_id")) == str(interaction.channel_id)
+            and str(item.get("discord_id")) == str(interaction.user.id)
+            and item.get("status") == "aguardando_confirmacao_manual"
+        ),
+        None
+    )
+    if not pedido:
+        await interaction.response.send_message(
+            "Não encontrei um pedido seu aguardando comprovante neste canal.",
+            ephemeral=True
+        )
+        return
+
+    nome = Path(arquivo.filename).name
+    tipo = (arquivo.content_type or "").lower()
+    extensao = Path(nome).suffix.lower()
+    if not (
+        tipo.startswith("image/")
+        or tipo == "application/pdf"
+        or extensao in {".png", ".jpg", ".jpeg", ".webp", ".pdf"}
+    ):
+        await interaction.response.send_message(
+            "Formato inválido. Envie PNG, JPG, WEBP ou PDF.", ephemeral=True
+        )
+        return
+    if arquivo.size > 10 * 1024 * 1024:
+        await interaction.response.send_message(
+            "O arquivo deve ter até 10 MB.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        dados = await arquivo.read(use_cached=True)
+        if not dados or len(dados) > 10 * 1024 * 1024:
+            await interaction.followup.send(
+                "Não consegui ler o arquivo ou ele ultrapassa 10 MB.", ephemeral=True
+            )
+            return
+
+        canal_admin = (
+            interaction.guild.get_channel(int(pedido.get("admin_channel_id", 0)))
+            if pedido.get("admin_channel_id") else None
+        )
+        if canal_admin is None:
+            canal_admin = await obter_canal_confirmacao(interaction.guild)
+
+        aviso = discord.Embed(
+            title="🧾 COMPROVANTE RECEBIDO",
+            description=(
+                f"**Pedido:** {pedido.get('txid')}\n"
+                f"**Produto:** {pedido.get('product')}\n"
+                f"**Valor esperado:** {formatar_reais(pedido.get('amount', 0))}\n"
+                f"**Cliente:** {interaction.user.mention} (ID {interaction.user.id})\n"
+                f"**Pedido original:** <#{interaction.channel_id}>\n\n"
+                "Confira o recebimento na conta antes de aprovar. O arquivo não confirma o pagamento automaticamente."
+            ),
+            color=discord.Color.gold(),
+            timestamp=discord.utils.utcnow()
+        )
+        await canal_admin.send(
+            embed=aviso,
+            file=discord.File(io.BytesIO(dados), filename=nome[:180])
+        )
+        pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
+        pedido["receipt_filename"] = nome
+        pedido["receipt_message_id"] = str(interaction.id)
+        save_json(PIX_ORDERS_FILE, pix_orders)
+        await interaction.followup.send(
+            "✅ Comprovante enviado para conferência. Ele não foi publicado no chat.",
+            ephemeral=True
+        )
+    except Exception as exc:
+        log.exception("Falha ao encaminhar comprovante do pedido %s", pedido.get("txid"))
+        await interaction.followup.send(
+            "Não consegui encaminhar o arquivo. Tente novamente ou avise o administrador.",
+            ephemeral=True
+        )
 
 
 @bot.listen("on_message")
