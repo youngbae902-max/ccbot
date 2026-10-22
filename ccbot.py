@@ -1604,8 +1604,8 @@ class CopiarCodigoPixView(discord.ui.View):
         await interaction.response.send_message(
             "📎 **Enviar comprovante sem publicar no chat**\n"
             "Use o comando **/comprovante** e selecione o arquivo no campo **arquivo**.\n"
-            "O arquivo será encaminhado diretamente para a conferência do administrador; "
-            "ele não será publicado como mensagem no canal.\n\n"
+            "O arquivo será anexado à própria mensagem **PAGAMENTO PENDENTE** em "
+            "**Confirmar pagamentos**, junto dos botões de aprovação. Não será criada outra mensagem.\n\n"
             "Aceitamos PNG, JPG, WEBP ou PDF de até 10 MB. "
             "O pagamento só será liberado depois da conferência manual.",
             ephemeral=True
