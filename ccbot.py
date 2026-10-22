@@ -2449,10 +2449,13 @@ def icon_state():
     state.setdefault("monitoring", False)
     state.setdefault("pending", None)
     state.setdefault("known_files", [])
+    state.setdefault("post_mode", "single")
+    state.setdefault("last_scan_count", 0)
+    state.setdefault("last_error", "")
     return state
 
 async def publicar_album_icone(nome, paths):
-    """Publica o álbum completo no canal, com título e botão para abrir a versão privada."""
+    """Publica o ícone no modo escolhido na Central de Ícones."""
     if not paths:
         raise ValueError("Nenhuma foto encontrada para publicar.")
     canal = bot.get_channel(ICONS_CHANNEL_ID)
@@ -2462,7 +2465,8 @@ async def publicar_album_icone(nome, paths):
         raise TypeError("O canal de ícones configurado não é um canal de texto.")
 
     nome = str(nome).strip() or "Ícone"
-    caminhos = [str(Path(path).resolve()) for path in paths]
+    paths = [Path(p) for p in paths]
+    caminhos = [str(p.resolve()) for p in paths]
     chave = nome.casefold()
     state = icon_state()
     albuns = state.setdefault("albums", {})
@@ -2472,6 +2476,24 @@ async def publicar_album_icone(nome, paths):
         "private_categories": albuns.get(chave, {}).get("private_categories", {})
     }
     save_json(DATA_FILE, settings)
+
+    modo = state.get("post_mode", "single")
+    if modo != "album":
+        arquivo = discord.File(str(paths[0]), filename=paths[0].name)
+        embed = discord.Embed(
+            title=f"🖼️ Icon - {nome}",
+            color=discord.Color.from_rgb(0, 0, 0)
+        )
+        embed.set_footer(text="CC BOT • Icons")
+        try:
+            # Anexo primeiro, embed abaixo: mantém o visual antigo do post.
+            await canal.send(file=arquivo, embed=embed, view=IconVerIconsView())
+        finally:
+            try:
+                arquivo.close()
+            except Exception:
+                pass
+        return len(paths)
 
     enviados = 0
     for inicio in range(0, len(paths), 10):
@@ -2486,10 +2508,11 @@ async def publicar_album_icone(nome, paths):
                 color=discord.Color.from_rgb(0, 0, 0)
             )
             embed.set_footer(text="CC BOT • Icons")
-            if inicio == 0:
-                await canal.send(embed=embed, files=arquivos, view=IconVerIconsView())
-            else:
-                await canal.send(embed=embed, files=arquivos)
+            await canal.send(
+                embed=embed,
+                files=arquivos,
+                view=IconVerIconsView() if inicio == 0 else None
+            )
             enviados += len(lote)
         finally:
             for arquivo in arquivos:
@@ -2528,7 +2551,14 @@ class IconVerIconsButton(discord.ui.Button):
             )
             return
 
-        nome = embeds[0].title.strip()
+        titulo = embeds[0].title.strip()
+        nome = titulo
+        if nome.startswith("🖼️ Icon - "):
+            nome = nome[len("🖼️ Icon - "):].strip()
+        elif nome.startswith("Icon - "):
+            nome = nome[len("Icon - "):].strip()
+        if nome.endswith(" (continuação)"):
+            nome = nome[:-len(" (continuação)")].strip()
         chave = nome.casefold()
         state = icon_state()
         albuns = state.setdefault("albums", {})
@@ -2720,7 +2750,7 @@ class IconImportarModal(discord.ui.Modal, title="Importar fotos existentes"):
         try:
             total = await publicar_album_icone(str(self.nome.value).strip(), paths)
             state = icon_state()
-            state["known_files"] = list(set(state.get("known_files", [])) | {str(p.resolve()) for p in paths})
+            state["known_files"] = list(set(state.get("known_files", [])) | {icon_file_signature(p) for p in paths})
             save_json(DATA_FILE, settings)
             await interaction.followup.send(
                 f"Icon - {str(self.nome.value).strip()} publicado com {total} foto(s).",
@@ -2732,6 +2762,47 @@ class IconImportarModal(discord.ui.Modal, title="Importar fotos existentes"):
                 f"Não consegui publicar as fotos ({type(exc).__name__}). Confira as permissões do bot no canal.",
                 ephemeral=True
             )
+
+class IconPostModeSelect(discord.ui.Select):
+    def __init__(self):
+        state = icon_state()
+        atual = state.get("post_mode", "single")
+        options = [
+            discord.SelectOption(
+                label="Post único (capa + Ver ícones)",
+                value="single",
+                description="Mostra uma capa; as fotos completas ficam atrás do botão.",
+                emoji="🖼️",
+                default=atual == "single"
+            ),
+            discord.SelectOption(
+                label="Post em álbum (todas as fotos)",
+                value="album",
+                description="Publica as fotos no canal em grupos de até 10.",
+                emoji="📚",
+                default=atual == "album"
+            )
+        ]
+        super().__init__(
+            placeholder="Tipo de publicação: " + ("Post único" if atual == "single" else "Post em álbum"),
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="ccbot:icons_post_mode"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        state = icon_state()
+        state["post_mode"] = self.values[0]
+        save_json(DATA_FILE, settings)
+        await interaction.response.edit_message(
+            embed=criar_embed_painel_icones(),
+            view=PainelIconesView()
+        )
+
 
 class IconMonitoramentoButton(discord.ui.Button):
     def __init__(self):
@@ -2789,6 +2860,7 @@ class PainelIconesView(discord.ui.View):
     def __init__(self):
         # Painel persistente: os botões continuam funcionando após 5 minutos e reinícios.
         super().__init__(timeout=None)
+        self.add_item(IconPostModeSelect())
         self.add_item(IconMonitoramentoButton())
         self.add_item(IconAdicionarButton())
         self.add_item(IconImportarButton())
@@ -2798,6 +2870,8 @@ def criar_embed_painel_icones():
     state = icon_state()
     pendente = state.get("pending")
     status = "Ativo" if state.get("monitoring") else "Desativado"
+    modo = "Post único (capa + botão)" if state.get("post_mode", "single") == "single" else "Post em álbum"
+    quantidade_pasta = len(icon_files())
     aguardando = (
         f"Ícone em andamento: {pendente['name']} · {pendente['quantity']} fotos"
         if pendente else "Ícone em andamento: nenhum"
@@ -2805,15 +2879,19 @@ def criar_embed_painel_icones():
     embed = discord.Embed(
         title="Central de Ícones",
         description=(
-            f"Monitoramento: {status}\n{aguardando}\n\n"
+            f"Monitoramento: {status}\n"
+            f"Tipo de post: {modo}\n"
+            f"Fotos encontradas na pasta: {quantidade_pasta}\n"
+            f"{aguardando}\n\n"
             f"Pasta: {PINTEREST_PINS_DIR}\n"
-            f"Canal de publicação: <#{ICONS_CHANNEL_ID}>\n\n"
-            "1. Ative o monitoramento.\n"
-            "2. Cadastre o nome e a quantidade.\n"
-            "3. Baixe as fotos do Pinterest para a pasta Pins.\n"
-            "4. Ao atingir a quantidade, o canal recebe uma prévia com o botão **Ver icons**.\n"
-            "5. O botão abre uma categoria privada com todas as fotos daquele álbum.\n\n"
-            "A opção de importar usa as fotos que já estão na pasta."
+            f"Canal de publicação: <#{ICONS_CHANNEL_ID}>\n"
+            + (f"Último erro: {state['last_error']}\n" if state.get("last_error") else "")
+            + "\n1. Escolha o tipo de publicação no menu.\n"
+            "2. Ative o monitoramento.\n"
+            "3. Cadastre o nome e a quantidade de fotos novas.\n"
+            "4. Baixe as fotos para a pasta Pins; ao atingir a quantidade, o post será publicado automaticamente.\n"
+            "5. Em post único, a pessoa clica em **Ver icons** para acessar todas as fotos. No post em álbum, as fotos ficam públicas e baixáveis.\n\n"
+            "Importar fotos publica imediatamente as imagens que já estão na pasta."
         ),
         color=discord.Color.from_rgb(190, 45, 75)
     )
@@ -2823,40 +2901,56 @@ def criar_embed_painel_icones():
 @tasks.loop(seconds=ICON_POLL_SECONDS)
 async def monitorar_pasta_icones():
     state = icon_state()
-    if not state.get("monitoring"):
-        return
-    pendente = state.get("pending")
-    if not isinstance(pendente, dict):
-        return
     try:
+        arquivos_pasta = icon_files()
+        state["last_scan_count"] = len(arquivos_pasta)
+        if not state.get("monitoring"):
+            return
+        pendente = state.get("pending")
+        if not isinstance(pendente, dict):
+            return
+
         baseline = set(pendente.get("baseline", []))
         caminhos = []
-        for path in icon_files():
+        agora = datetime.now().timestamp()
+        for path in arquivos_pasta:
             resolved = str(path.resolve())
-            # Compatibilidade com cadastros antigos que guardavam apenas o caminho.
-            if resolved in baseline:
-                continue
             try:
                 assinatura = icon_file_signature(path)
+                stat = path.stat()
             except OSError:
                 continue
-            if assinatura not in baseline:
-                caminhos.append(path)
+
+            # Não contar um download enquanto ainda está sendo gravado.
+            if agora - stat.st_mtime < 2:
+                continue
+            # Formato antigo guardava apenas o caminho; formato atual guarda assinatura.
+            if resolved in baseline or assinatura in baseline:
+                continue
+            caminhos.append(path)
+
         quantidade = int(pendente.get("quantity", 0))
         if quantidade < 1 or len(caminhos) < quantidade:
             return
 
         selecionadas = caminhos[:quantidade]
         nome = str(pendente.get("name", "Ícone")).strip() or "Ícone"
-        await publicar_album_icone(nome, selecionadas)
-        state["known_files"] = list(set(state.get("known_files", [])) | {str(p.resolve()) for p in selecionadas})
+        total = await publicar_album_icone(nome, selecionadas)
+        state["known_files"] = list(set(state.get("known_files", [])) | {
+            icon_file_signature(p) for p in selecionadas
+        })
         state["pending"] = None
+        state["last_error"] = ""
         save_json(DATA_FILE, settings)
         await notify_admin(
-            f"Ícone publicado automaticamente: {nome}\nFotos: {len(selecionadas)}\nCanal: <#{ICONS_CHANNEL_ID}>"
+            f"Ícone publicado automaticamente: {nome}\nFotos contabilizadas: {len(selecionadas)}\nModo: {state.get('post_mode', 'single')}\nCanal: <#{ICONS_CHANNEL_ID}>"
         )
-    except Exception:
+        log.info("Monitor de ícones publicou %s foto(s) para '%s'.", total, nome)
+    except Exception as exc:
+        state["last_error"] = f"{type(exc).__name__}: {exc}"[:500]
+        save_json(DATA_FILE, settings)
         log.exception("Erro no monitoramento automático da pasta Pins")
+
 
 @monitorar_pasta_icones.before_loop
 async def antes_de_monitorar_pasta_icones():
