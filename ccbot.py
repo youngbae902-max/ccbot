@@ -2968,19 +2968,18 @@ async def analisar_hierarquia(interaction: discord.Interaction):
 
 
 HIERARQUIA_CATEGORIAS = {
-    "admin": {"id": 1561513258211352626, "nome": "administration", "posicao": 0},
-    "welcome": {"id": 1561513260501569576, "nome": "information", "posicao": 1},
-    "lojas": {"id": 1561513261424447609, "nome": "partners", "posicao": 2},
-    "mercado": {"id": 1561513263286452275, "nome": "cc store", "posicao": 3},
-    "comunidade": {"id": 1561513265006116877, "nome": "community", "posicao": 4},
-    "estatisticas": {"id": 1561513258970521743, "nome": "statistics", "posicao": 5},
+    "admin": {"id": 1561513258211352626, "nome": "administration", "posicao": 2},
+    "welcome": {"id": 1561513260501569576, "nome": "information", "posicao": 3},
+    "lojas": {"id": 1561513261424447609, "nome": "partners", "posicao": 5},
+    "mercado": {"id": 1561513263286452275, "nome": "cc store", "posicao": 4},
+    "comunidade": {"id": 1561513265006116877, "nome": "community", "posicao": 6},
+    "estatisticas": {"id": 1561513258970521743, "nome": "statistics", "posicao": 7},
 }
 
 HIERARQUIA_MOVER_CANAIS = [
     (1561513291703128106, 1561513265006116877, 0),  # chat-geral
     (1561513297155592253, 1561513265006116877, 1),  # duvidas
     (1561513293124739173, 1561513265006116877, 2),  # divulgação
-    (1561513290473934998, 1561513265006116877, 3),  # icon
     (1561513293934362705, 1561513265006116877, 4),  # packs-gratis
     (1561513295352037507, 1561513265006116877, 5),  # projetos-gratis
     (1561513284811624480, 1561513263286452275, 0),  # gerador-de-samples
@@ -3053,24 +3052,47 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
             # Reordena canais e categorias globalmente, mantendo as categorias antigas.
             canais_finais = await guild.fetch_channels()
             por_id = {c.id: c for c in canais_finais}
-            ordem_categorias = [1561513258211352626, 1561513260501569576, 1561513261424447609, 1561513263286452275, 1561513265006116877, 1561513258970521743]
+            # Detecta as categorias especiais pelo nome atual, sem depender de IDs desconhecidos.
+            categorias_atuais = [x for x in canais_finais if isinstance(x, discord.CategoryChannel)]
+            categoria_status = next((x for x in categorias_atuais if ("cc •" in x.name.casefold() or "cc ·" in x.name.casefold() or "server status" in x.name.casefold() or "status do servidor" in x.name.casefold())), None)
+            categoria_custom = next((x for x in categorias_atuais if any(p in x.name.casefold() for p in ("customization", "customisation", "personalização", "personalizacao", "ícones", "icones", "icons"))), None)
+            if categoria_custom is None:
+                categoria_custom = await guild.create_category("customization", reason="Separar ícones e personalização do chat da comunidade")
+                alteracoes += 1
+                canais_finais = await guild.fetch_channels()
+                por_id = {x.id: x for x in canais_finais}
+                categorias_atuais = [x for x in canais_finais if isinstance(x, discord.CategoryChannel)]
+            # Coloca canais de ícones/personalização na categoria própria.
+            for canal in canais_finais:
+                nome_canal = canal.name.casefold()
+                if not isinstance(canal, discord.CategoryChannel) and any(p in nome_canal for p in ("icon", "ícone", "icone", "avatar", "personaliz", "banner", "emoji")):
+                    if canal.category_id != categoria_custom.id:
+                        await canal.edit(category=categoria_custom, reason="Separar canais de ícones e personalização")
+                        alteracoes += 1
+            canais_finais = await guild.fetch_channels()
+            por_id = {x.id: x for x in canais_finais}
+            ordem_categorias = [1561513258211352626, 1561513260501569576, 1561513263286452275, 1561513261424447609, 1561513265006116877, 1561513258970521743]
             filhos_por_categoria = {
                 1561513258211352626: [1561513268021821460, 1561698571525423115],
                 1561513260501569576: [1561513269754068992, 1561513274737168414, 1561513277207347310, 1561513277882634404, 1561837934649409696],
                 1561513261424447609: [1561513281049595958, 1561513282265944104, 1561513283171651644],
                 1561513263286452275: [1561513284811624480, 1561513286967500841, 1561513288297353286, 1561513289438199878, 1561513284191125625],
-                1561513265006116877: [1561513291703128106, 1561513297155592253, 1561513293124739173, 1561513290473934998, 1561513293934362705, 1561513295352037507],
+                1561513265006116877: [1561513291703128106, 1561513297155592253, 1561513293124739173, 1561513293934362705, 1561513295352037507],
                 1561513258970521743: [1561513270819692606, 1561513273554374686, 1561513275403800709],
             }
             ordem_final = []
+            if categoria_status and categoria_status.id in por_id:
+                ordem_final.append(por_id[categoria_status.id])
+                ordem_final.extend(x for x in sorted(categoria_status.channels, key=lambda y: y.position) if x.id in por_id)
+            if categoria_custom and categoria_custom.id in por_id:
+                ordem_final.append(por_id[categoria_custom.id])
+                ordem_final.extend(x for x in sorted(categoria_custom.channels, key=lambda y: y.position) if x.id in por_id)
             for categoria_id in ordem_categorias:
-                if categoria_id in por_id:
+                if categoria_id in por_id and por_id[categoria_id] not in ordem_final:
                     ordem_final.append(por_id[categoria_id])
-                ordem_final.extend(por_id[cid] for cid in filhos_por_categoria[categoria_id] if cid in por_id)
-            # Mantém as duas categorias antigas no fim, sem apagá-las.
-            for categoria_antiga_id in (1561513262405648404, 1561513266960666654):
-                if categoria_antiga_id in por_id:
-                    ordem_final.append(por_id[categoria_antiga_id])
+                ordem_final.extend(por_id[cid] for cid in filhos_por_categoria[categoria_id] if cid in por_id and por_id[cid] not in ordem_final)
+            # Mantém todas as categorias/canais restantes, sem apagar nem esconder nada.
+            ordem_final.extend(x for x in sorted(canais_finais, key=lambda y: y.position) if x not in ordem_final)
             for posicao_global, canal in enumerate(ordem_final):
                 if canal.position != posicao_global:
                     await canal.edit(position=posicao_global, reason="Ordem final confirmada pelo administrador")
@@ -4585,6 +4607,27 @@ async def renomear_categorias_principais(guild: discord.Guild):
             log.info("Categoria de vendas renomeada: %s", SALES_INFO_CATEGORY)
         except Exception:
             log.exception("Falha ao renomear a categoria de informações de vendas.")
+    # Traduz nomes comuns de categorias antigas sem tocar na categoria de status "CC •".
+    traducoes = {
+        "personalização": "customization", "personalizacao": "customization",
+        "ícones": "customization", "icones": "customization",
+        "comunidade": "community", "estatísticas": "statistics", "estatisticas": "statistics",
+        "administração": "administration", "administracao": "administration",
+        "informações": "information", "informacoes": "information",
+        "lojas": "partners", "parceiros": "partners", "mercado": "cc store",
+        "informações de vendas": SALES_INFO_CATEGORY, "informacoes de vendas": SALES_INFO_CATEGORY,
+    }
+    for categoria in list(guild.categories):
+        nome_atual = categoria.name.strip().casefold()
+        if "cc •" in nome_atual or "cc ·" in nome_atual:
+            continue
+        destino = traducoes.get(nome_atual)
+        if destino and categoria.name != destino and not discord.utils.get(guild.categories, name=destino):
+            try:
+                await categoria.edit(name=destino, reason="Traduzir categoria antiga para inglês")
+                alteradas += 1
+            except Exception:
+                log.exception("Falha ao traduzir categoria id=%s", categoria.id)
     log.info("Atualização automática de nomes concluída: %s categoria(s) renomeada(s).", alteradas)
 
 
