@@ -4654,71 +4654,138 @@ async def renomear_categorias_principais(guild: discord.Guild):
 
 
 async def aplicar_organizacao_automatica(guild: discord.Guild):
-    """Aplica a hierarquia visual na inicialização, sem exigir botão/painel."""
+    """Organiza categorias e canais separadamente, sem depender do painel manual."""
     if guild is None or guild.me is None or not guild.me.guild_permissions.manage_channels:
         log.warning("Organização automática ignorada: servidor ausente ou sem Gerenciar canais.")
         return
+
     try:
         canais = await guild.fetch_channels()
         categorias = [x for x in canais if isinstance(x, discord.CategoryChannel)]
-        status = next((x for x in categorias if any(p in x.name.casefold() for p in ("cc •", "cc ·", "server status", "status do servidor"))), None)
-        custom = next((x for x in categorias if x.name.casefold() in ("customization", "customisation", "personalização", "personalizacao", "ícones", "icones", "icons")), None)
+
+        status = next((
+            x for x in categorias
+            if any(p in x.name.casefold() for p in ("cc •", "cc ·", "server status", "status do servidor"))
+        ), None)
+
+        custom = next((
+            x for x in categorias
+            if x.name.casefold() in ("customization", "customisation", "personalização", "personalizacao", "ícones", "icones", "icons")
+        ), None)
         if custom is None:
             custom = await guild.create_category("customization", reason="Organização automática CC BOT")
         elif custom.name != "customization":
             await custom.edit(name="customization", reason="Organização automática CC BOT")
-        free = next((x for x in categorias if x.name.casefold() in ("free things", "free stuff", "coisas grátis", "coisas gratis")), None)
+
+        free = next((
+            x for x in categorias
+            if x.name.casefold() in ("free things", "free stuff", "coisas grátis", "coisas gratis")
+        ), None)
         if free is None:
             free = await guild.create_category("free things", reason="Organização automática CC BOT")
         elif free.name != "free things":
             await free.edit(name="free things", reason="Organização automática CC BOT")
-        # Exatamente estes canais vão para as categorias especiais: não move outros canais por palavras parecidas.
-        for cid, dest in ((1561513290473934998, custom), (1561513293934362705, free), (1561513295352037507, free)):
+
+        # Move apenas os canais conhecidos para suas categorias corretas.
+        for cid, dest in (
+            (1561513290473934998, custom),
+            (1561513293934362705, free),
+            (1561513295352037507, free),
+        ):
             ch = guild.get_channel(cid)
             if ch and ch.category_id != dest.id:
                 await ch.edit(category=dest, reason="Organização automática CC BOT")
-        # Renomeia canais de pagamentos sem quebrar as funções que os localizam por nome.
+
+        # Padroniza os nomes dos canais administrativos sem apagar mensagens.
         for ch in list(guild.text_channels):
             if ch.name == "confirmar-pagamentos":
                 await ch.edit(name="pc-confirmar-pagamentos", reason="Padronização visual administrativa")
             elif ch.name == "pagamentos-cancelados":
                 await ch.edit(name="cpp-cancelamentos", reason="Padronização visual administrativa")
-        # Ordem visual: status, customização, stats, loja, comunidade, grátis, informação/admin,
-        # e lojas parceiras no fim. Categorias desconhecidas são preservadas no final.
+
+        # Rebusca depois de renomear/mover; Sales Information pode ter sido criada antes
+        # ou depois desta função, então é identificada pelo nome e fica junto da loja.
         canais = await guild.fetch_channels()
-        by_id = {x.id: x for x in canais}
-        categories = [x for x in canais if isinstance(x, discord.CategoryChannel)]
-        status = next((x for x in categories if any(p in x.name.casefold() for p in ("cc •", "cc ·", "server status", "status do servidor"))), None)
-        custom = next(x for x in categories if x.id == custom.id)
-        free = next(x for x in categories if x.id == free.id)
-        main_order = [1561513258970521743, 1561513263286452275, 1561513265006116877, free.id, 1561513260501569576, 1561513258211352626, 1561513261424447609]
-        children = {
+        categorias = [x for x in canais if isinstance(x, discord.CategoryChannel)]
+        por_id = {x.id: x for x in categorias}
+
+        status = next((
+            x for x in categorias
+            if any(p in x.name.casefold() for p in ("cc •", "cc ·", "server status", "status do servidor"))
+        ), None)
+        custom = por_id.get(custom.id)
+        free = por_id.get(free.id)
+
+        ids_principais = [
+            1561513261424447609,  # partners
+            1561513258970521743,  # statistics
+            1561513263286452275,  # cc store
+        ]
+        categoria_vendas = next((
+            x for x in categorias
+            if x.name.casefold() in ("sales information", "informações de vendas", "informacoes de vendas")
+        ), None)
+        comunidade = por_id.get(1561513265006116877)
+        informacao = por_id.get(1561513260501569576)
+        administracao = por_id.get(1561513258211352626)
+
+        # A ordem é aplicada SOMENTE às categorias, nunca à lista misturada de canais.
+        ordem_preferida = []
+        for cat in (
+            status, custom,
+            por_id.get(1561513261424447609),  # Partners logo abaixo de Customization
+            por_id.get(1561513258970521743),  # Statistics
+            por_id.get(1561513263286452275),  # CC Store
+            categoria_vendas,                 # explicação das vendas junto do mercado
+            comunidade,
+            free,
+            informacao,
+            administracao,
+        ):
+            if cat is not None and cat not in ordem_preferida:
+                ordem_preferida.append(cat)
+
+        # Mantém todas as demais categorias; nenhuma é excluída ou recriada.
+        ordem_preferida.extend(
+            cat for cat in sorted(categorias, key=lambda z: z.position)
+            if cat not in ordem_preferida
+        )
+        for pos, cat in enumerate(ordem_preferida):
+            if cat.position != pos:
+                try:
+                    await cat.edit(position=pos, reason="Hierarquia automática CC BOT — ordem de categorias")
+                except discord.HTTPException:
+                    log.warning("Não consegui posicionar categoria %s (%s)", cat.name, cat.id)
+
+        # Ordena apenas os canais internos das categorias conhecidas.
+        canais_por_categoria = {
             1561513258970521743: [1561513270819692606, 1561513273554374686, 1561513275403800709],
             1561513263286452275: [1561513284811624480, 1561513286967500841, 1561513288297353286, 1561513289438199878, 1561513284191125625],
             1561513265006116877: [1561513291703128106, 1561513297155592253, 1561513293124739173],
-            free.id: [1561513293934362705, 1561513295352037507],
             1561513260501569576: [1561513269754068992, 1561513274737168414, 1561513277207347310, 1561513277882634404, 1561837934649409696],
             1561513258211352626: [1561513268021821460, 1561698571525423115],
             1561513261424447609: [1561513281049595958, 1561513282265944104, 1561513283171651644],
-            custom.id: [1561513290473934998],
         }
-        ordered = []
-        if status and status.id in by_id:
-            ordered.append(by_id[status.id])
-            ordered.extend(x for x in sorted(status.channels, key=lambda z: z.position) if x not in ordered)
-        for cid in [custom.id, *main_order]:
-            if cid in by_id and by_id[cid] not in ordered:
-                ordered.append(by_id[cid])
-            ordered.extend(by_id[x] for x in children.get(cid, []) if x in by_id and by_id[x] not in ordered)
-        # A categoria de vendas explicativas e quaisquer categorias desconhecidas ficam abaixo das principais.
-        ordered.extend(x for x in sorted(canais, key=lambda z: z.position) if x not in ordered)
-        for pos, ch in enumerate(ordered):
-            if ch.position != pos:
-                try:
-                    await ch.edit(position=pos, reason="Hierarquia automática CC BOT")
-                except discord.HTTPException:
-                    log.warning("Não consegui posicionar %s (%s)", ch.name, ch.id)
-        log.info("Organização automática aplicada: status no topo, customization, statistics, loja, comunidade, free things e partners.")
+        canais_por_categoria[custom.id] = [1561513290473934998]
+        canais_por_categoria[free.id] = [1561513293934362705, 1561513295352037507]
+
+        # Posiciona canais listados no início da categoria e preserva os demais depois.
+        for cat_id, ids in canais_por_categoria.items():
+            cat = por_id.get(cat_id)
+            if cat is None:
+                continue
+            filhos = sorted(cat.channels, key=lambda z: z.position)
+            ordenados = [guild.get_channel(cid) for cid in ids]
+            ordenados = [ch for ch in ordenados if ch is not None and ch.category_id == cat.id]
+            ordenados.extend(ch for ch in filhos if ch not in ordenados)
+            for pos, ch in enumerate(ordenados):
+                if ch.position != pos:
+                    try:
+                        await ch.edit(position=pos, reason="Hierarquia automática CC BOT — canais internos")
+                    except discord.HTTPException:
+                        log.warning("Não consegui posicionar canal %s (%s)", ch.name, ch.id)
+
+        log.info("Hierarquia aplicada: Status, Customization, Partners, Statistics, CC Store, Sales Information, Community, Free Things, Information e Administration.")
     except Exception:
         log.exception("Falha ao aplicar organização automática do servidor.")
 
@@ -4779,6 +4846,12 @@ async def on_ready():
             await garantir_painel_info_vendas(bot.get_guild(1561513043886743562))
         except Exception:
             log.exception("Falha ao criar/atualizar a área de informações de vendas.")
+
+        # Reaplica a ordem depois de garantir Sales Information, para mantê-la ao lado da CC Store.
+        try:
+            await aplicar_organizacao_automatica(bot.get_guild(1561513043886743562))
+        except Exception:
+            log.exception("Falha ao finalizar a ordem das categorias após garantir Sales Information.")
 
         try:
             servidor = bot.get_guild(1561513043886743562)
