@@ -4288,45 +4288,29 @@ def criar_embed_parcerias() -> discord.Embed:
 
 def criar_embed_trampar_conosco() -> discord.Embed:
     embed = discord.Embed(
-        title="💼 TRAMPAR CONOSCO • C.C ©",
+        title="<:tag:1561787923865665667> TRAMPAR CONOSCO",
         description=(
-            "Escolha sua especialidade e venha divulgar seu trabalho no servidor.\n"
-            "**Não precisa dominar todas as áreas.**"
+            "**Seu talento tem espaço no C.C ©.**\n"
+            "-# PAINEL ATUALIZADO\n\n"
+            "Veja as áreas disponíveis e escolha a que combina com você no botão abaixo.\n\n"
+            "### <:box:1561761831587160140> ÁREAS\n"
+            "**🤖 Bots para Discord**\n"
+            "Python e bots com ou sem IA.\n\n"
+            "**🎨 Design**\n"
+            "Banners, artes e identidade visual.\n\n"
+            "**🛠️ Organização / Staff**\n"
+            "Estrutura de canais e moderação.\n\n"
+            "**🎬 Edição de vídeo**\n"
+            "Área planejada para o futuro.\n\n"
+            "### 🎁 O QUE VOCÊ GANHA\n"
+            "Um espaço no servidor para divulgar seu trabalho e seus projetos.\n\n"
+            "### ⏳ INSCRIÇÕES FECHADAS\n"
+            "No momento, não estamos recebendo inscrições."
         ),
         color=discord.Color.from_rgb(0, 0, 0)
     )
-    embed.add_field(
-        name="🤖  BOTS PARA DISCORD",
-        value="Python • Bots com ou sem IA",
-        inline=True
-    )
-    embed.add_field(
-        name="🎨  DESIGN",
-        value="Banners • Artes • Identidade visual",
-        inline=True
-    )
-    embed.add_field(
-        name="🛠️  ORGANIZAÇÃO / STAFF",
-        value="Canais • Estrutura • Moderação",
-        inline=True
-    )
-    embed.add_field(
-        name="🎬  EDIÇÃO DE VÍDEO",        value="Área prevista para o futuro",
-        inline=True
-    )
-    embed.add_field(
-        name="🎁 O QUE VOCÊ GANHA?",
-        value="Espaço próprio no servidor para divulgar seus serviços e projetos.",
-        inline=False
-    )
-    embed.add_field(
-        name="⏳ INSCRIÇÕES FECHADAS",
-        value="Ainda não estamos recebendo novos integrantes. Você pode conferir as áreas para oportunidades futuras.",
-        inline=False
-    )
-    embed.set_footer(text="👇 Clique no botão e escolha uma área")
+    embed.set_footer(text="C.C © • Escolha uma área no botão abaixo")
     return embed
-
 
 async def publicar_paineis_comunidade():
     """Cria os painéis uma vez e edita as mesmas mensagens em inicializações futuras."""
