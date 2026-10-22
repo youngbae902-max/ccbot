@@ -2995,148 +2995,42 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
         super().__init__(timeout=180)
         self.guild_id = guild_id
 
-    @discord.ui.button(label="Aplicar organização", emoji="✅", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Atualizar hierarquia", emoji="🔄", style=discord.ButtonStyle.success)
     async def aplicar(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode confirmar.", ephemeral=True)
+            await interaction.response.send_message("Apenas o administrador pode usar esta função.", ephemeral=True)
             return
         if interaction.guild is None or interaction.guild.id != self.guild_id:
-            await interaction.response.send_message("Use esta confirmação no servidor correto.", ephemeral=True)
+            await interaction.response.send_message("Abra este painel no servidor correto.", ephemeral=True)
             return
 
         await interaction.response.defer(ephemeral=True, thinking=True)
-        guild = interaction.guild
-        erros = []
-        alteracoes = 0
         try:
-            me = guild.me
-            if me is None or not me.guild_permissions.manage_channels:
+            sucesso = await aplicar_organizacao_automatica(interaction.guild)
+            if sucesso:
                 await interaction.edit_original_response(
-                    content="❌ O CC BOT precisa da permissão **Gerenciar canais** para reorganizar a hierarquia.",
+                    content=(
+                        "✅ **Hierarquia atualizada.**\n"
+                        "Ordem: Status → Customization → Partners → Statistics → CC Store → "
+                        "Sales Information → Community → Free Things → Information → Administration.\n\n"
+                        "Nenhuma categoria ou canal foi apagado."
+                    ),
+                    embed=None,
                     view=None
                 )
-                return
-
-            atuais = await guild.fetch_channels()
-            categorias = {c.id: c for c in atuais if isinstance(c, discord.CategoryChannel)}
-            canais = {c.id: c for c in atuais if not isinstance(c, discord.CategoryChannel)}
-
-            for item in sorted(HIERARQUIA_CATEGORIAS.values(), key=lambda x: x["posicao"]):
-                categoria = categorias.get(item["id"])
-                if categoria is None:
-                    erros.append(f"Categoria ausente: {item['nome']} (ID {item['id']})")
-                    continue
-                if categoria.name != item["nome"] or categoria.position != item["posicao"]:
-                    await categoria.edit(
-                        name=item["nome"],
-                        position=item["posicao"],
-                        reason="Organização confirmada pelo painel administrativo do CC BOT"
-                    )
-                    alteracoes += 1
-
-            for canal_id, categoria_id, posicao in HIERARQUIA_MOVER_CANAIS:
-                canal = canais.get(canal_id)
-                categoria = categorias.get(categoria_id) if categoria_id else None
-                if categoria_id == 0:
-                    continue
-                if canal is None or categoria is None:
-                    erros.append(f"Canal/categoria ausente: canal {canal_id}, categoria {categoria_id}")
-                    continue
-                if canal.category_id != categoria_id:
-                    await canal.edit(
-                        category=categoria,
-                        reason="Organização confirmada pelo painel administrativo do CC BOT"
-                    )
-                    alteracoes += 1
-
-            # Categorias antigas são mantidas; nenhuma categoria é apagada automaticamente.
-
-            # Reordena canais e categorias globalmente, mantendo as categorias antigas.
-            canais_finais = await guild.fetch_channels()
-            por_id = {c.id: c for c in canais_finais}
-            # Categorias especiais: status primeiro, depois customização (somente ícone),
-            # estatísticas, loja, comunidade, itens grátis e por último parcerias.
-            categorias_atuais = [x for x in canais_finais if isinstance(x, discord.CategoryChannel)]
-            categoria_status = next((x for x in categorias_atuais if ("cc •" in x.name.casefold() or "cc ·" in x.name.casefold() or "server status" in x.name.casefold() or "status do servidor" in x.name.casefold())), None)
-            categoria_custom = next((x for x in categorias_atuais if x.name.casefold() in ("customization", "customisation", "personalização", "personalizacao", "ícones", "icones", "icons")), None)
-            if categoria_custom is None:
-                categoria_custom = await guild.create_category("customization", reason="Categoria exclusiva para o canal de ícones")
-                alteracoes += 1
-            elif categoria_custom.name != "customization":
-                await categoria_custom.edit(name="customization", reason="Padronizar categoria de ícones")
-                alteracoes += 1
-            categoria_free = next((x for x in categorias_atuais if x.name.casefold() in ("free things", "free stuff", "coisas grátis", "coisas gratis")), None)
-            if categoria_free is None:
-                categoria_free = await guild.create_category("free things", reason="Separar packs e projetos gratuitos")
-                alteracoes += 1
-            elif categoria_free.name != "free things":
-                await categoria_free.edit(name="free things", reason="Padronizar categoria de itens grátis")
-                alteracoes += 1
-            for canal_id, categoria_destino in (
-                (1561513290473934998, categoria_custom),
-                (1561513293934362705, categoria_free),
-                (1561513295352037507, categoria_free),
-            ):
-                canal = guild.get_channel(canal_id)
-                if canal and canal.category_id != categoria_destino.id:
-                    await canal.edit(category=categoria_destino, reason="Organização automática de ícones e itens gratuitos")
-                    alteracoes += 1
-            # Nomes curtos para os dois canais privados de pagamentos.
-            for canal in guild.text_channels:
-                if canal.name == "confirmar-pagamentos":
-                    await canal.edit(name="pc-confirmar-pagamentos", reason="Padronizar canal administrativo de pagamentos")
-                elif canal.name == "pagamentos-cancelados":
-                    await canal.edit(name="cpp-cancelamentos", reason="Padronizar canal administrativo de cancelamentos")
-            canais_finais = await guild.fetch_channels()
-            por_id = {x.id: x for x in canais_finais}
-            categorias_atuais = [x for x in canais_finais if isinstance(x, discord.CategoryChannel)]
-            categoria_status = next((x for x in categorias_atuais if ("cc •" in x.name.casefold() or "cc ·" in x.name.casefold() or "server status" in x.name.casefold() or "status do servidor" in x.name.casefold())), None)
-            categoria_custom = next(x for x in categorias_atuais if x.id == categoria_custom.id)
-            categoria_free = next(x for x in categorias_atuais if x.id == categoria_free.id)
-            # Stats fica logo abaixo da customização. As lojas parceiras ficam perto do fim.
-            ordem_categorias = [1561513258970521743, 1561513258211352626, 1561513260501569576, 1561513263286452275, 1561513265006116877, categoria_free.id, 1561513261424447609]
-            filhos_por_categoria = {
-                1561513258211352626: [1561513268021821460, 1561698571525423115],
-                1561513260501569576: [1561513269754068992, 1561513274737168414, 1561513277207347310, 1561513277882634404, 1561837934649409696],
-                1561513261424447609: [1561513281049595958, 1561513282265944104, 1561513283171651644],
-                1561513263286452275: [1561513284811624480, 1561513286967500841, 1561513288297353286, 1561513289438199878, 1561513284191125625],
-                1561513265006116877: [1561513291703128106, 1561513297155592253, 1561513293124739173],
-                1561513258970521743: [1561513270819692606, 1561513273554374686, 1561513275403800709],
-                categoria_free.id: [1561513293934362705, 1561513295352037507],
-                categoria_custom.id: [1561513290473934998],
-            }
-            ordem_final = []
-            if categoria_status and categoria_status.id in por_id:
-                ordem_final.append(por_id[categoria_status.id])
-                ordem_final.extend(x for x in sorted(categoria_status.channels, key=lambda y: y.position) if x.id in por_id)
-            for categoria_id in [categoria_custom.id, 1561513258970521743, 1561513258211352626, 1561513260501569576, 1561513263286452275, 1561513265006116877, categoria_free.id, 1561513261424447609]:
-                if categoria_id in por_id and por_id[categoria_id] not in ordem_final:
-                    ordem_final.append(por_id[categoria_id])
-                ordem_final.extend(por_id[cid] for cid in filhos_por_categoria.get(categoria_id, []) if cid in por_id and por_id[cid] not in ordem_final)
-            # Categorias não mapeadas (incluindo CC/parcerias) ficam no final, preservadas.
-            ordem_final.extend(x for x in sorted(canais_finais, key=lambda y: y.position) if x not in ordem_final)
-            for posicao_global, canal in enumerate(ordem_final):
-                if canal.position != posicao_global:
-                    await canal.edit(position=posicao_global, reason="Ordem final confirmada pelo administrador")
-                    alteracoes += 1
-
-            texto = f"✅ Organização concluída. Alterações realizadas: **{alteracoes}**."
-            if erros:
-                texto += "\n\n⚠️ Alguns itens precisam de revisão:\n" + "\n".join(f"• {e}" for e in erros[:8])
-            texto += "\n\nNão alterei permissões de cargos ou canais. Revise o acesso herdado das novas categorias."
-            await interaction.edit_original_response(content=texto, view=None)
-            log.info("Organização de hierarquia concluída: guild=%s alterações=%s erros=%s", guild.id, alteracoes, len(erros))
-        except discord.Forbidden:
-            log.exception("Permissão insuficiente durante a organização da hierarquia")
+            else:
+                await interaction.edit_original_response(
+                    content="⚠️ Não consegui concluir a organização. Confira o log do CC BOT e a permissão **Gerenciar canais**.",
+                    embed=None,
+                    view=None
+                )
+        except Exception as exc:
+            log.exception("Falha ao atualizar hierarquia pelo painel")
             await interaction.edit_original_response(
-                content="❌ O Discord negou uma alteração. Verifique **Gerenciar canais** e a posição do cargo do bot. Algumas etapas podem já ter sido aplicadas; gere um novo relatório para conferir.",
+                content=f"❌ Falha ao atualizar hierarquia ({type(exc).__name__}). Confira o log do CC BOT.",
+                embed=None,
                 view=None
             )
-        except Exception as exc:
-            log.exception("Falha ao organizar a hierarquia")
-            await interaction.edit_original_response(
-                content=f"❌ A organização parou em {type(exc).__name__}. Algumas etapas podem já ter sido aplicadas; gere um novo relatório para conferir.",
-                view=None            )
 
     @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.danger)
     async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -3144,7 +3038,7 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
             await interaction.response.send_message("Apenas o administrador pode cancelar.", ephemeral=True)
             return
         await interaction.response.edit_message(
-            content="Organização cancelada. Nenhuma alteração foi feita.",
+            content="Atualização cancelada. Nenhuma alteração foi feita.",
             embed=None,
             view=None
         )
@@ -3159,19 +3053,21 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
         return
 
     embed = discord.Embed(
-        title="🧭 Confirmar organização da hierarquia",
+        title="🗂️ Hierarquia do servidor",
         description=(
-            "**O que será feito:**\n"
-            "• Renomear e ordenar as categorias principais em inglês e minúsculas.\n"
-            "• Mover duvidas, icon, packs-gratis e projetos-gratis para **community**.\n"
-            "• Mover vendas para **cc store**.\n"
-            "• Ordenar os canais dentro das categorias.\n"
-            "• Manter as categorias antigas vazias, sem apagar categorias.\n\n"
-            "**Não serão apagados canais nem alteradas permissões de cargos.**\n\n"
-            "⚠️ **Atenção:** ao mover canais, permissões herdadas da categoria de destino podem mudar quem consegue ver ou escrever. Depois, confira principalmente chat-geral, duvidas e os canais de publicação.\n\n"
-            "Confirme somente se quiser aplicar essas mudanças agora."
+            "Use o botão abaixo para aplicar a organização agora.\n\n"
+            "1. **CC • Status** — topo\n"
+            "2. **Customization** — somente ícones\n"
+            "3. **Partners**\n"
+            "4. **Statistics**\n"
+            "5. **CC Store** — produtos, pack personalizado e vendas\n"
+            "6. **Sales Information** — junto da loja\n"
+            "7. **Community**\n"
+            "8. **Free Things** — packs e projetos grátis\n"
+            "9. **Information** e **Administration**\n\n"
+            "As outras categorias serão preservadas. Nenhuma categoria ou canal será apagado."
         ),
-        color=discord.Color.orange()
+        color=discord.Color.dark_grey()
     )
     await interaction.response.edit_message(
         embed=embed,
@@ -4657,7 +4553,7 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
     """Organiza categorias e canais separadamente, sem depender do painel manual."""
     if guild is None or guild.me is None or not guild.me.guild_permissions.manage_channels:
         log.warning("Organização automática ignorada: servidor ausente ou sem Gerenciar canais.")
-        return
+        return False
 
     try:
         canais = await guild.fetch_channels()
@@ -4786,8 +4682,10 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
                         log.warning("Não consegui posicionar canal %s (%s)", ch.name, ch.id)
 
         log.info("Hierarquia aplicada: Status, Customization, Partners, Statistics, CC Store, Sales Information, Community, Free Things, Information e Administration.")
+        return True
     except Exception:
         log.exception("Falha ao aplicar organização automática do servidor.")
+        return False
 
 
 @bot.event
