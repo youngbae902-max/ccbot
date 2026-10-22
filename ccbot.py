@@ -4478,7 +4478,7 @@ async def restaurar_paineis_existentes():
 
 
 # Categoria pública com explicação do fluxo de compras. Atualiza a mensagem existente sem duplicar.
-SALES_INFO_CATEGORY = "information"
+SALES_INFO_CATEGORY = "INFORMAÇÕES DE VENDAS"
 SALES_INFO_CHANNEL = "como-funcionam-as-vendas"
 SALES_INFO_TITLE = "🛒 COMO FUNCIONAM AS VENDAS"
 
