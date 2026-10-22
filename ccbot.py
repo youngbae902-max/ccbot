@@ -4313,7 +4313,7 @@ def criar_embed_trampar_conosco() -> discord.Embed:
     return embed
 
 async def publicar_paineis_comunidade():
-    """Cria os painéis uma vez e edita as mesmas mensagens em inicializações futuras."""
+    """Atualiza painéis existentes; procura a mensagem antiga antes de criar outra."""
     paineis = [
         ("Parcerias", PARTNERSHIPS_CHANNEL_ID, criar_embed_parcerias, ParceriasView),
         ("Trampar Conosco", WORK_WITH_US_CHANNEL_ID, criar_embed_trampar_conosco, TramparConoscoView),
@@ -4332,14 +4332,37 @@ async def publicar_paineis_comunidade():
                     mensagem = await canal.fetch_message(int(mensagem_id))
                 except discord.NotFound:
                     mensagem = None
+
+            # Se o ID salvo estiver ausente, tenta localizar o painel já enviado pelo bot.
+            # Isso evita publicar uma cópia quando config.json não tem o ID da mensagem.
+            if mensagem is None:
+                async for candidata in canal.history(limit=100):
+                    if candidata.author.id != bot.user.id or not candidata.embeds:
+                        continue
+                    titulo = (candidata.embeds[0].title or "").casefold()
+                    descricao = (candidata.embeds[0].description or "").casefold()
+                    if nome == "Trampar Conosco":
+                        corresponde = (
+                            "trampar conosco" in titulo
+                            or "trabalhe conosco" in titulo
+                            or "seu talento tem espaço" in descricao
+                            or "trampar conosco" in descricao
+                        )
+                    else:
+                        corresponde = "parcerias" in titulo
+                    if corresponde:
+                        mensagem = candidata
+                        break
+
             if mensagem is None:
                 mensagem = await canal.send(embed=criar_embed(), view=criar_view())
-                registros[nome] = {"message_id": mensagem.id}
-                save_json(DATA_FILE, settings)
                 log.info("Painel %s publicado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
             else:
                 await mensagem.edit(embed=criar_embed(), view=criar_view())
                 log.info("Painel %s existente atualizado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
+
+            registros[nome] = {"message_id": mensagem.id}
+            save_json(DATA_FILE, settings)
         except Exception:
             log.exception("Falha ao publicar/atualizar o painel %s", nome)
 
