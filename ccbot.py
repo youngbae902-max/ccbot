@@ -1318,8 +1318,8 @@ def gerar_payload_pix(chave: str, nome: str, cidade: str, valor: float, txid: st
 
 
 # Checkout unificado do Mercado: QR Pix, canal privado e aprovação manual.
-PAYMENT_CATEGORY_NAME = "loja cc"
-PAYMENT_ADMIN_CATEGORY_NAME = "administração"
+PAYMENT_CATEGORY_NAME = "cc store"
+PAYMENT_ADMIN_CATEGORY_NAME = "administration"
 PAYMENT_ADMIN_CHANNEL_NAME = "confirmar-pagamentos"
 
 
@@ -2694,7 +2694,7 @@ class PermissoesCategoriasView(discord.ui.View):
         falhas = []
 
         for categoria in guild.categories:
-            if categoria.name.strip().casefold() == "comunidade":
+            if categoria.name.strip().casefold() == "community":
                 comunidade.append(categoria.name)
                 continue
             try:
@@ -2742,13 +2742,13 @@ async def abrir_permissoes_categorias(interaction: discord.Interaction):
         await interaction.response.send_message("Use esta função dentro do servidor.", ephemeral=True)
         return
 
-    quantidade = sum(1 for c in interaction.guild.categories if c.name.strip().casefold() != "comunidade")
-    comunidades = [c.name for c in interaction.guild.categories if c.name.strip().casefold() == "comunidade"]
+    quantidade = sum(1 for c in interaction.guild.categories if c.name.strip().casefold() != "community")
+    comunidades = [c.name for c in interaction.guild.categories if c.name.strip().casefold() == "community"]
     embed = discord.Embed(
         title="🔒 Permissões das categorias",
         description=(
             f"Vou alterar **{quantidade} categorias**, preservando a categoria "
-            f"**Comunidade** ({', '.join(comunidades) if comunidades else 'não encontrada'}).\n\n"
+            f"**Community** ({', '.join(comunidades) if comunidades else 'não encontrada'}).\n\n"
             "Nas demais categorias, @everyone poderá **ver os canais, usar comandos de aplicativos e interagir com botões**, "
             "mas não poderá enviar mensagens nem criar tópicos. As permissões específicas de outros cargos serão mantidas.\n\n"
             "Confirme apenas se deseja aplicar essa mudança ao servidor."
@@ -2968,12 +2968,12 @@ async def analisar_hierarquia(interaction: discord.Interaction):
 
 
 HIERARQUIA_CATEGORIAS = {
-    "admin": {"id": 1561513258211352626, "nome": "administração", "posicao": 0},
-    "welcome": {"id": 1561513260501569576, "nome": "informações", "posicao": 1},
-    "lojas": {"id": 1561513261424447609, "nome": "parceiros", "posicao": 2},
-    "mercado": {"id": 1561513263286452275, "nome": "loja cc", "posicao": 3},
-    "comunidade": {"id": 1561513265006116877, "nome": "comunidade", "posicao": 4},
-    "estatisticas": {"id": 1561513258970521743, "nome": "estatísticas", "posicao": 5},
+    "admin": {"id": 1561513258211352626, "nome": "administration", "posicao": 0},
+    "welcome": {"id": 1561513260501569576, "nome": "information", "posicao": 1},
+    "lojas": {"id": 1561513261424447609, "nome": "partners", "posicao": 2},
+    "mercado": {"id": 1561513263286452275, "nome": "cc store", "posicao": 3},
+    "comunidade": {"id": 1561513265006116877, "nome": "community", "posicao": 4},
+    "estatisticas": {"id": 1561513258970521743, "nome": "statistics", "posicao": 5},
 }
 
 HIERARQUIA_MOVER_CANAIS = [
@@ -4478,7 +4478,7 @@ async def restaurar_paineis_existentes():
 
 
 # Categoria pública com explicação do fluxo de compras. Atualiza a mensagem existente sem duplicar.
-SALES_INFO_CATEGORY = "INFORMAÇÕES DE VENDAS"
+SALES_INFO_CATEGORY = "sales information"
 SALES_INFO_CHANNEL = "como-funcionam-as-vendas"
 SALES_INFO_TITLE = "🛒 COMO FUNCIONAM AS VENDAS"
 
@@ -4574,6 +4574,17 @@ async def renomear_categorias_principais(guild: discord.Guild):
                 log.info("Categoria renomeada: id=%s nome=%s", categoria.id, item["nome"])
             except Exception:
                 log.exception("Falha ao renomear categoria id=%s para %s", categoria.id, item["nome"])
+    # A categoria de informações de vendas também deve ficar em inglês.
+    categoria_vendas = discord.utils.get(guild.categories, name=SALES_INFO_CATEGORY)
+    if categoria_vendas is None:
+        categoria_vendas = discord.utils.get(guild.categories, name="INFORMAÇÕES DE VENDAS")
+    if categoria_vendas is not None and categoria_vendas.name != SALES_INFO_CATEGORY:
+        try:
+            await categoria_vendas.edit(name=SALES_INFO_CATEGORY, reason="Padronização automática de nomes em inglês")
+            alteradas += 1
+            log.info("Categoria de vendas renomeada: %s", SALES_INFO_CATEGORY)
+        except Exception:
+            log.exception("Falha ao renomear a categoria de informações de vendas.")
     log.info("Atualização automática de nomes concluída: %s categoria(s) renomeada(s).", alteradas)
 
 
