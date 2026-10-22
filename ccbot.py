@@ -3075,6 +3075,39 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
     )
 
 
+@bot.tree.command(name="hierarquia", description="Abrir o painel para atualizar a hierarquia do servidor")
+async def hierarquia(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode usar este comando.", ephemeral=True)
+        return
+    if interaction.guild is None:
+        await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🗂️ Hierarquia do servidor",
+        description=(
+            "Clique em **Atualizar hierarquia** para aplicar agora.\n\n"
+            "1. **CC • Status** — topo\n"
+            "2. **Customization** — somente ícones\n"
+            "3. **Partners**\n"
+            "4. **Statistics**\n"
+            "5. **CC Store** — produtos, pack personalizado e vendas\n"
+            "6. **Sales Information** — junto da loja\n"
+            "7. **Community**\n"
+            "8. **Free Things** — packs e projetos grátis\n"
+            "9. **Information** e **Administration**\n\n"
+            "As outras categorias serão preservadas. Nenhuma categoria ou canal será apagado."
+        ),
+        color=discord.Color.dark_grey()
+    )
+    await interaction.response.send_message(
+        embed=embed,
+        view=ConfirmarOrganizacaoHierarquiaView(interaction.guild.id),
+        ephemeral=True
+    )
+
+
 PAINEL_GRUPOS = {
     "mercado": {
         "titulo": "🛍️ cc store",
