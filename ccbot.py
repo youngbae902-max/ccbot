@@ -2544,6 +2544,7 @@ class IconVerIconsButton(discord.ui.Button):
                 "Use esse botão dentro do servidor.", ephemeral=True
             )
             return
+
         embeds = interaction.message.embeds
         if not embeds or not embeds[0].title:
             await interaction.response.send_message(
@@ -2559,10 +2560,10 @@ class IconVerIconsButton(discord.ui.Button):
             nome = nome[len("Icon - "):].strip()
         if nome.endswith(" (continuação)"):
             nome = nome[:-len(" (continuação)")].strip()
-        chave = nome.casefold()
+
         state = icon_state()
         albuns = state.setdefault("albums", {})
-        album = albuns.get(chave)
+        album = albuns.get(nome.casefold())
         if not isinstance(album, dict):
             await interaction.response.send_message(
                 "Esse álbum ainda não está registrado. Peça ao administrador para importá-lo novamente.",
@@ -2582,103 +2583,80 @@ class IconVerIconsButton(discord.ui.Button):
             )
             return
 
+        canal_pai = interaction.channel
+        if not isinstance(canal_pai, discord.TextChannel):
+            await interaction.response.send_message(
+                "Não consegui abrir um tópico neste canal.", ephemeral=True
+            )
+            return
+
         await interaction.response.defer(ephemeral=True, thinking=True)
         guild = interaction.guild
         usuario = interaction.user
-        categorias_usuario = album.setdefault("private_categories", {})
-        categoria_id = categorias_usuario.get(str(usuario.id))
-        categoria = guild.get_channel(int(categoria_id)) if categoria_id else None
-        if not isinstance(categoria, discord.CategoryChannel):
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                usuario: discord.PermissionOverwrite(
-                    view_channel=True,
-                    send_messages=True,
-                    read_message_history=True,
-                    attach_files=True,
-                    embed_links=True
-                ),
-            }
-            if guild.me is not None:
-                overwrites[guild.me] = discord.PermissionOverwrite(
-                    view_channel=True,
-                    send_messages=True,
-                    read_message_history=True,
-                    manage_channels=True,
-                    manage_messages=True,
-                    attach_files=True,
-                    embed_links=True
-                )
+        threads_usuario = album.setdefault("private_threads", {})
+        thread_id = threads_usuario.get(str(usuario.id))
+        thread = None
+
+        if thread_id:
             try:
-                categoria = await guild.create_category(
-                    name=f"ICONS • {nome}"[:100],
-                    overwrites=overwrites,
-                    reason=f"Área privada de icons solicitada por {usuario}"
+                existente = guild.get_thread(int(thread_id))
+                if existente is None:
+                    existente = await bot.fetch_channel(int(thread_id))
+                if isinstance(existente, discord.Thread):
+                    thread = existente
+                    if thread.archived:
+                        await thread.edit(archived=False)
+                    if not any(m.id == usuario.id for m in thread.members):
+                        await thread.add_user(usuario)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException, ValueError):
+                thread = None
+
+        if thread is None:
+            try:
+                thread = await canal_pai.create_thread(
+                    name=f"icons-{nome}"[:100],
+                    type=discord.ChannelType.private_thread,
+                    invitable=False,
+                    auto_archive_duration=1440,
+                    reason=f"Álbum privado de icons para {usuario} ({usuario.id})"
                 )
-                canal_album = await categoria.create_text_channel(
-                    name="seus-icons",
-                    topic=f"Álbum privado de {nome} para {usuario.display_name}"
+                await thread.add_user(usuario)
+                await thread.send(
+                    content=f"✨ **Seus icons: {nome}**\nEste tópico é privado: somente você e o CC BOT têm acesso."
                 )
-                await canal_album.send(
-                    content=f"✨ **Aproveite os icons de {nome}!**\nAqui estão todos os icons personalizados desse álbum."
+                threads_usuario[str(usuario.id)] = thread.id
+                save_json(DATA_FILE, settings)
+            except Exception:
+                log.exception("Falha ao criar tópico privado de icons para usuário %s", usuario.id)
+                await interaction.followup.send(
+                    "Não consegui abrir seu tópico privado. O CC BOT precisa ter permissões para criar tópicos privados e enviar mensagens neste canal.",
+                    ephemeral=True
                 )
+                return
+
+            try:
                 for inicio in range(0, len(caminhos), 10):
-                    lote = caminhos[inicio:inicio + 10]
                     arquivos = []
                     try:
-                        for caminho in lote:
+                        for caminho in caminhos[inicio:inicio + 10]:
                             arquivos.append(discord.File(caminho, filename=Path(caminho).name))
-                        await canal_album.send(files=arquivos)
+                        await thread.send(files=arquivos)
                     finally:
                         for arquivo in arquivos:
                             try:
                                 arquivo.close()
                             except Exception:
                                 pass
-                categorias_usuario[str(usuario.id)] = categoria.id
-                save_json(DATA_FILE, settings)
             except Exception:
-                log.exception("Falha ao criar área privada de icons para usuário %s", usuario.id)
+                log.exception("Falha ao enviar fotos no tópico privado de icons")
                 await interaction.followup.send(
-                    "Não consegui abrir sua área de icons. Confira se o CC BOT tem as permissões **Gerenciar canais**, **Ver canais** e **Enviar mensagens**.",
+                    f"Criei seu tópico, mas não consegui enviar todas as fotos: {thread.mention}",
                     ephemeral=True
                 )
                 return
-        else:
-            canal_album = next(
-                (c for c in categoria.text_channels if c.name == "seus-icons"),
-                None
-            )
-            if canal_album is None:
-                try:
-                    canal_album = await categoria.create_text_channel(
-                        name="seus-icons",
-                        topic=f"Álbum privado de {nome} para {usuario.display_name}"
-                    )
-                    await canal_album.send(
-                        content=f"✨ **Aproveite os icons de {nome}!**\nAqui estão todos os icons personalizados desse álbum."
-                    )
-                    for inicio in range(0, len(caminhos), 10):
-                        arquivos = []
-                        try:
-                            for caminho in caminhos[inicio:inicio + 10]:
-                                arquivos.append(discord.File(caminho, filename=Path(caminho).name))
-                            await canal_album.send(files=arquivos)
-                        finally:
-                            for arquivo in arquivos:
-                                try:
-                                    arquivo.close()
-                                except Exception:
-                                    pass
-                except Exception:
-                    log.exception("Falha ao restaurar canal privado de icons")
-                    await interaction.followup.send(
-                        "Não consegui preparar seu canal de icons.", ephemeral=True
-                    )
-                    return
 
         await interaction.followup.send(
-            f"Seu álbum está pronto: {categoria.mention} · {canal_album.mention}",
+            f"Seu álbum privado está aqui: {thread.mention}",
             ephemeral=True
         )
 
