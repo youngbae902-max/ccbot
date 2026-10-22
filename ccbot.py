@@ -3006,28 +3006,20 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
 
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            sucesso = await aplicar_organizacao_automatica(interaction.guild)
-            if sucesso:
-                await interaction.edit_original_response(
-                    content=(
-                        "✅ **Hierarquia atualizada.**\n"
-                        "Ordem: Status → Customization → Partners → Statistics → CC Store → "
-                        "Sales Information → Community → Free Things → Information → Administration.\n\n"
-                        "Nenhuma categoria ou canal foi apagado."
-                    ),
-                    embed=None,
-                    view=None
-                )
-            else:
-                await interaction.edit_original_response(
-                    content="⚠️ Não consegui concluir a organização. Confira o log do CC BOT e a permissão **Gerenciar canais**.",
-                    embed=None,
-                    view=None
-                )
-        except Exception as exc:
-            log.exception("Falha ao atualizar hierarquia pelo painel")
+            alteradas = await renomear_categorias_solicitadas(interaction.guild)
             await interaction.edit_original_response(
-                content=f"❌ Falha ao atualizar hierarquia ({type(exc).__name__}). Confira o log do CC BOT.",
+                content=(
+                    f"✅ **Nomes das categorias atualizados.**\\n"
+                    f"Categorias renomeadas: **{alteradas}**.\\n"
+                    "A hierarquia, as posições e os canais foram preservados."
+                ),
+                embed=None,
+                view=None
+            )
+        except Exception as exc:
+            log.exception("Falha ao renomear categorias pelo painel")
+            await interaction.edit_original_response(
+                content=f"❌ Falha ao renomear categorias ({type(exc).__name__}). Confira o log do CC BOT.",
                 embed=None,
                 view=None
             )
@@ -3055,17 +3047,9 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🗂️ Hierarquia do servidor",
         description=(
-            "Use o botão abaixo para aplicar a organização agora.\n\n"
-            "1. **CC • Status** — topo\n"
-            "2. **Customization** — somente ícones\n"
-            "3. **Partners**\n"
-            "4. **Statistics**\n"
-            "5. **CC Store** — produtos, pack personalizado e vendas\n"
-            "6. **Sales Information** — junto da loja\n"
-            "7. **Community**\n"
-            "8. **Free Things** — packs e projetos grátis\n"
-            "9. **Information** e **Administration**\n\n"
-            "As outras categorias serão preservadas. Nenhuma categoria ou canal será apagado."
+            "Use o botão abaixo para deixar os nomes das categorias em português e maiúsculas.\\n\\n"
+            "Exemplos: **COMUNIDADE**, **INFORMAÇÕES**, **ADMINISTRAÇÃO**, **SITES**, **VENDAS** e **GRÁTIS**.\\n\\n"
+            "Só os nomes serão alterados. A ordem, as posições e os canais não serão mexidos."
         ),
         color=discord.Color.dark_grey()
     )
@@ -3087,17 +3071,9 @@ async def hierarquia(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🗂️ Hierarquia do servidor",
         description=(
-            "Clique em **Atualizar hierarquia** para aplicar agora.\n\n"
-            "1. **CC • Status** — topo\n"
-            "2. **Customization** — somente ícones\n"
-            "3. **Partners**\n"
-            "4. **Statistics**\n"
-            "5. **CC Store** — produtos, pack personalizado e vendas\n"
-            "6. **Sales Information** — junto da loja\n"
-            "7. **Community**\n"
-            "8. **Free Things** — packs e projetos grátis\n"
-            "9. **Information** e **Administration**\n\n"
-            "As outras categorias serão preservadas. Nenhuma categoria ou canal será apagado."
+            "Use o botão abaixo para deixar os nomes das categorias em português e maiúsculas.\\n\\n"
+            "Exemplos: **COMUNIDADE**, **INFORMAÇÕES**, **ADMINISTRAÇÃO**, **SITES**, **VENDAS** e **GRÁTIS**.\\n\\n"
+            "Só os nomes serão alterados. A ordem, as posições e os canais não serão mexidos."
         ),
         color=discord.Color.dark_grey()
     )
@@ -4723,56 +4699,46 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
         return False
 
 
-@bot.event
 async def renomear_categorias_solicitadas(guild: discord.Guild):
-    """Altera somente nomes de categorias reconhecidas; não move nem cria categorias."""
+    """Renomeia somente categorias; nunca cria, move ou reordena canais/categorias."""
     if guild is None or guild.me is None or not guild.me.guild_permissions.manage_channels:
         log.warning("Sem permissão Gerenciar canais; nomes das categorias não foram alterados.")
-        return
-
+        raise PermissionError("O CC BOT precisa da permissão Gerenciar canais.")
     traducoes = {
-        "customization": "Custom",
-        "customisation": "Custom",
-        "personalização": "Custom",
-        "personalizacao": "Custom",
-        "administration": "DM",
-        "administração": "DM",
-        "administracao": "DM",
-        "information": "Info",
-        "informação": "Info",
-        "informacao": "Info",
-        "informações": "Info",
-        "informacoes": "Info",
-        "pattern": "Sites",
-        "sales information": "Vendas",
-        "informações de vendas": "Vendas",
-        "informacoes de vendas": "Vendas",
-        "community": "Comunidade",
-        "free things": "Grátis",
-        "free stuff": "Grátis",
-        "coisas grátis": "Grátis",
-        "coisas gratis": "Grátis",
+        "customization": "CUSTOM", "customisation": "CUSTOM", "custom": "CUSTOM",
+        "personalização": "CUSTOM", "personalizacao": "CUSTOM",
+        "icons": "ÍCONES", "ícones": "ÍCONES", "icones": "ÍCONES",
+        "administration": "ADMINISTRAÇÃO", "administração": "ADMINISTRAÇÃO", "administracao": "ADMINISTRAÇÃO",
+        "information": "INFORMAÇÕES", "informação": "INFORMAÇÕES", "informacoes": "INFORMAÇÕES", "informações": "INFORMAÇÕES",
+        "pattern": "SITES", "sites": "SITES",
+        "sales information": "VENDAS", "informações de vendas": "VENDAS", "informacoes de vendas": "VENDAS", "vendas": "VENDAS",
+        "community": "COMUNIDADE", "comunidade": "COMUNIDADE",
+        "free things": "GRÁTIS", "free stuff": "GRÁTIS", "coisas grátis": "GRÁTIS", "coisas gratis": "GRÁTIS", "grátis": "GRÁTIS", "gratis": "GRÁTIS",
+        "partners": "PARCEIROS", "parceiros": "PARCEIROS",
+        "statistics": "ESTATÍSTICAS", "estatísticas": "ESTATÍSTICAS", "estatisticas": "ESTATÍSTICAS",
+        "cc store": "MERCADO", "mercado": "MERCADO",
     }
     alteradas = 0
     for categoria in list(guild.categories):
         nome_atual = categoria.name.strip().casefold()
-        if "cc •" in nome_atual or "cc ·" in nome_atual:
+        if "cc •" in nome_atual or "cc ·" in nome_atual or nome_atual == "cc story":
             continue
         destino = traducoes.get(nome_atual)
         if not destino or categoria.name == destino:
             continue
-        # Se já existe uma categoria com o nome de destino, não renomeia nem combina categorias.
         outra = next((cat for cat in guild.categories if cat.id != categoria.id and cat.name.casefold() == destino.casefold()), None)
         if outra:
-            log.warning("Categoria %s não renomeada para %s: já existe outra com esse nome.", categoria.id, destino)
+            log.warning("Categoria %s não renomeada para %s: já existe outra categoria com esse nome.", categoria.id, destino)
             continue
         try:
-            await categoria.edit(name=destino, reason="Pedido do administrador: alterar somente nomes das categorias")
+            nome_anterior = categoria.name
+            await categoria.edit(name=destino, reason="Pedido do administrador: nomes em português e maiúsculas; preservar hierarquia")
             alteradas += 1
-            log.info("Categoria renomeada sem mover: id=%s %r -> %r", categoria.id, nome_atual, destino)
+            log.info("Categoria renomeada sem mover: id=%s %r -> %r", categoria.id, nome_anterior, destino)
         except Exception:
             log.exception("Falha ao renomear categoria id=%s para %s", categoria.id, destino)
-    log.info("Renomeação solicitada concluída: %s categoria(s) alterada(s); posições e canais preservados.", alteradas)
+    log.info("Renomeação pelo painel concluída: %s categoria(s); posições e canais preservados.", alteradas)
+    return alteradas
 
 
 async def on_ready():
@@ -4801,13 +4767,6 @@ async def on_ready():
             log.info("Sincronização de comandos já realizada nesta execução; ignorando repetição.")
         log.info("Conectado como %s", bot.user)
 
-        # Renomeia e organiza a hierarquia automaticamente na inicialização, sem painel.
-        try:
-            servidor_hierarquia = bot.get_guild(1561513043886743562)
-            await renomear_categorias_solicitadas(servidor_hierarquia)
-        except Exception:
-            log.exception("Falha ao atualizar nomes e hierarquia automaticamente.")
-
         # Limpeza única do histórico antigo de Confirmar pagamentos, solicitada pelo administrador.
         if not settings.get("payment_admin_history_cleared", False):
             servidor_limpeza = bot.get_guild(1561513043886743562)
@@ -4829,12 +4788,6 @@ async def on_ready():
             await garantir_painel_info_vendas(bot.get_guild(1561513043886743562))
         except Exception:
             log.exception("Falha ao criar/atualizar a área de informações de vendas.")
-
-        # Apenas corrige os nomes pedidos; não altera posições nem move canais.
-        try:
-            await renomear_categorias_solicitadas(bot.get_guild(1561513043886743562))
-        except Exception:
-            log.exception("Falha ao finalizar a renomeação das categorias.")
 
         try:
             servidor = bot.get_guild(1561513043886743562)
