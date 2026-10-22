@@ -135,6 +135,7 @@ class CCBot(commands.Bot):
             ("Acapellas", AcapellasActivityView),
             ("Trampar Conosco", TramparConoscoView),
             ("Comprar Beats", lambda: VendaBeatView("", "", "")),
+            ("Ver icons", IconVerIconsView),
         ]
         for nome_view, criar_view in views_persistentes:
             try:
@@ -2442,6 +2443,7 @@ def icon_state():
     return state
 
 async def publicar_album_icone(nome, paths):
+    """Publica só uma prévia no canal principal; o álbum completo fica atrás do botão."""
     if not paths:
         raise ValueError("Nenhuma foto encontrada para publicar.")
     canal = bot.get_channel(ICONS_CHANNEL_ID)
@@ -2450,28 +2452,186 @@ async def publicar_album_icone(nome, paths):
     if not isinstance(canal, discord.TextChannel):
         raise TypeError("O canal de ícones configurado não é um canal de texto.")
 
-    enviados = 0
-    for inicio in range(0, len(paths), 10):
-        lote = paths[inicio:inicio + 10]
-        arquivos = []
+    nome = str(nome).strip() or "Ícone"
+    caminhos = [str(Path(path).resolve()) for path in paths]
+    chave = nome.casefold()
+    arquivo = discord.File(caminhos[0], filename=Path(caminhos[0]).name)
+    embed = discord.Embed(
+        title=nome,
+        color=discord.Color.from_rgb(0, 0, 0)
+    )
+    embed.set_image(url=f"attachment://{Path(caminhos[0]).name}")
+    embed.set_footer(text="CC BOT • Icons")
+    try:
+        await canal.send(embed=embed, file=arquivo, view=IconVerIconsView())
+    finally:
         try:
-            for path in lote:
-                arquivos.append(discord.File(str(path), filename=path.name))
-            embed = discord.Embed(
-                title=f"Icon - {nome}" if inicio == 0 else f"Icon - {nome} (continuação)",
-                description=f"📸 {len(paths)} foto(s)" if inicio == 0 else None,
-                color=discord.Color.from_rgb(0, 0, 0)
+            arquivo.close()
+        except Exception:
+            pass
+
+    state = icon_state()
+    albuns = state.setdefault("albums", {})
+    albuns[chave] = {
+        "name": nome,
+        "paths": caminhos,
+        "private_categories": albuns.get(chave, {}).get("private_categories", {})
+    }
+    save_json(DATA_FILE, settings)
+    return len(caminhos)
+
+
+class IconVerIconsView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(IconVerIconsButton())
+
+
+class IconVerIconsButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Ver icons",
+            emoji="🖼️",
+            style=discord.ButtonStyle.primary,
+            custom_id="ccbot:icons_view_album"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.guild is None or interaction.message is None:
+            await interaction.response.send_message(
+                "Use esse botão dentro do servidor.", ephemeral=True
             )
-            embed.set_footer(text="CC BOT • Icons")
-            await canal.send(embed=embed, files=arquivos)
-            enviados += len(lote)
-        finally:
-            for arquivo in arquivos:
+            return
+        embeds = interaction.message.embeds
+        if not embeds or not embeds[0].title:
+            await interaction.response.send_message(
+                "Não consegui identificar esse álbum.", ephemeral=True
+            )
+            return
+
+        nome = embeds[0].title.strip()
+        chave = nome.casefold()
+        state = icon_state()
+        albuns = state.setdefault("albums", {})
+        album = albuns.get(chave)
+        if not isinstance(album, dict):
+            await interaction.response.send_message(
+                "Esse álbum ainda não está registrado. Peça ao administrador para importá-lo novamente.",
+                ephemeral=True
+            )
+            return
+
+        caminhos = [
+            str(Path(p).resolve())
+            for p in album.get("paths", [])
+            if isinstance(p, str) and Path(p).is_file()
+        ]
+        if not caminhos:
+            await interaction.response.send_message(
+                "As fotos originais não estão mais disponíveis no dispositivo do bot. O administrador precisa importar o álbum novamente.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+        usuario = interaction.user
+        categorias_usuario = album.setdefault("private_categories", {})
+        categoria_id = categorias_usuario.get(str(usuario.id))
+        categoria = guild.get_channel(int(categoria_id)) if categoria_id else None
+        if not isinstance(categoria, discord.CategoryChannel):
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                usuario: discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    attach_files=True,
+                    embed_links=True
+                ),
+            }
+            if guild.me is not None:
+                overwrites[guild.me] = discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    manage_channels=True,
+                    manage_messages=True,
+                    attach_files=True,
+                    embed_links=True
+                )
+            try:
+                categoria = await guild.create_category(
+                    name=f"ICONS • {nome}"[:100],
+                    overwrites=overwrites,
+                    reason=f"Área privada de icons solicitada por {usuario}"
+                )
+                canal_album = await categoria.create_text_channel(
+                    name="seus-icons",
+                    topic=f"Álbum privado de {nome} para {usuario.display_name}"
+                )
+                await canal_album.send(
+                    content=f"✨ **Aproveite os icons de {nome}!**\nAqui estão todos os icons personalizados desse álbum."
+                )
+                for inicio in range(0, len(caminhos), 10):
+                    lote = caminhos[inicio:inicio + 10]
+                    arquivos = []
+                    try:
+                        for caminho in lote:
+                            arquivos.append(discord.File(caminho, filename=Path(caminho).name))
+                        await canal_album.send(files=arquivos)
+                    finally:
+                        for arquivo in arquivos:
+                            try:
+                                arquivo.close()
+                            except Exception:
+                                pass
+                categorias_usuario[str(usuario.id)] = categoria.id
+                save_json(DATA_FILE, settings)
+            except Exception:
+                log.exception("Falha ao criar área privada de icons para usuário %s", usuario.id)
+                await interaction.followup.send(
+                    "Não consegui abrir sua área de icons. Confira se o CC BOT tem as permissões **Gerenciar canais**, **Ver canais** e **Enviar mensagens**.",
+                    ephemeral=True
+                )
+                return
+        else:
+            canal_album = next(
+                (c for c in categoria.text_channels if c.name == "seus-icons"),
+                None
+            )
+            if canal_album is None:
                 try:
-                    arquivo.close()
+                    canal_album = await categoria.create_text_channel(
+                        name="seus-icons",
+                        topic=f"Álbum privado de {nome} para {usuario.display_name}"
+                    )
+                    await canal_album.send(
+                        content=f"✨ **Aproveite os icons de {nome}!**\nAqui estão todos os icons personalizados desse álbum."
+                    )
+                    for inicio in range(0, len(caminhos), 10):
+                        arquivos = []
+                        try:
+                            for caminho in caminhos[inicio:inicio + 10]:
+                                arquivos.append(discord.File(caminho, filename=Path(caminho).name))
+                            await canal_album.send(files=arquivos)
+                        finally:
+                            for arquivo in arquivos:
+                                try:
+                                    arquivo.close()
+                                except Exception:
+                                    pass
                 except Exception:
-                    pass
-    return enviados
+                    log.exception("Falha ao restaurar canal privado de icons")
+                    await interaction.followup.send(
+                        "Não consegui preparar seu canal de icons.", ephemeral=True
+                    )
+                    return
+
+        await interaction.followup.send(
+            f"Seu álbum está pronto: {categoria.mention} · {canal_album.mention}",
+            ephemeral=True
+        )
 
 class IconNomeQuantidadeModal(discord.ui.Modal, title="Cadastrar ícone"):
     nome = discord.ui.TextInput(
