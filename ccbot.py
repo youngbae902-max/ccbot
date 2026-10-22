@@ -1318,8 +1318,8 @@ def gerar_payload_pix(chave: str, nome: str, cidade: str, valor: float, txid: st
 
 
 # Checkout unificado do Mercado: QR Pix, canal privado e aprovação manual.
-PAYMENT_CATEGORY_NAME = "Mercado"
-PAYMENT_ADMIN_CATEGORY_NAME = "Administração"
+PAYMENT_CATEGORY_NAME = "cc store"
+PAYMENT_ADMIN_CATEGORY_NAME = "management"
 PAYMENT_ADMIN_CHANNEL_NAME = "confirmar-pagamentos"
 
 
@@ -2968,12 +2968,12 @@ async def analisar_hierarquia(interaction: discord.Interaction):
 
 
 HIERARQUIA_CATEGORIAS = {
-    "admin": {"id": 1561513258211352626, "nome": "ADMINISTRAÇÃO", "posicao": 0},
-    "welcome": {"id": 1561513260501569576, "nome": "INÍCIO", "posicao": 1},
-    "lojas": {"id": 1561513261424447609, "nome": "LOJAS", "posicao": 2},
-    "mercado": {"id": 1561513263286452275, "nome": "MERCADO", "posicao": 3},
-    "comunidade": {"id": 1561513265006116877, "nome": "COMUNIDADE", "posicao": 4},
-    "estatisticas": {"id": 1561513258970521743, "nome": "ESTATÍSTICAS", "posicao": 5},
+    "admin": {"id": 1561513258211352626, "nome": "management", "posicao": 0},
+    "welcome": {"id": 1561513260501569576, "nome": "information", "posicao": 1},
+    "lojas": {"id": 1561513261424447609, "nome": "partners", "posicao": 2},
+    "mercado": {"id": 1561513263286452275, "nome": "cc store", "posicao": 3},
+    "comunidade": {"id": 1561513265006116877, "nome": "community", "posicao": 4},
+    "estatisticas": {"id": 1561513258970521743, "nome": "stats", "posicao": 5},
 }
 
 HIERARQUIA_MOVER_CANAIS = [
@@ -3118,9 +3118,9 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
         title="🧭 Confirmar organização da hierarquia",
         description=(
             "**O que será feito:**\n"
-            "• Renomear e ordenar as categorias principais.\n"
-            "• Mover duvidas, icon, packs-gratis e projetos-gratis para **COMUNIDADE**.\n"
-            "• Mover vendas para **MERCADO**.\n"
+            "• Renomear e ordenar as categorias principais em inglês e minúsculas.\n"
+            "• Mover duvidas, icon, packs-gratis e projetos-gratis para **community**.\n"
+            "• Mover vendas para **cc store**.\n"
             "• Ordenar os canais dentro das categorias.\n"
             "• Manter as categorias antigas vazias, sem apagar categorias.\n\n"
             "**Não serão apagados canais nem alteradas permissões de cargos.**\n\n"
@@ -3137,12 +3137,12 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
 
 PAINEL_GRUPOS = {
     "mercado": {
-        "titulo": "🛍️ Mercado e publicações",
+        "titulo": "🛍️ cc store",
         "descricao": "Gerencie os painéis de venda e os produtos do servidor.",
         "categorias": ["publicar"],
     },
     "comunidade": {
-        "titulo": "👥 Comunidade",
+        "titulo": "👥 community",
         "descricao": "Boas-vindas, DJs cadastrados e avisos de trabalhos.",
         "categorias": ["djs", "boas_vindas", "trabalhos_on"],
     },
@@ -3186,8 +3186,8 @@ class PainelGrupoSelect(discord.ui.Select):
             max_values=1,
             custom_id="ccbot:painel_grupo",
             options=[
-                discord.SelectOption(label="Mercado e publicações", description="Samples, Beats, Packs e Arrumador", emoji="🛍️", value="mercado"),
-                discord.SelectOption(label="Comunidade", description="DJs, boas-vindas e trabalhos", emoji="👥", value="comunidade"),
+                discord.SelectOption(label="cc store", description="Samples, Beats, Packs e Arrumador", emoji="🛍️", value="mercado"),
+                discord.SelectOption(label="community", description="DJs, boas-vindas e trabalhos", emoji="👥", value="comunidade"),
                 discord.SelectOption(label="Ferramentas", description="Emojis, backups, avisos, ícones e limpeza", emoji="🧰", value="ferramentas"),
                 discord.SelectOption(label="Estrutura do servidor", description="Categorias, permissões e hierarquia", emoji="🗂️", value="servidor"),
                 discord.SelectOption(label="Sistema", description="Testes e manutenção", emoji="🛠️", value="sistema"),
@@ -4478,7 +4478,7 @@ async def restaurar_paineis_existentes():
 
 
 # Categoria pública com explicação do fluxo de compras. Atualiza a mensagem existente sem duplicar.
-SALES_INFO_CATEGORY = "INFORMAÇÕES DE VENDAS"
+SALES_INFO_CATEGORY = "information"
 SALES_INFO_CHANNEL = "como-funcionam-as-vendas"
 SALES_INFO_TITLE = "🛒 COMO FUNCIONAM AS VENDAS"
 
