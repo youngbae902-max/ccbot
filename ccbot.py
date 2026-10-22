@@ -4990,6 +4990,7 @@ FREE_PROJECTS_GUILD_ID = 1561513043886743562
 
 FREE_PROJECTS = {
     "packs": {
+        "channel_id": 1561513293934362705,
         "category": "📦 PACKS GRÁTIS",
         "channel_names": {"packs-gratis", "packs-grátis", "packs-gratis"},
         "title": "📦 PACKS GRÁTIS",
@@ -5002,6 +5003,7 @@ FREE_PROJECTS = {
         "custom_id": "cc:free-projects:packs"
     },
     "projetos": {
+        "channel_id": 1561513295352037507,
         "category": "🎛️ PROJETOS GRÁTIS",
         "channel_names": {"projeto-la-gratis", "projetos-gratis", "projetos-grátis", "projeto-gratis"},
         "title": "🎛️ PROJETOS GRÁTIS",
@@ -5115,12 +5117,16 @@ async def configurar_paineis_gratis(guild):
                     topic="Conteúdo gratuito liberado pelo botão Ver projetos.",
                     reason="Criar canal interno da categoria privada de conteúdo gratuito"
                 )
-            # Busca o canal público do painel pelo nome.
-            accepted = {_free_project_channel_key(n) for n in cfg["channel_names"]}
-            channel = next(
-                (c for c in guild.text_channels if _free_project_channel_key(c.name) in accepted),
-                None
-            )
+            # Usa primeiro o ID informado; nomes ficam como alternativa.
+            channel = guild.get_channel(int(cfg["channel_id"])) if cfg.get("channel_id") else None
+            if channel is not None and not isinstance(channel, discord.TextChannel):
+                channel = None
+            if channel is None:
+                accepted = {_free_project_channel_key(n) for n in cfg["channel_names"]}
+                channel = next(
+                    (c for c in guild.text_channels if _free_project_channel_key(c.name) in accepted),
+                    None
+                )
             if channel is None:
                 # Cria o canal público do painel se o nome esperado não existir.
                 nome_publico = "packs-gratis" if kind == "packs" else "projeto-la-gratis"
