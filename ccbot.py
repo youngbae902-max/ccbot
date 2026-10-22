@@ -2426,6 +2426,46 @@ ICONS_CHANNEL_ID = 1561513290473934998
 ICON_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 ICON_POLL_SECONDS = 5
 
+def icon_folder_status():
+    """Diagnóstico real da pasta local do Termux, exibido no painel."""
+    try:
+        if not PINTEREST_PINS_DIR.exists():
+            return {
+                "ok": False,
+                "message": "PASTA NÃO ENCONTRADA",
+                "detail": f"{PINTEREST_PINS_DIR} não existe para o processo do bot."
+            }
+        if not PINTEREST_PINS_DIR.is_dir():
+            return {
+                "ok": False,
+                "message": "CAMINHO NÃO É PASTA",
+                "detail": str(PINTEREST_PINS_DIR)
+            }
+        arquivos = [
+            p for p in PINTEREST_PINS_DIR.iterdir()
+            if p.is_file() and p.suffix.lower() in ICON_EXTENSIONS
+        ]
+        return {
+            "ok": True,
+            "message": "PASTA ACESSÍVEL",
+            "detail": f"{len(arquivos)} imagem(ns) encontrada(s)."
+        }
+    except PermissionError as exc:
+        log.exception("Permissão negada ao acessar pasta de ícones: %s", PINTEREST_PINS_DIR)
+        return {
+            "ok": False,
+            "message": "SEM PERMISSÃO",
+            "detail": f"{type(exc).__name__}: {exc}. No Termux, execute termux-setup-storage e autorize o acesso aos arquivos."
+        }
+    except OSError as exc:
+        log.exception("Erro ao acessar pasta de ícones: %s", PINTEREST_PINS_DIR)
+        return {
+            "ok": False,
+            "message": "ERRO AO LER A PASTA",
+            "detail": f"{type(exc).__name__}: {exc}"
+        }
+
+
 def icon_files():
     try:
         return sorted(
@@ -2834,10 +2874,32 @@ class IconImportarButton(discord.ui.Button):
             return
         await interaction.response.send_modal(IconImportarModal())
 
+class IconAtualizarPainelButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Testar pasta / atualizar",
+            emoji="🔄",
+            style=discord.ButtonStyle.secondary,
+            custom_id="ccbot:icons_refresh"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message(
+                "Apenas o administrador pode usar este painel.", ephemeral=True
+            )
+            return
+        await interaction.response.edit_message(
+            embed=criar_embed_painel_icones(),
+            view=PainelIconesView()
+        )
+
+
 class PainelIconesView(discord.ui.View):
     def __init__(self):
         # Painel persistente: os botões continuam funcionando após 5 minutos e reinícios.
         super().__init__(timeout=None)
+        self.add_item(IconAtualizarPainelButton())
         self.add_item(IconPostModeSelect())
         self.add_item(IconMonitoramentoButton())
         self.add_item(IconAdicionarButton())
@@ -2849,7 +2911,8 @@ def criar_embed_painel_icones():
     pendente = state.get("pending")
     status = "Ativo" if state.get("monitoring") else "Desativado"
     modo = "Post único (capa + botão)" if state.get("post_mode", "single") == "single" else "Post em álbum"
-    quantidade_pasta = len(icon_files())
+    diagnostico = icon_folder_status()
+    quantidade_pasta = diagnostico["detail"] if diagnostico["ok"] else diagnostico["detail"]
     aguardando = (
         f"Ícone em andamento: {pendente['name']} · {pendente['quantity']} fotos"
         if pendente else "Ícone em andamento: nenhum"
@@ -2859,17 +2922,17 @@ def criar_embed_painel_icones():
         description=(
             f"Monitoramento: {status}\n"
             f"Tipo de post: {modo}\n"
-            f"Fotos encontradas na pasta: {quantidade_pasta}\n"
+            f"Leitura da pasta: **{diagnostico['message']}**\n"
+            f"Fotos na pasta: {quantidade_pasta}\n"
             f"{aguardando}\n\n"
-            f"Pasta: {PINTEREST_PINS_DIR}\n"
+            f"Caminho usado: {PINTEREST_PINS_DIR}\n"
             f"Canal de publicação: <#{ICONS_CHANNEL_ID}>\n"
-            + (f"Último erro: {state['last_error']}\n" if state.get("last_error") else "")
-            + "\n1. Escolha o tipo de publicação no menu.\n"
-            "2. Ative o monitoramento.\n"
-            "3. Cadastre o nome e a quantidade de fotos novas.\n"
-            "4. Baixe as fotos para a pasta Pins; ao atingir a quantidade, o post será publicado automaticamente.\n"
-            "5. Em post único, a pessoa clica em **Ver icons** para acessar todas as fotos. No post em álbum, as fotos ficam públicas e baixáveis.\n\n"
-            "Importar fotos publica imediatamente as imagens que já estão na pasta."
+            + (f"Último erro do monitor: {state['last_error']}\n" if state.get("last_error") else "")
+            + "\n1. Confira se a leitura da pasta está como **PASTA ACESSÍVEL**.\n"
+            "2. Ative o monitoramento e cadastre o nome e a quantidade de fotos novas.\n"
+            "3. Baixe as fotos para a pasta Pins; ao atingir a quantidade, o post será publicado automaticamente.\n"
+            "4. Importar fotos publica imediatamente as imagens que já estão na pasta.\n"
+            "Se aparecer **PASTA NÃO ENCONTRADA** ou **SEM PERMISSÃO**, o painel agora mostra o motivo."
         ),
         color=discord.Color.from_rgb(190, 45, 75)
     )
