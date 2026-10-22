@@ -1318,8 +1318,8 @@ def gerar_payload_pix(chave: str, nome: str, cidade: str, valor: float, txid: st
 
 
 # Checkout unificado do Mercado: QR Pix, canal privado e aprovação manual.
-PAYMENT_CATEGORY_NAME = "cc store"
-PAYMENT_ADMIN_CATEGORY_NAME = "management"
+PAYMENT_CATEGORY_NAME = "loja cc"
+PAYMENT_ADMIN_CATEGORY_NAME = "administração"
 PAYMENT_ADMIN_CHANNEL_NAME = "confirmar-pagamentos"
 
 
@@ -2968,12 +2968,12 @@ async def analisar_hierarquia(interaction: discord.Interaction):
 
 
 HIERARQUIA_CATEGORIAS = {
-    "admin": {"id": 1561513258211352626, "nome": "management", "posicao": 0},
-    "welcome": {"id": 1561513260501569576, "nome": "information", "posicao": 1},
-    "lojas": {"id": 1561513261424447609, "nome": "partners", "posicao": 2},
-    "mercado": {"id": 1561513263286452275, "nome": "cc store", "posicao": 3},
-    "comunidade": {"id": 1561513265006116877, "nome": "community", "posicao": 4},
-    "estatisticas": {"id": 1561513258970521743, "nome": "stats", "posicao": 5},
+    "admin": {"id": 1561513258211352626, "nome": "administração", "posicao": 0},
+    "welcome": {"id": 1561513260501569576, "nome": "informações", "posicao": 1},
+    "lojas": {"id": 1561513261424447609, "nome": "parceiros", "posicao": 2},
+    "mercado": {"id": 1561513263286452275, "nome": "loja cc", "posicao": 3},
+    "comunidade": {"id": 1561513265006116877, "nome": "comunidade", "posicao": 4},
+    "estatisticas": {"id": 1561513258970521743, "nome": "estatísticas", "posicao": 5},
 }
 
 HIERARQUIA_MOVER_CANAIS = [
@@ -4552,6 +4552,31 @@ async def garantir_painel_info_vendas(guild):
     log.info("Painel de informações de vendas garantido em #%s.", canal.name)
 
 
+async def renomear_categorias_principais(guild: discord.Guild):
+    """Renomeia as categorias principais pelos IDs, sem depender do painel de estrutura."""
+    if guild is None:
+        return
+    me = guild.me
+    if me is None or not me.guild_permissions.manage_channels:
+        log.warning("Sem permissão Gerenciar canais; categorias principais não foram renomeadas.")
+        return
+
+    alteradas = 0
+    for item in HIERARQUIA_CATEGORIAS.values():
+        categoria = guild.get_channel(item["id"])
+        if not isinstance(categoria, discord.CategoryChannel):
+            log.warning("Categoria principal não encontrada: id=%s nome_destino=%s", item["id"], item["nome"])
+            continue
+        if categoria.name != item["nome"]:
+            try:
+                await categoria.edit(name=item["nome"], reason="Atualização automática dos nomes das categorias principais")
+                alteradas += 1
+                log.info("Categoria renomeada: id=%s nome=%s", categoria.id, item["nome"])
+            except Exception:
+                log.exception("Falha ao renomear categoria id=%s para %s", categoria.id, item["nome"])
+    log.info("Atualização automática de nomes concluída: %s categoria(s) renomeada(s).", alteradas)
+
+
 @bot.event
 async def on_ready():
     try:
@@ -4578,6 +4603,12 @@ async def on_ready():
         else:
             log.info("Sincronização de comandos já realizada nesta execução; ignorando repetição.")
         log.info("Conectado como %s", bot.user)
+
+        # Corrige os nomes das categorias automaticamente, sem exigir o painel de estrutura.
+        try:
+            await renomear_categorias_principais(bot.get_guild(1561513043886743562))
+        except Exception:
+            log.exception("Falha ao atualizar os nomes das categorias principais.")
 
         # Limpeza única do histórico antigo de Confirmar pagamentos, solicitada pelo administrador.
         if not settings.get("payment_admin_history_cleared", False):
