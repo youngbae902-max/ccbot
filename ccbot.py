@@ -4451,19 +4451,21 @@ async def restaurar_paineis_existentes():
 
 
 # Categoria pública com explicação do fluxo de compras. Atualiza a mensagem existente sem duplicar.
-SALES_INFO_CATEGORY = "sales information"
+SALES_INFO_CATEGORY = "Vendas"
 SALES_INFO_CHANNEL = "como-funcionam-as-vendas"
 SALES_INFO_TITLE = "🛒 COMO FUNCIONAM AS VENDAS"
 
 async def garantir_painel_info_vendas(guild):
     if guild is None:
         return
-    categoria = discord.utils.get(guild.categories, name=SALES_INFO_CATEGORY)
+    categoria = next((cat for cat in guild.categories if cat.name.strip().casefold() in {"vendas", "sales information", "informações de vendas", "informacoes de vendas"}), None)
     if categoria is None:
         categoria = await guild.create_category(
             SALES_INFO_CATEGORY,
             reason="Criar área pública com instruções do fluxo de vendas"
         )
+    elif categoria.name != SALES_INFO_CATEGORY:
+        await categoria.edit(name=SALES_INFO_CATEGORY, reason="Renomear categoria de vendas sem alterar a hierarquia")
 
     canal = discord.utils.get(guild.text_channels, name=SALES_INFO_CHANNEL)
     overwrites = {
@@ -4722,6 +4724,57 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
 
 
 @bot.event
+async def renomear_categorias_solicitadas(guild: discord.Guild):
+    """Altera somente nomes de categorias reconhecidas; não move nem cria categorias."""
+    if guild is None or guild.me is None or not guild.me.guild_permissions.manage_channels:
+        log.warning("Sem permissão Gerenciar canais; nomes das categorias não foram alterados.")
+        return
+
+    traducoes = {
+        "customization": "Custom",
+        "customisation": "Custom",
+        "personalização": "Custom",
+        "personalizacao": "Custom",
+        "administration": "DM",
+        "administração": "DM",
+        "administracao": "DM",
+        "information": "Info",
+        "informação": "Info",
+        "informacao": "Info",
+        "informações": "Info",
+        "informacoes": "Info",
+        "pattern": "Sites",
+        "sales information": "Vendas",
+        "informações de vendas": "Vendas",
+        "informacoes de vendas": "Vendas",
+        "community": "Comunidade",
+        "free things": "Grátis",
+        "free stuff": "Grátis",
+        "coisas grátis": "Grátis",
+        "coisas gratis": "Grátis",
+    }
+    alteradas = 0
+    for categoria in list(guild.categories):
+        nome_atual = categoria.name.strip().casefold()
+        if "cc •" in nome_atual or "cc ·" in nome_atual:
+            continue
+        destino = traducoes.get(nome_atual)
+        if not destino or categoria.name == destino:
+            continue
+        # Se já existe uma categoria com o nome de destino, não renomeia nem combina categorias.
+        outra = next((cat for cat in guild.categories if cat.id != categoria.id and cat.name.casefold() == destino.casefold()), None)
+        if outra:
+            log.warning("Categoria %s não renomeada para %s: já existe outra com esse nome.", categoria.id, destino)
+            continue
+        try:
+            await categoria.edit(name=destino, reason="Pedido do administrador: alterar somente nomes das categorias")
+            alteradas += 1
+            log.info("Categoria renomeada sem mover: id=%s %r -> %r", categoria.id, nome_atual, destino)
+        except Exception:
+            log.exception("Falha ao renomear categoria id=%s para %s", categoria.id, destino)
+    log.info("Renomeação solicitada concluída: %s categoria(s) alterada(s); posições e canais preservados.", alteradas)
+
+
 async def on_ready():
     try:
         guild = discord.Object(id=1561513043886743562)
@@ -4751,8 +4804,7 @@ async def on_ready():
         # Renomeia e organiza a hierarquia automaticamente na inicialização, sem painel.
         try:
             servidor_hierarquia = bot.get_guild(1561513043886743562)
-            await renomear_categorias_principais(servidor_hierarquia)
-            await aplicar_organizacao_automatica(servidor_hierarquia)
+            await renomear_categorias_solicitadas(servidor_hierarquia)
         except Exception:
             log.exception("Falha ao atualizar nomes e hierarquia automaticamente.")
 
@@ -4778,11 +4830,11 @@ async def on_ready():
         except Exception:
             log.exception("Falha ao criar/atualizar a área de informações de vendas.")
 
-        # Reaplica a ordem depois de garantir Sales Information, para mantê-la ao lado da CC Store.
+        # Apenas corrige os nomes pedidos; não altera posições nem move canais.
         try:
-            await aplicar_organizacao_automatica(bot.get_guild(1561513043886743562))
+            await renomear_categorias_solicitadas(bot.get_guild(1561513043886743562))
         except Exception:
-            log.exception("Falha ao finalizar a ordem das categorias após garantir Sales Information.")
+            log.exception("Falha ao finalizar a renomeação das categorias.")
 
         try:
             servidor = bot.get_guild(1561513043886743562)
