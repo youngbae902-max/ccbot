@@ -5122,8 +5122,14 @@ async def configurar_paineis_gratis(guild):
                 None
             )
             if channel is None:
-                log.warning("Canal de painel grátis não encontrado para %s; nomes procurados: %s", kind, sorted(cfg["channel_names"]))
-                continue
+                # Cria o canal público do painel se o nome esperado não existir.
+                nome_publico = "packs-gratis" if kind == "packs" else "projeto-la-gratis"
+                channel = await guild.create_text_channel(
+                    nome_publico,
+                    topic="Painel público do CC BOT para acessar conteúdo gratuito.",
+                    reason="Criar canal público para publicar painel de conteúdo gratuito"
+                )
+                log.info("Canal público criado para o painel grátis: %s (#%s)", kind, channel.name)
 
             view = FreeProjectsAccessView(kind)
             message_id = saved.get(kind, {}).get("message_id") if isinstance(saved.get(kind), dict) else None
