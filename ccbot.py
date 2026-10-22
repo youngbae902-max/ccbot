@@ -3009,8 +3009,8 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
             alteradas = await renomear_categorias_solicitadas(interaction.guild)
             await interaction.edit_original_response(
                 content=(
-                    f"✅ **Nomes das categorias atualizados.**\\n"
-                    f"Categorias renomeadas: **{alteradas}**.\\n"
+                    f"✅ **Nomes das categorias atualizados.**\n"
+                    f"Categorias renomeadas: **{alteradas}**.\n"
                     "A hierarquia, as posições e os canais foram preservados."
                 ),
                 embed=None,
@@ -3047,8 +3047,8 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🗂️ Hierarquia do servidor",
         description=(
-            "Use o botão abaixo para deixar os nomes das categorias em português e maiúsculas.\\n\\n"
-            "Exemplos: **COMUNIDADE**, **INFORMAÇÕES**, **ADMINISTRAÇÃO**, **SITES**, **VENDAS** e **GRÁTIS**.\\n\\n"
+            "Use o botão abaixo para deixar os nomes das categorias em português e maiúsculas.\n\n"
+            "Exemplos: **COMUNIDADE**, **INFORMAÇÕES**, **ADMINISTRAÇÃO**, **SITES**, **VENDAS** e **GRÁTIS**.\n\n"
             "Só os nomes serão alterados. A ordem, as posições e os canais não serão mexidos."
         ),
         color=discord.Color.dark_grey()
@@ -3071,8 +3071,8 @@ async def hierarquia(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🗂️ Hierarquia do servidor",
         description=(
-            "Use o botão abaixo para deixar os nomes das categorias em português e maiúsculas.\\n\\n"
-            "Exemplos: **COMUNIDADE**, **INFORMAÇÕES**, **ADMINISTRAÇÃO**, **SITES**, **VENDAS** e **GRÁTIS**.\\n\\n"
+            "Use o botão abaixo para deixar os nomes das categorias em português e maiúsculas.\n\n"
+            "Exemplos: **COMUNIDADE**, **INFORMAÇÕES**, **ADMINISTRAÇÃO**, **SITES**, **VENDAS** e **GRÁTIS**.\n\n"
             "Só os nomes serão alterados. A ordem, as posições e os canais não serão mexidos."
         ),
         color=discord.Color.dark_grey()
