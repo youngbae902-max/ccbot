@@ -4143,7 +4143,7 @@ async def publicar_paineis_comunidade():
 
 SALES_SOURCE_CHANNEL_ID = 1561513284191125625
 SALES_COUNTER_CHANNEL_ID = 1561513273554374686
-SALES_COUNTER_PREFIX = "│💰﹒Vendas : "
+SALES_COUNTER_PREFIX = "│💶﹒Vendas : "
 
 
 @bot.event
