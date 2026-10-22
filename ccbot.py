@@ -136,6 +136,7 @@ class CCBot(commands.Bot):
             ("Trampar Conosco", TramparConoscoView),
             ("Comprar Beats", lambda: VendaBeatView("", "", "")),
             ("Ver icons", IconVerIconsView),
+            ("Central de Ícones", PainelIconesView),
         ]
         for nome_view, criar_view in views_persistentes:
             try:
@@ -2433,7 +2434,15 @@ def icon_files():
             key=lambda p: (p.stat().st_mtime, p.name.lower())
         )
     except (FileNotFoundError, PermissionError, OSError):
+        log.exception("Não consegui acessar a pasta de ícones: %s", PINTEREST_PINS_DIR)
         return []
+
+
+def icon_file_signature(path):
+    """Detecta também arquivos substituídos com o mesmo nome."""
+    path = Path(path)
+    stat = path.stat()
+    return f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
 
 def icon_state():
     state = settings.setdefault("icon_system", {})
@@ -2672,7 +2681,7 @@ class IconNomeQuantidadeModal(discord.ui.Modal, title="Cadastrar ícone"):
             return
 
         state = icon_state()
-        atuais = [str(p.resolve()) for p in icon_files()]
+        atuais = [icon_file_signature(p) for p in icon_files()]
         state["pending"] = {
             "name": str(self.nome.value).strip(),
             "quantity": quantidade,
@@ -2778,7 +2787,8 @@ class IconImportarButton(discord.ui.Button):
 
 class PainelIconesView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=300)
+        # Painel persistente: os botões continuam funcionando após 5 minutos e reinícios.
+        super().__init__(timeout=None)
         self.add_item(IconMonitoramentoButton())
         self.add_item(IconAdicionarButton())
         self.add_item(IconImportarButton())
@@ -2820,10 +2830,18 @@ async def monitorar_pasta_icones():
         return
     try:
         baseline = set(pendente.get("baseline", []))
-        caminhos = [
-            p for p in icon_files()
-            if str(p.resolve()) not in baseline
-        ]
+        caminhos = []
+        for path in icon_files():
+            resolved = str(path.resolve())
+            # Compatibilidade com cadastros antigos que guardavam apenas o caminho.
+            if resolved in baseline:
+                continue
+            try:
+                assinatura = icon_file_signature(path)
+            except OSError:
+                continue
+            if assinatura not in baseline:
+                caminhos.append(path)
         quantidade = int(pendente.get("quantity", 0))
         if quantidade < 1 or len(caminhos) < quantidade:
             return
