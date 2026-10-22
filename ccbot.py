@@ -4705,8 +4705,8 @@ async def renomear_categorias_solicitadas(guild: discord.Guild):
         log.warning("Sem permissão Gerenciar canais; nomes das categorias não foram alterados.")
         raise PermissionError("O CC BOT precisa da permissão Gerenciar canais.")
     traducoes = {
-        "customization": "CUSTOM", "customisation": "CUSTOM", "custom": "CUSTOM",
-        "personalização": "CUSTOM", "personalizacao": "CUSTOM",
+        "customization": "CUSTOMIZAÇÃO", "customisation": "CUSTOMIZAÇÃO", "custom": "CUSTOMIZAÇÃO",
+        "personalização": "CUSTOMIZAÇÃO", "personalizacao": "CUSTOMIZAÇÃO",
         "icons": "ÍCONES", "ícones": "ÍCONES", "icones": "ÍCONES",
         "administration": "ADMINISTRAÇÃO", "administração": "ADMINISTRAÇÃO", "administracao": "ADMINISTRAÇÃO",
         "information": "INFORMAÇÕES", "informação": "INFORMAÇÕES", "informacoes": "INFORMAÇÕES", "informações": "INFORMAÇÕES",
