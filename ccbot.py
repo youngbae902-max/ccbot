@@ -2443,7 +2443,7 @@ def icon_state():
     return state
 
 async def publicar_album_icone(nome, paths):
-    """Publica só uma prévia no canal principal; o álbum completo fica atrás do botão."""
+    """Publica o álbum completo no canal, com título e botão para abrir a versão privada."""
     if not paths:
         raise ValueError("Nenhuma foto encontrada para publicar.")
     canal = bot.get_channel(ICONS_CHANNEL_ID)
@@ -2455,21 +2455,6 @@ async def publicar_album_icone(nome, paths):
     nome = str(nome).strip() or "Ícone"
     caminhos = [str(Path(path).resolve()) for path in paths]
     chave = nome.casefold()
-    arquivo = discord.File(caminhos[0], filename=Path(caminhos[0]).name)
-    embed = discord.Embed(
-        title=nome,
-        color=discord.Color.from_rgb(0, 0, 0)
-    )
-    embed.set_image(url=f"attachment://{Path(caminhos[0]).name}")
-    embed.set_footer(text="CC BOT • Icons")
-    try:
-        await canal.send(embed=embed, file=arquivo, view=IconVerIconsView())
-    finally:
-        try:
-            arquivo.close()
-        except Exception:
-            pass
-
     state = icon_state()
     albuns = state.setdefault("albums", {})
     albuns[chave] = {
@@ -2478,7 +2463,32 @@ async def publicar_album_icone(nome, paths):
         "private_categories": albuns.get(chave, {}).get("private_categories", {})
     }
     save_json(DATA_FILE, settings)
-    return len(caminhos)
+
+    enviados = 0
+    for inicio in range(0, len(paths), 10):
+        lote = paths[inicio:inicio + 10]
+        arquivos = []
+        try:
+            for path in lote:
+                arquivos.append(discord.File(str(path), filename=path.name))
+            embed = discord.Embed(
+                title=f"🖼️ Icon - {nome}" if inicio == 0 else f"🖼️ Icon - {nome} (continuação)",
+                description=None if inicio else f"📸 {len(paths)} foto(s)",
+                color=discord.Color.from_rgb(0, 0, 0)
+            )
+            embed.set_footer(text="CC BOT • Icons")
+            if inicio == 0:
+                await canal.send(embed=embed, files=arquivos, view=IconVerIconsView())
+            else:
+                await canal.send(embed=embed, files=arquivos)
+            enviados += len(lote)
+        finally:
+            for arquivo in arquivos:
+                try:
+                    arquivo.close()
+                except Exception:
+                    pass
+    return enviados
 
 
 class IconVerIconsView(discord.ui.View):
