@@ -137,6 +137,8 @@ class CCBot(commands.Bot):
             ("Comprar Beats", lambda: VendaBeatView("", "", "")),
             ("Ver icons", IconVerIconsView),
             ("Central de Ícones", PainelIconesView),
+            ("Packs grátis", lambda: FreeProjectsAccessView("packs")),
+            ("Projetos grátis", lambda: FreeProjectsAccessView("projetos")),
         ]
         for nome_view, criar_view in views_persistentes:
             try:
@@ -4981,6 +4983,167 @@ async def renomear_categorias_solicitadas(guild: discord.Guild):
     return alteradas
 
 
+
+# FREE_PROJECTS_PANEL_V1: categorias privadas com acesso automático pelo botão.
+FREE_PROJECTS_CONFIG_KEY = "free_projects_panels"
+FREE_PROJECTS_GUILD_ID = 1561513043886743562
+
+FREE_PROJECTS = {
+    "packs": {
+        "category": "📦 PACKS GRÁTIS",
+        "channel_names": {"packs-gratis", "packs-grátis", "packs-gratis"},
+        "title": "📦 PACKS GRÁTIS",
+        "description": (
+            "**Melhore suas produções sem gastar nada!**\n"
+            "-# Confira os packs gratuitos disponíveis para você!\n\n"
+            "### <:box_1:1561761829502459964> Packs para suas produções!\n"
+            "Encontre novos sons, samples e recursos para dar mais criatividade aos seus projetos."
+        ),
+        "custom_id": "cc:free-projects:packs"
+    },
+    "projetos": {
+        "category": "🎛️ PROJETOS GRÁTIS",
+        "channel_names": {"projeto-la-gratis", "projetos-gratis", "projetos-grátis", "projeto-gratis"},
+        "title": "🎛️ PROJETOS GRÁTIS",
+        "description": (
+            "**Aprenda, explore e crie sem gastar nada!**\n"
+            "-# Acesse projetos gratuitos para suas produções.\n\n"
+            "### <:box_1:1561761829502459964> Projetos disponíveis para você!\n"
+            "Confira projetos compartilhados gratuitamente e aproveite novas ideias para suas produções."
+        ),
+        "custom_id": "cc:free-projects:projetos"
+    }
+}
+
+
+def _free_project_channel_key(name):
+    return unicodedata.normalize("NFKD", name.casefold()).encode("ascii", "ignore").decode("ascii").replace("_", "-")
+
+
+async def _get_or_create_free_category(guild, category_name):
+    category = discord.utils.get(guild.categories, name=category_name)
+    if category is not None:
+        return category
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(view_channel=False),
+    }
+    admin = guild.get_member(ADMIN_ID)
+    if admin is None:
+        try:
+            admin = await guild.fetch_member(ADMIN_ID)
+        except discord.HTTPException:
+            admin = None
+    if admin is not None:
+        overwrites[admin] = discord.PermissionOverwrite(
+            view_channel=True, send_messages=True, read_message_history=True,
+            manage_channels=True, manage_messages=True
+        )
+    return await guild.create_category(
+        category_name,
+        overwrites=overwrites,
+        reason="Categoria privada de conteúdo gratuito liberada pelo botão do CC BOT"
+    )
+
+
+class FreeProjectsAccessView(discord.ui.View):
+    def __init__(self, kind):
+        super().__init__(timeout=None)
+        self.kind = kind
+        cfg = FREE_PROJECTS[kind]
+        button = discord.ui.Button(
+            label="Ver projetos",
+            emoji="📦",
+            style=discord.ButtonStyle.primary,
+            custom_id=cfg["custom_id"]
+        )
+        button.callback = self.grant_access
+        self.add_item(button)
+
+    async def grant_access(self, interaction: discord.Interaction):
+        if interaction.guild is None:
+            await interaction.response.send_message("Use este botão dentro do servidor.", ephemeral=True)
+            return
+        cfg = FREE_PROJECTS[self.kind]
+        guild = interaction.guild
+        category = await _get_or_create_free_category(guild, cfg["category"])
+        try:
+            overwrite = category.overwrites_for(interaction.user)
+            overwrite.view_channel = True
+            overwrite.read_message_history = True
+            overwrite.send_messages = True
+            await category.set_permissions(
+                interaction.user, overwrite=overwrite,
+                reason=f"Acesso solicitado pelo botão {cfg['title']}"
+            )
+            await interaction.response.send_message(
+                f"✅ Acesso liberado à categoria **{category.name}**! Ela já deve aparecer na sua lista de canais.",
+                ephemeral=True
+            )
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                "Não consegui liberar o acesso. O bot precisa da permissão **Gerenciar Canais**.",
+                ephemeral=True
+            )
+        except discord.HTTPException:
+            log.exception("Falha ao liberar categoria grátis para usuário %s", interaction.user.id)
+            await interaction.response.send_message(
+                "Ocorreu um erro ao liberar o acesso. Tente novamente mais tarde.",
+                ephemeral=True
+            )
+
+
+async def configurar_paineis_gratis(guild):
+    saved = settings.get(FREE_PROJECTS_CONFIG_KEY, {})
+    if not isinstance(saved, dict):
+        saved = {}
+    changed = False
+    for kind, cfg in FREE_PROJECTS.items():
+        try:
+            category = await _get_or_create_free_category(guild, cfg["category"])
+            # Busca o canal pelo nome, sem criar canais públicos adicionais.
+            accepted = {_free_project_channel_key(n) for n in cfg["channel_names"]}
+            channel = next(
+                (c for c in guild.text_channels if _free_project_channel_key(c.name) in accepted),
+                None
+            )
+            if channel is None:
+                log.warning("Canal de painel grátis não encontrado para %s; nomes procurados: %s", kind, sorted(cfg["channel_names"]))
+                continue
+
+            view = FreeProjectsAccessView(kind)
+            message_id = saved.get(kind, {}).get("message_id") if isinstance(saved.get(kind), dict) else None
+            message = None
+            if message_id:
+                try:
+                    message = await channel.fetch_message(int(message_id))
+                except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                    message = None
+            if message is None:
+                async for candidate in channel.history(limit=30):
+                    if candidate.author.id == bot.user.id and candidate.components:
+                        if any(getattr(comp, "custom_id", None) == cfg["custom_id"] for row in candidate.components for comp in getattr(row, "children", [])):
+                            message = candidate
+                            break
+            embed = discord.Embed(
+                title=cfg["title"],
+                description=cfg["description"],
+                color=discord.Color.from_rgb(20, 20, 20)
+            )
+            embed.set_footer(text="CC BOT • Conteúdo gratuito")
+            if message is not None:
+                await message.edit(embed=embed, view=view, content=None)
+            else:
+                message = await channel.send(embed=embed, view=view)
+            saved[kind] = {"channel_id": channel.id, "message_id": message.id, "category_id": category.id}
+            changed = True
+            log.info("Painel grátis configurado: %s em #%s; categoria privada %s", kind, channel.name, category.name)
+        except Exception:
+            log.exception("Falha ao configurar painel grátis: %s", kind)
+    if changed:
+        settings[FREE_PROJECTS_CONFIG_KEY] = saved
+        save_json(DATA_FILE, settings)
+
+
 async def on_ready():
     try:
         guild = discord.Object(id=1561513043886743562)
@@ -5006,6 +5169,11 @@ async def on_ready():
         else:
             log.info("Sincronização de comandos já realizada nesta execução; ignorando repetição.")
         log.info("Conectado como %s", bot.user)
+
+        servidor_paineis_gratis = bot.get_guild(FREE_PROJECTS_GUILD_ID)
+        if servidor_paineis_gratis is not None and not getattr(bot, "_free_projects_panels_configured", False):
+            await configurar_paineis_gratis(servidor_paineis_gratis)
+            bot._free_projects_panels_configured = True
 
         # Limpeza única do histórico antigo de Confirmar pagamentos, solicitada pelo administrador.
         if not settings.get("payment_admin_history_cleared", False):
