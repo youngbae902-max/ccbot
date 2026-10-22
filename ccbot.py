@@ -1320,7 +1320,7 @@ def gerar_payload_pix(chave: str, nome: str, cidade: str, valor: float, txid: st
 # Checkout unificado do Mercado: QR Pix, canal privado e aprovação manual.
 PAYMENT_CATEGORY_NAME = "cc store"
 PAYMENT_ADMIN_CATEGORY_NAME = "administration"
-PAYMENT_ADMIN_CHANNEL_NAME = "confirmar-pagamentos"
+PAYMENT_ADMIN_CHANNEL_NAME = "pc-confirmar-pagamentos"
 
 
 def formatar_reais(valor):
@@ -1404,10 +1404,10 @@ async def obter_canal_cancelados(guild):
             PAYMENT_ADMIN_CATEGORY_NAME, overwrites=overwrites,
             reason="Configuração do histórico de pagamentos"
         )
-    canal = discord.utils.get(guild.text_channels, name="pagamentos-cancelados")
+    canal = discord.utils.get(guild.text_channels, name="cpp-cancelamentos")
     if canal is None:
         canal = await guild.create_text_channel(
-            "pagamentos-cancelados", category=categoria, overwrites=overwrites,
+            "cpp-cancelamentos", category=categoria, overwrites=overwrites,
             topic="Histórico de pedidos Pix cancelados ou negados."
         )
     else:
@@ -2968,27 +2968,27 @@ async def analisar_hierarquia(interaction: discord.Interaction):
 
 
 HIERARQUIA_CATEGORIAS = {
-    "admin": {"id": 1561513258211352626, "nome": "administration", "posicao": 2},
-    "welcome": {"id": 1561513260501569576, "nome": "information", "posicao": 3},
-    "lojas": {"id": 1561513261424447609, "nome": "partners", "posicao": 5},
-    "mercado": {"id": 1561513263286452275, "nome": "cc store", "posicao": 4},
-    "comunidade": {"id": 1561513265006116877, "nome": "community", "posicao": 6},
-    "estatisticas": {"id": 1561513258970521743, "nome": "statistics", "posicao": 7},
+    "admin": {"id": 1561513258211352626, "nome": "administration", "posicao": 5},
+    "welcome": {"id": 1561513260501569576, "nome": "information", "posicao": 6},
+    "lojas": {"id": 1561513261424447609, "nome": "partners", "posicao": 8},
+    "mercado": {"id": 1561513263286452275, "nome": "cc store", "posicao": 7},
+    "comunidade": {"id": 1561513265006116877, "nome": "community", "posicao": 3},
+    "estatisticas": {"id": 1561513258970521743, "nome": "statistics", "posicao": 2},
 }
 
 HIERARQUIA_MOVER_CANAIS = [
     (1561513291703128106, 1561513265006116877, 0),  # chat-geral
     (1561513297155592253, 1561513265006116877, 1),  # duvidas
     (1561513293124739173, 1561513265006116877, 2),  # divulgação
-    (1561513293934362705, 1561513265006116877, 4),  # packs-gratis
-    (1561513295352037507, 1561513265006116877, 5),  # projetos-gratis
+    (1561513290473934998, 0, 0),  # icon -> categoria customization criada/localizada pelo nome
+    (1561513293934362705, 0, 0),  # packs-gratis -> free things
+    (1561513295352037507, 0, 1),  # projetos-gratis -> free things
     (1561513284811624480, 1561513263286452275, 0),  # gerador-de-samples
     (1561513286967500841, 1561513263286452275, 1),  # pack-personalizado
     (1561513288297353286, 1561513263286452275, 2),  # comprar-beats
     (1561513289438199878, 1561513263286452275, 3),  # arrumador-de-projeto
     (1561513284191125625, 1561513263286452275, 4),  # vendas
 ]
-
 
 class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
     def __init__(self, guild_id: int):
@@ -3036,7 +3036,9 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
 
             for canal_id, categoria_id, posicao in HIERARQUIA_MOVER_CANAIS:
                 canal = canais.get(canal_id)
-                categoria = categorias.get(categoria_id)
+                categoria = categorias.get(categoria_id) if categoria_id else None
+                if categoria_id == 0:
+                    continue
                 if canal is None or categoria is None:
                     erros.append(f"Canal/categoria ausente: canal {canal_id}, categoria {categoria_id}")
                     continue
@@ -3052,46 +3054,66 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
             # Reordena canais e categorias globalmente, mantendo as categorias antigas.
             canais_finais = await guild.fetch_channels()
             por_id = {c.id: c for c in canais_finais}
-            # Detecta as categorias especiais pelo nome atual, sem depender de IDs desconhecidos.
+            # Categorias especiais: status primeiro, depois customização (somente ícone),
+            # estatísticas, loja, comunidade, itens grátis e por último parcerias.
             categorias_atuais = [x for x in canais_finais if isinstance(x, discord.CategoryChannel)]
             categoria_status = next((x for x in categorias_atuais if ("cc •" in x.name.casefold() or "cc ·" in x.name.casefold() or "server status" in x.name.casefold() or "status do servidor" in x.name.casefold())), None)
-            categoria_custom = next((x for x in categorias_atuais if any(p in x.name.casefold() for p in ("customization", "customisation", "personalização", "personalizacao", "ícones", "icones", "icons"))), None)
+            categoria_custom = next((x for x in categorias_atuais if x.name.casefold() in ("customization", "customisation", "personalização", "personalizacao", "ícones", "icones", "icons")), None)
             if categoria_custom is None:
-                categoria_custom = await guild.create_category("customization", reason="Separar ícones e personalização do chat da comunidade")
+                categoria_custom = await guild.create_category("customization", reason="Categoria exclusiva para o canal de ícones")
                 alteracoes += 1
-                canais_finais = await guild.fetch_channels()
-                por_id = {x.id: x for x in canais_finais}
-                categorias_atuais = [x for x in canais_finais if isinstance(x, discord.CategoryChannel)]
-            # Coloca canais de ícones/personalização na categoria própria.
-            for canal in canais_finais:
-                nome_canal = canal.name.casefold()
-                if not isinstance(canal, discord.CategoryChannel) and any(p in nome_canal for p in ("icon", "ícone", "icone", "avatar", "personaliz", "banner", "emoji")):
-                    if canal.category_id != categoria_custom.id:
-                        await canal.edit(category=categoria_custom, reason="Separar canais de ícones e personalização")
-                        alteracoes += 1
+            elif categoria_custom.name != "customization":
+                await categoria_custom.edit(name="customization", reason="Padronizar categoria de ícones")
+                alteracoes += 1
+            categoria_free = next((x for x in categorias_atuais if x.name.casefold() in ("free things", "free stuff", "coisas grátis", "coisas gratis")), None)
+            if categoria_free is None:
+                categoria_free = await guild.create_category("free things", reason="Separar packs e projetos gratuitos")
+                alteracoes += 1
+            elif categoria_free.name != "free things":
+                await categoria_free.edit(name="free things", reason="Padronizar categoria de itens grátis")
+                alteracoes += 1
+            for canal_id, categoria_destino in (
+                (1561513290473934998, categoria_custom),
+                (1561513293934362705, categoria_free),
+                (1561513295352037507, categoria_free),
+            ):
+                canal = guild.get_channel(canal_id)
+                if canal and canal.category_id != categoria_destino.id:
+                    await canal.edit(category=categoria_destino, reason="Organização automática de ícones e itens gratuitos")
+                    alteracoes += 1
+            # Nomes curtos para os dois canais privados de pagamentos.
+            for canal in guild.text_channels:
+                if canal.name == "confirmar-pagamentos":
+                    await canal.edit(name="pc-confirmar-pagamentos", reason="Padronizar canal administrativo de pagamentos")
+                elif canal.name == "pagamentos-cancelados":
+                    await canal.edit(name="cpp-cancelamentos", reason="Padronizar canal administrativo de cancelamentos")
             canais_finais = await guild.fetch_channels()
             por_id = {x.id: x for x in canais_finais}
-            ordem_categorias = [1561513258211352626, 1561513260501569576, 1561513263286452275, 1561513261424447609, 1561513265006116877, 1561513258970521743]
+            categorias_atuais = [x for x in canais_finais if isinstance(x, discord.CategoryChannel)]
+            categoria_status = next((x for x in categorias_atuais if ("cc •" in x.name.casefold() or "cc ·" in x.name.casefold() or "server status" in x.name.casefold() or "status do servidor" in x.name.casefold())), None)
+            categoria_custom = next(x for x in categorias_atuais if x.id == categoria_custom.id)
+            categoria_free = next(x for x in categorias_atuais if x.id == categoria_free.id)
+            # Stats fica logo abaixo da customização. As lojas parceiras ficam perto do fim.
+            ordem_categorias = [1561513258970521743, 1561513258211352626, 1561513260501569576, 1561513263286452275, 1561513265006116877, categoria_free.id, 1561513261424447609]
             filhos_por_categoria = {
                 1561513258211352626: [1561513268021821460, 1561698571525423115],
                 1561513260501569576: [1561513269754068992, 1561513274737168414, 1561513277207347310, 1561513277882634404, 1561837934649409696],
                 1561513261424447609: [1561513281049595958, 1561513282265944104, 1561513283171651644],
                 1561513263286452275: [1561513284811624480, 1561513286967500841, 1561513288297353286, 1561513289438199878, 1561513284191125625],
-                1561513265006116877: [1561513291703128106, 1561513297155592253, 1561513293124739173, 1561513293934362705, 1561513295352037507],
+                1561513265006116877: [1561513291703128106, 1561513297155592253, 1561513293124739173],
                 1561513258970521743: [1561513270819692606, 1561513273554374686, 1561513275403800709],
+                categoria_free.id: [1561513293934362705, 1561513295352037507],
+                categoria_custom.id: [1561513290473934998],
             }
             ordem_final = []
             if categoria_status and categoria_status.id in por_id:
                 ordem_final.append(por_id[categoria_status.id])
                 ordem_final.extend(x for x in sorted(categoria_status.channels, key=lambda y: y.position) if x.id in por_id)
-            if categoria_custom and categoria_custom.id in por_id:
-                ordem_final.append(por_id[categoria_custom.id])
-                ordem_final.extend(x for x in sorted(categoria_custom.channels, key=lambda y: y.position) if x.id in por_id)
-            for categoria_id in ordem_categorias:
+            for categoria_id in [categoria_custom.id, 1561513258970521743, 1561513258211352626, 1561513260501569576, 1561513263286452275, 1561513265006116877, categoria_free.id, 1561513261424447609]:
                 if categoria_id in por_id and por_id[categoria_id] not in ordem_final:
                     ordem_final.append(por_id[categoria_id])
-                ordem_final.extend(por_id[cid] for cid in filhos_por_categoria[categoria_id] if cid in por_id and por_id[cid] not in ordem_final)
-            # Mantém todas as categorias/canais restantes, sem apagar nem esconder nada.
+                ordem_final.extend(por_id[cid] for cid in filhos_por_categoria.get(categoria_id, []) if cid in por_id and por_id[cid] not in ordem_final)
+            # Categorias não mapeadas (incluindo CC/parcerias) ficam no final, preservadas.
             ordem_final.extend(x for x in sorted(canais_finais, key=lambda y: y.position) if x not in ordem_final)
             for posicao_global, canal in enumerate(ordem_final):
                 if canal.position != posicao_global:
@@ -4631,6 +4653,76 @@ async def renomear_categorias_principais(guild: discord.Guild):
     log.info("Atualização automática de nomes concluída: %s categoria(s) renomeada(s).", alteradas)
 
 
+async def aplicar_organizacao_automatica(guild: discord.Guild):
+    """Aplica a hierarquia visual na inicialização, sem exigir botão/painel."""
+    if guild is None or guild.me is None or not guild.me.guild_permissions.manage_channels:
+        log.warning("Organização automática ignorada: servidor ausente ou sem Gerenciar canais.")
+        return
+    try:
+        canais = await guild.fetch_channels()
+        categorias = [x for x in canais if isinstance(x, discord.CategoryChannel)]
+        status = next((x for x in categorias if any(p in x.name.casefold() for p in ("cc •", "cc ·", "server status", "status do servidor"))), None)
+        custom = next((x for x in categorias if x.name.casefold() in ("customization", "customisation", "personalização", "personalizacao", "ícones", "icones", "icons")), None)
+        if custom is None:
+            custom = await guild.create_category("customization", reason="Organização automática CC BOT")
+        elif custom.name != "customization":
+            await custom.edit(name="customization", reason="Organização automática CC BOT")
+        free = next((x for x in categorias if x.name.casefold() in ("free things", "free stuff", "coisas grátis", "coisas gratis")), None)
+        if free is None:
+            free = await guild.create_category("free things", reason="Organização automática CC BOT")
+        elif free.name != "free things":
+            await free.edit(name="free things", reason="Organização automática CC BOT")
+        # Exatamente estes canais vão para as categorias especiais: não move outros canais por palavras parecidas.
+        for cid, dest in ((1561513290473934998, custom), (1561513293934362705, free), (1561513295352037507, free)):
+            ch = guild.get_channel(cid)
+            if ch and ch.category_id != dest.id:
+                await ch.edit(category=dest, reason="Organização automática CC BOT")
+        # Renomeia canais de pagamentos sem quebrar as funções que os localizam por nome.
+        for ch in list(guild.text_channels):
+            if ch.name == "confirmar-pagamentos":
+                await ch.edit(name="pc-confirmar-pagamentos", reason="Padronização visual administrativa")
+            elif ch.name == "pagamentos-cancelados":
+                await ch.edit(name="cpp-cancelamentos", reason="Padronização visual administrativa")
+        # Ordem visual: status, customização, stats, loja, comunidade, grátis, informação/admin,
+        # e lojas parceiras no fim. Categorias desconhecidas são preservadas no final.
+        canais = await guild.fetch_channels()
+        by_id = {x.id: x for x in canais}
+        categories = [x for x in canais if isinstance(x, discord.CategoryChannel)]
+        status = next((x for x in categories if any(p in x.name.casefold() for p in ("cc •", "cc ·", "server status", "status do servidor"))), None)
+        custom = next(x for x in categories if x.id == custom.id)
+        free = next(x for x in categories if x.id == free.id)
+        main_order = [1561513258970521743, 1561513263286452275, 1561513265006116877, free.id, 1561513260501569576, 1561513258211352626, 1561513261424447609]
+        children = {
+            1561513258970521743: [1561513270819692606, 1561513273554374686, 1561513275403800709],
+            1561513263286452275: [1561513284811624480, 1561513286967500841, 1561513288297353286, 1561513289438199878, 1561513284191125625],
+            1561513265006116877: [1561513291703128106, 1561513297155592253, 1561513293124739173],
+            free.id: [1561513293934362705, 1561513295352037507],
+            1561513260501569576: [1561513269754068992, 1561513274737168414, 1561513277207347310, 1561513277882634404, 1561837934649409696],
+            1561513258211352626: [1561513268021821460, 1561698571525423115],
+            1561513261424447609: [1561513281049595958, 1561513282265944104, 1561513283171651644],
+            custom.id: [1561513290473934998],
+        }
+        ordered = []
+        if status and status.id in by_id:
+            ordered.append(by_id[status.id])
+            ordered.extend(x for x in sorted(status.channels, key=lambda z: z.position) if x not in ordered)
+        for cid in [custom.id, *main_order]:
+            if cid in by_id and by_id[cid] not in ordered:
+                ordered.append(by_id[cid])
+            ordered.extend(by_id[x] for x in children.get(cid, []) if x in by_id and by_id[x] not in ordered)
+        # A categoria de vendas explicativas e quaisquer categorias desconhecidas ficam abaixo das principais.
+        ordered.extend(x for x in sorted(canais, key=lambda z: z.position) if x not in ordered)
+        for pos, ch in enumerate(ordered):
+            if ch.position != pos:
+                try:
+                    await ch.edit(position=pos, reason="Hierarquia automática CC BOT")
+                except discord.HTTPException:
+                    log.warning("Não consegui posicionar %s (%s)", ch.name, ch.id)
+        log.info("Organização automática aplicada: status no topo, customization, statistics, loja, comunidade, free things e partners.")
+    except Exception:
+        log.exception("Falha ao aplicar organização automática do servidor.")
+
+
 @bot.event
 async def on_ready():
     try:
@@ -4658,11 +4750,13 @@ async def on_ready():
             log.info("Sincronização de comandos já realizada nesta execução; ignorando repetição.")
         log.info("Conectado como %s", bot.user)
 
-        # Corrige os nomes das categorias automaticamente, sem exigir o painel de estrutura.
+        # Renomeia e organiza a hierarquia automaticamente na inicialização, sem painel.
         try:
-            await renomear_categorias_principais(bot.get_guild(1561513043886743562))
+            servidor_hierarquia = bot.get_guild(1561513043886743562)
+            await renomear_categorias_principais(servidor_hierarquia)
+            await aplicar_organizacao_automatica(servidor_hierarquia)
         except Exception:
-            log.exception("Falha ao atualizar os nomes das categorias principais.")
+            log.exception("Falha ao atualizar nomes e hierarquia automaticamente.")
 
         # Limpeza única do histórico antigo de Confirmar pagamentos, solicitada pelo administrador.
         if not settings.get("payment_admin_history_cleared", False):
