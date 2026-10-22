@@ -2495,7 +2495,7 @@ def icon_state():
     return state
 
 async def publicar_album_icone(nome, paths):
-    """Registra cada ícone uma vez e envia novas fotos ao tópico permanente dele."""
+    """Publica o álbum completo no canal, com título e botão para abrir a versão privada."""
     if not paths:
         raise ValueError("Nenhuma foto encontrada para publicar.")
     canal = bot.get_channel(ICONS_CHANNEL_ID)
@@ -2505,95 +2505,42 @@ async def publicar_album_icone(nome, paths):
         raise TypeError("O canal de ícones configurado não é um canal de texto.")
 
     nome = str(nome).strip() or "Ícone"
-    paths = [Path(p) for p in paths]
-    caminhos = [str(p.resolve()) for p in paths]
+    caminhos = [str(Path(path).resolve()) for path in paths]
     chave = nome.casefold()
     state = icon_state()
     albuns = state.setdefault("albums", {})
-    album = albuns.get(chave)
-    if not isinstance(album, dict):
-        album = {"name": nome, "paths": [], "private_categories": {}}
-        albuns[chave] = album
-    album["name"] = album.get("name") or nome
-    album["paths"] = list(dict.fromkeys(
-        [p for p in album.get("paths", []) if isinstance(p, str)] + caminhos
-    ))
+    albuns[chave] = {
+        "name": nome,
+        "paths": caminhos,
+        "private_categories": albuns.get(chave, {}).get("private_categories", {})
+    }
     save_json(DATA_FILE, settings)
 
-    # Se já existe tópico para esse ícone, novas fotos vão direto para ele.
-    thread = None
-    thread_id = album.get("thread_id")
-    if thread_id:
+    enviados = 0
+    for inicio in range(0, len(paths), 10):
+        lote = paths[inicio:inicio + 10]
+        arquivos = []
         try:
-            existente = bot.get_channel(int(thread_id))
-            if existente is None:
-                existente = await bot.fetch_channel(int(thread_id))
-            if isinstance(existente, discord.Thread):
-                thread = existente
-                if thread.archived:
-                    await thread.edit(archived=False)
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException, ValueError):
-            log.exception("Não consegui reutilizar o tópico permanente do ícone '%s'.", nome)
-            thread = None
-
-    if thread is not None:
-        enviados = 0
-        for inicio in range(0, len(paths), 10):
-            arquivos = []
-            try:
-                for path in paths[inicio:inicio + 10]:
-                    arquivos.append(discord.File(str(path), filename=path.name))
-                await thread.send(files=arquivos)
-                enviados += len(arquivos)
-            finally:
-                for arquivo in arquivos:
-                    try:
-                        arquivo.close()
-                    except Exception:
-                        pass
-        save_json(DATA_FILE, settings)
-        return enviados
-
-    # Primeiro envio: cria um único post público para representar o ícone.
-    primeira = paths[0]
-    arquivo = discord.File(str(primeira), filename=primeira.name)
-    embed = discord.Embed(
-        title=f"🖼️ Icon - {nome}",
-        description=f"📸 {len(paths)} foto(s) neste envio. Toque em **Ver icons** para abrir o tópico permanente.",
-        color=discord.Color.from_rgb(0, 0, 0)
-    )
-    embed.set_footer(text="CC BOT • Icons")
-    try:
-        mensagem = await canal.send(file=arquivo, embed=embed, view=IconVerIconsView())
-    finally:
-        try:
-            arquivo.close()
-        except Exception:
-            pass
-
-    try:
-        thread = await mensagem.create_thread(name=f"Icon - {nome}"[:100])
-        album["thread_id"] = thread.id
-        album["starter_message_id"] = mensagem.id
-        save_json(DATA_FILE, settings)
-        # O tópico guarda as fotos completas, incluindo a primeira foto do post público.
-        for inicio in range(0, len(paths), 10):
-            arquivos = []
-            try:
-                for path in paths[inicio:inicio + 10]:
-                    arquivos.append(discord.File(str(path), filename=path.name))
-                await thread.send(files=arquivos)
-            finally:
-                for arquivo in arquivos:
-                    try:
-                        arquivo.close()
-                    except Exception:
-                        pass
-    except Exception:
-        log.exception("Falha ao criar/enviar no tópico permanente do ícone '%s'.", nome)
-        raise
-    return len(paths)
-
+            for path in lote:
+                arquivos.append(discord.File(str(path), filename=path.name))
+            embed = discord.Embed(
+                title=f"🖼️ Icon - {nome}" if inicio == 0 else f"🖼️ Icon - {nome} (continuação)",
+                description=None if inicio else f"📸 {len(paths)} foto(s)",
+                color=discord.Color.from_rgb(0, 0, 0)
+            )
+            embed.set_footer(text="CC BOT • Icons")
+            if inicio == 0:
+                await canal.send(embed=embed, files=arquivos, view=IconVerIconsView())
+            else:
+                await canal.send(embed=embed, files=arquivos)
+            enviados += len(lote)
+        finally:
+            for arquivo in arquivos:
+                try:
+                    arquivo.close()
+                except Exception:
+                    pass
+    return enviados
 
 class IconVerIconsView(discord.ui.View):
     def __init__(self):
