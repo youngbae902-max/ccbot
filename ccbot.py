@@ -5100,7 +5100,22 @@ async def configurar_paineis_gratis(guild):
     for kind, cfg in FREE_PROJECTS.items():
         try:
             category = await _get_or_create_free_category(guild, cfg["category"])
-            # Busca o canal pelo nome, sem criar canais públicos adicionais.
+            # Reforça a privacidade mesmo se a categoria já existia.
+            await category.set_permissions(
+                guild.default_role,
+                overwrite=discord.PermissionOverwrite(view_channel=False),
+                reason="Manter categoria de conteúdo gratuito privada"
+            )
+            # Cria um canal interno caso a categoria ainda esteja vazia.
+            canal_interno_nome = "packs-gratis" if kind == "packs" else "projetos-gratis"
+            if not any(c.name == canal_interno_nome and c.category_id == category.id for c in guild.text_channels):
+                await guild.create_text_channel(
+                    canal_interno_nome,
+                    category=category,
+                    topic="Conteúdo gratuito liberado pelo botão Ver projetos.",
+                    reason="Criar canal interno da categoria privada de conteúdo gratuito"
+                )
+            # Busca o canal público do painel pelo nome.
             accepted = {_free_project_channel_key(n) for n in cfg["channel_names"]}
             channel = next(
                 (c for c in guild.text_channels if _free_project_channel_key(c.name) in accepted),
