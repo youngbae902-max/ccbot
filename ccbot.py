@@ -5446,10 +5446,8 @@ async def on_ready():
             log.info("Sincronização de comandos já realizada nesta execução; ignorando repetição.")
         log.info("Conectado como %s", bot.user)
 
-        servidor_paineis_gratis = bot.get_guild(FREE_PROJECTS_GUILD_ID)
-        if servidor_paineis_gratis is not None and not getattr(bot, "_free_projects_panels_configured", False):
-            await configurar_paineis_gratis(servidor_paineis_gratis)
-            bot._free_projects_panels_configured = True
+        # Não publicar nem reconfigurar painéis em massa durante a inicialização.
+        # A configuração de painéis gratuitos deve ser acionada manualmente.
 
         # Limpeza única do histórico antigo de Confirmar pagamentos, solicitada pelo administrador.
         if not settings.get("payment_admin_history_cleared", False):
@@ -5468,16 +5466,8 @@ async def on_ready():
             save_json(DATA_FILE, settings)
             log.info("Limpeza única de #%s concluída: %s mensagens apagadas.", canal_limpeza.name, apagadas)
 
+        # Os painéis/regras/divulgações existentes não são publicados ou recriados no startup.
         servidor_cc = bot.get_guild(1561513043886743562)
-        try:
-            await garantir_painel_info_vendas(servidor_cc)
-        except Exception:
-            log.exception("Falha ao criar/atualizar a área de informações de vendas.")
-        for funcao, descricao in ((garantir_regras, "regras"), (garantir_canal_divulgacoes, "divulgações de beats"), (garantir_painel_suporte, "suporte dedicado")):
-            try:
-                await funcao(servidor_cc)
-            except Exception:
-                log.exception("Falha ao atualizar %s.", descricao)
         try:
             await obter_canal_confirmacao(servidor_cc)
             await obter_canal_cancelados(servidor_cc)
@@ -5494,21 +5484,8 @@ async def on_ready():
         except Exception:
             log.exception("Falha ao configurar cargos na inicialização.")
 
-        # Aplica a organização do servidor uma vez por processo, depois de garantir os cargos e painéis base.
-        if not getattr(bot, "_server_hierarchy_applied_this_process", False):
-            try:
-                servidor_estrutura = bot.get_guild(1561513043886743562)
-                if servidor_estrutura is not None:
-                    resultado_estrutura = await aplicar_organizacao_automatica(servidor_estrutura)
-                    categorias_renomeadas = await renomear_categorias_solicitadas(servidor_estrutura)
-                    cargos_reordenados = await ordenar_cargos_principais(servidor_estrutura)
-                    bot._server_hierarchy_applied_this_process = True
-                    log.info(
-                        "Organização do servidor executada na inicialização: sucesso=%s, categorias_renomeadas=%s, cargos_reordenados=%s",
-                        resultado_estrutura, categorias_renomeadas, cargos_reordenados
-                    )
-            except Exception:
-                log.exception("Falha ao aplicar a organização do servidor na inicialização.")
+        # IMPORTANTE: a hierarquia nunca é alterada automaticamente ao iniciar o bot.
+        # A organização continua disponível apenas pelo comando/painel manual do administrador.
 
         # Repara mensagens existentes antes das tarefas secundárias de inicialização.
         if not getattr(bot, "_panels_restored_this_process", False):
@@ -5532,48 +5509,8 @@ async def on_ready():
         if not atualizar_contador_vendas.is_running():
             atualizar_contador_vendas.start()
 
-        channel_id = settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)
-        channel = bot.get_channel(int(channel_id))
-        if channel is None:
-            channel = await bot.fetch_channel(int(channel_id))
-
-        embed = discord.Embed(
-            title="CC BOT iniciado com sucesso!",
-            description=(
-                "🟢 **Status:** Online\n"
-                f"🤖 **Bot:** {bot.user.mention}\n"
-                f"⚙️ **Comandos sincronizados:** {len(synced)}"
-            ),
-            color=discord.Color.green(),
-            timestamp=discord.utils.utcnow()
-        )
-        embed.set_image(url=random.choice(STARTUP_GIFS))
-        embed.set_footer(text="CC BOT • Sistema de inicialização")
-
-        # Mantém apenas a mensagem de inicialização mais recente do próprio bot.
-        async for mensagem in channel.history(limit=100):
-            if mensagem.author.id != bot.user.id or not mensagem.embeds:
-                continue
-            if mensagem.embeds[0].title == "CC BOT iniciado com sucesso!":
-                try:
-                    await mensagem.delete()
-                except discord.NotFound:
-                    pass
-                except discord.Forbidden:
-                    log.warning("Sem permissão para apagar a mensagem anterior de inicialização.")
-                break
-
-        await channel.send(embed=embed)
-
-        # Os componentes persistentes já foram registrados no início do on_ready.
-        # O painel de Parcerias usa somente botão de link; não precisa de callback.
-
-        # Publica/atualiza os painéis de Parcerias e Trampar Conosco sem duplicar mensagens.
-        await publicar_paineis_comunidade()
-
-        # Republica os três embeds promocionais uma única vez após esta atualização.
-        # A marca é salva em config.json para impedir duplicações em reinícios futuros.
-        await publicar_embeds_promocionais()
+        # Startup silencioso: não envia avisos nem publica painéis em canais.
+        # Os comandos e as views persistentes continuam funcionando normalmente.
 
         # O sistema de ícones agora importa ZIPs manualmente; não existe monitoramento de pastas.
 
