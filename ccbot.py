@@ -2393,7 +2393,7 @@ class AdicionarEmojisPainelButton(discord.ui.Button):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
-        await adicionar_emojis.callback(interaction)
+        await adicionar_emojis(interaction)
 
 
 class DefinirCanalAvisosSelect(discord.ui.ChannelSelect):
@@ -3848,12 +3848,15 @@ async def adicionar_emojis(interaction: discord.Interaction):
         )
         return
 
+    # Reconhece a interação antes de consultar o armazenamento ou importar arquivos.
+    await interaction.response.defer(ephemeral=True, thinking=True)
+
     pasta = localizar_pasta_emojis()
     if pasta is None:
-        caminhos = "\n".join(f"• `{p}`" for p in EMOJIS_DIRS)
-        await interaction.response.send_message(
-            "❌ **Não consegui acessar a pasta de emojis.**\n"
-            f"Procurei nestes caminhos:\n{caminhos}\n\n"
+        caminhos = "\\n".join(f"• `{p}`" for p in EMOJIS_DIRS)
+        await interaction.followup.send(
+            "❌ **Não consegui acessar a pasta de emojis.**\\n"
+            f"Procurei nestes caminhos:\\n{caminhos}\\n\\n"
             "No Termux, execute `termux-setup-storage`, aceite a permissão de arquivos "
             "e confirme que as imagens estão dentro de `Download/EMOJIS`.",
             ephemeral=True
@@ -3866,20 +3869,19 @@ async def adicionar_emojis(interaction: discord.Interaction):
             key=lambda x: str(x.relative_to(pasta)).casefold()
         )
     except OSError as exc:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"❌ Não consegui ler `{pasta}` ({type(exc).__name__}). Verifique a permissão de arquivos do Termux.",
             ephemeral=True
         )
         return
 
     if not arquivos:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"📂 A pasta `{pasta}` está acessível, mas não encontrei PNG, JPG, WEBP ou GIF nela nem nas subpastas.",
             ephemeral=True
         )
         return
 
-    await interaction.response.defer(ephemeral=True, thinking=True)
     existentes = {e.name.casefold() for e in interaction.guild.emojis}
     ok, ignorados, falhas = [], [], []
 
@@ -3923,14 +3925,14 @@ async def adicionar_emojis(interaction: discord.Interaction):
         f"**Adicionados:** {len(ok)} • **Já existentes:** {len(ignorados)} • **Falhas:** {len(falhas)}",
     ]
     if ok:
-        texto.append("**Adicionados:**\n" + "\n".join(ok[:12]))
+        texto.append("**Adicionados:**\\n" + "\\n".join(ok[:12]))
     if ignorados:
-        texto.append("**Ignorados:**\n" + "\n".join(ignorados[:6]))
+        texto.append("**Ignorados:**\\n" + "\\n".join(ignorados[:6]))
     if falhas:
-        texto.append("**Falhas:**\n" + "\n".join(falhas[:6]))
-    resposta = "\n".join(texto)
+        texto.append("**Falhas:**\\n" + "\\n".join(falhas[:6]))
+    resposta = "\\n".join(texto)
     if len(resposta) > 1950:
-        resposta = resposta[:1900] + "\n… lista reduzida; veja o total acima."
+        resposta = resposta[:1900] + "\\n… lista reduzida; veja o total acima."
     await interaction.followup.send(resposta, ephemeral=True)
 
 async def samples(interaction: discord.Interaction):
