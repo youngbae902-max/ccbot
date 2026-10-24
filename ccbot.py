@@ -1356,8 +1356,6 @@ def extrair_txid_da_mensagem(message):
 async def obter_canal_confirmacao(guild):
     canal_id = settings.get("payment_admin_channel_id")
     canal = guild.get_channel(int(canal_id)) if canal_id else None
-    if isinstance(canal, discord.TextChannel):
-        return canal
     admin = guild.get_member(ADMIN_ID)
     if admin is None:
         try:
@@ -1376,7 +1374,8 @@ async def obter_canal_confirmacao(guild):
             PAYMENT_ADMIN_CATEGORY_NAME, overwrites=overwrites,
             reason="Configuração de confirmação manual de pagamentos"
         )
-    canal = discord.utils.get(guild.text_channels, name=PAYMENT_ADMIN_CHANNEL_NAME)
+    if not isinstance(canal, discord.TextChannel):
+        canal = discord.utils.get(guild.text_channels, name=PAYMENT_ADMIN_CHANNEL_NAME)
     if canal is None:
         canal = await guild.create_text_channel(
             PAYMENT_ADMIN_CHANNEL_NAME, category=categoria, overwrites=overwrites,
@@ -1411,7 +1410,8 @@ async def obter_canal_cancelados(guild):
             PAYMENT_ADMIN_CATEGORY_NAME, overwrites=overwrites,
             reason="Configuração do histórico de pagamentos"
         )
-    canal = discord.utils.get(guild.text_channels, name="cpp-cancelamentos")
+    if not isinstance(canal, discord.TextChannel):
+        canal = discord.utils.get(guild.text_channels, name="cpp-cancelamentos")
     if canal is None:
         canal = await guild.create_text_channel(
             "cpp-cancelamentos", category=categoria, overwrites=overwrites,
