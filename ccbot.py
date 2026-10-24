@@ -3850,10 +3850,10 @@ async def adicionar_emojis(interaction: discord.Interaction):
 
     pasta = localizar_pasta_emojis()
     if pasta is None:
-        caminhos = "\\n".join(f"• `{p}`" for p in EMOJIS_DIRS)
+        caminhos = "\n".join(f"• `{p}`" for p in EMOJIS_DIRS)
         await interaction.response.send_message(
             "❌ **Não consegui acessar a pasta de emojis.**\n"
-            f"Procurei nestes caminhos:\\n{caminhos}\\n\\n"
+            f"Procurei nestes caminhos:\n{caminhos}\n\n"
             "No Termux, execute `termux-setup-storage`, aceite a permissão de arquivos "
             "e confirme que as imagens estão dentro de `Download/EMOJIS`.",
             ephemeral=True
@@ -3923,14 +3923,14 @@ async def adicionar_emojis(interaction: discord.Interaction):
         f"**Adicionados:** {len(ok)} • **Já existentes:** {len(ignorados)} • **Falhas:** {len(falhas)}",
     ]
     if ok:
-        texto.append("**Adicionados:**\\n" + "\\n".join(ok[:12]))
+        texto.append("**Adicionados:**\n" + "\n".join(ok[:12]))
     if ignorados:
-        texto.append("**Ignorados:**\\n" + "\\n".join(ignorados[:6]))
+        texto.append("**Ignorados:**\n" + "\n".join(ignorados[:6]))
     if falhas:
-        texto.append("**Falhas:**\\n" + "\\n".join(falhas[:6]))
-    resposta = "\\n".join(texto)
+        texto.append("**Falhas:**\n" + "\n".join(falhas[:6]))
+    resposta = "\n".join(texto)
     if len(resposta) > 1950:
-        resposta = resposta[:1900] + "\\n… lista reduzida; veja o total acima."
+        resposta = resposta[:1900] + "\n… lista reduzida; veja o total acima."
     await interaction.followup.send(resposta, ephemeral=True)
 
 async def samples(interaction: discord.Interaction):
