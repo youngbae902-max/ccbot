@@ -5669,8 +5669,10 @@ async def enviar_comprovante_pix(interaction: discord.Interaction, arquivo: disc
             color=discord.Color.gold(),
             timestamp=discord.utils.utcnow()
         )
+        # Mantém o embed de conferência separado do arquivo do comprovante.
+        await canal_admin.send(embed=aviso)
         await canal_admin.send(
-            embed=aviso,
+            content="📎 **Comprovante deste pedido:**",
             file=discord.File(io.BytesIO(dados), filename=nome[:180])
         )
         pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
@@ -5746,7 +5748,12 @@ async def receber_comprovante_pix(message: discord.Message):
         timestamp=discord.utils.utcnow()
     )
     try:
-        await canal_admin.send(embed=aviso, files=arquivos_validos)
+        # Publica primeiro os dados do pedido e, em uma mensagem separada, os arquivos.
+        await canal_admin.send(embed=aviso)
+        await canal_admin.send(
+            content="📎 **Comprovante(s) deste pedido:**",
+            files=arquivos_validos
+        )
         pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
         pedido["receipt_message_id"] = str(message.id)
         save_json(PIX_ORDERS_FILE, pix_orders)
