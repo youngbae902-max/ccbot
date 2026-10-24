@@ -4974,6 +4974,22 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
 
     try:
         canais = await guild.fetch_channels()
+
+        # Substitui o prefixo antigo dos canais pelo novo, preservando o restante do nome.
+        prefixo_antigo = re.compile(r"^\\s*▢𝂽﹒\\s*")
+        renomeados_prefixo = 0
+        for canal in canais:
+            nome_atual = getattr(canal, "name", "")
+            nome_novo = prefixo_antigo.sub("◞﹒", nome_atual, count=1)
+            if nome_novo != nome_atual:
+                try:
+                    await canal.edit(name=nome_novo, reason="Atualização do prefixo visual dos canais CC BOT")
+                    renomeados_prefixo += 1
+                except (discord.Forbidden, discord.HTTPException):
+                    log.exception("Não consegui atualizar o prefixo do canal %s", nome_atual)
+        if renomeados_prefixo:
+            log.info("Prefixo atualizado em %s canal(is).", renomeados_prefixo)
+
         categorias = [x for x in canais if isinstance(x, discord.CategoryChannel)]
 
         # Junta categorias pequenas às áreas principais, sem apagar canais ou mensagens.
