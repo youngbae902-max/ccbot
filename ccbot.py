@@ -1370,10 +1370,9 @@ async def obter_canal_confirmacao(guild):
         )
     categoria = discord.utils.get(guild.categories, name=PAYMENT_ADMIN_CATEGORY_NAME)
     if categoria is None:
-        categoria = await guild.create_category(
-            PAYMENT_ADMIN_CATEGORY_NAME, overwrites=overwrites,
-            reason="Configuração de confirmação manual de pagamentos"
-        )
+        categoria = await guild.create_category(PAYMENT_ADMIN_CATEGORY_NAME, overwrites=overwrites, reason="Separar pedidos e cancelamentos em ANDAMENTO")
+    else:
+        await categoria.edit(overwrites=overwrites)
     if not isinstance(canal, discord.TextChannel):
         canal = discord.utils.get(guild.text_channels, name=PAYMENT_ADMIN_CHANNEL_NAME)
     if canal is None:
@@ -1390,8 +1389,6 @@ async def obter_canal_confirmacao(guild):
 async def obter_canal_cancelados(guild):
     canal_id = settings.get("payment_cancelled_channel_id")
     canal = guild.get_channel(int(canal_id)) if canal_id else None
-    if isinstance(canal, discord.TextChannel):
-        return canal
     admin = guild.get_member(ADMIN_ID)
     if admin is None:
         try:
@@ -1406,10 +1403,9 @@ async def obter_canal_cancelados(guild):
         )
     categoria = discord.utils.get(guild.categories, name=PAYMENT_ADMIN_CATEGORY_NAME)
     if categoria is None:
-        categoria = await guild.create_category(
-            PAYMENT_ADMIN_CATEGORY_NAME, overwrites=overwrites,
-            reason="Configuração do histórico de pagamentos"
-        )
+        categoria = await guild.create_category(PAYMENT_ADMIN_CATEGORY_NAME, overwrites=overwrites, reason="Separar pedidos e cancelamentos em ANDAMENTO")
+    else:
+        await categoria.edit(overwrites=overwrites)
     if not isinstance(canal, discord.TextChannel):
         canal = discord.utils.get(guild.text_channels, name="cpp-cancelamentos")
     if canal is None:
