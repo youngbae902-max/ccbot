@@ -3857,9 +3857,9 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
             )
             await interaction.edit_original_response(
                 content=(
-                    f"🧾 **Arrumador de Projetos — {formatar_reais(33.99)}**\\n"
-                    f"Seu pedido foi registrado. Faça o Pix no canal privado {ticket.mention}.\\n"
-                    f"Identificador: {txid}.\\n"
+                    f"🧾 **Arrumador de Projetos — {formatar_reais(33.99)}**\n"
+                    f"Seu pedido foi registrado. Faça o Pix no canal privado {ticket.mention}.\n"
+                    f"Identificador: {txid}.\n"
                     "Depois do pagamento, aguarde a confirmação manual. O envio do ZIP será liberado após a aprovação."
                 ),
                 view=None
@@ -3894,12 +3894,12 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
 
         try:
             await interaction.user.send(
-                "**🧰 Arrumador de Projetos — pagamento confirmado**\\n"
-                "Agora envie o ZIP aqui no PV se o Discord permitir.\\n\\n"
-                "**Se o arquivo for grande e o Discord pedir Nitro:**\\n"
-                "1. Envie o ZIP para o Google Drive.\\n"
-                "2. No Drive, abra **Compartilhar** e mude o acesso para **Qualquer pessoa com o link** (leitor).\\n"
-                "3. Cole o link aqui nesta conversa privada.\\n\\n"
+                "**🧰 Arrumador de Projetos — pagamento confirmado**\n"
+                "Agora envie o ZIP aqui no PV se o Discord permitir.\n\n"
+                "**Se o arquivo for grande e o Discord pedir Nitro:**\n"
+                "1. Envie o ZIP para o Google Drive.\n"
+                "2. No Drive, abra **Compartilhar** e mude o acesso para **Qualquer pessoa com o link** (leitor).\n"
+                "3. Cole o link aqui nesta conversa privada.\n\n"
                 "Aceito anexos ZIP ou links do Google Drive, Dropbox, OneDrive e WeTransfer. Você tem **10 minutos**."
             )
         except discord.Forbidden:
@@ -4102,9 +4102,10 @@ def criar_embed_arrumador():
         title="🧰 ARRUMADOR DE ARQUIVOS",
         description=(
             "Organize seu projeto do FL Studio Mobile do jeito que você precisa.\n\n"
-            "Valor do serviço: **R$ 33,99**. O envio do projeto é liberado após a confirmação manual do Pix.\\n\\n"
-            "📦 **Como começar**\\n"
-            "Clique em **MANDAR**, descreva as mudanças e faça o Pix no canal privado.\\n"        ),
+            "Valor do serviço: **R$ 33,99**. O envio do projeto é liberado após a confirmação manual do Pix.\n\n"
+            "📦 **Como começar**\n"
+            "Clique em **MANDAR**, descreva as mudanças e faça o Pix no canal privado."
+        ),
         color=discord.Color.red()
     )
     embed.set_thumbnail(
