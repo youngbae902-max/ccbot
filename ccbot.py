@@ -4528,22 +4528,29 @@ def criar_embed_trampar_conosco() -> discord.Embed:
         description=(
             "**Seu talento tem espaço no C.C ©.**\n"
             "-# PAINEL ATUALIZADO\n\n"
-            "Veja as áreas disponíveis e escolha a que combina com você no botão abaixo.\n\n"
-            "### <:box:1561761831587160140> ÁREAS\n"
-            "**🤖 Bots para Discord**\n"
-            "Python e bots com ou sem IA.\n\n"
-            "**🎨 Design**\n"
-            "Banners, artes e identidade visual.\n\n"
-            "**🛠️ Organização / Staff**\n"
-            "Estrutura de canais e moderação.\n\n"
-            "**🎬 Edição de vídeo**\n"
-            "Área planejada para o futuro.\n\n"
-            "### 🎁 O QUE VOCÊ GANHA\n"
-            "Um espaço no servidor para divulgar seu trabalho e seus projetos.\n\n"
-            "### ⏳ INSCRIÇÕES FECHADAS\n"
-            "No momento, não estamos recebendo inscrições."
+            "Escolha uma área no botão abaixo para conhecer o processo."
         ),
         color=discord.Color.from_rgb(0, 0, 0)
+    )
+    embed.add_field(
+        name="<:box:1561761831587160140> ÁREAS",
+        value=(
+            "🤖 **Bots para Discord** — Python, com ou sem IA\n"
+            "🎨 **Design** — banners, artes e identidade visual\n"
+            "🛠️ **Organização / Staff** — canais e moderação\n"
+            "🎬 **Edição de vídeo** — planejada para o futuro"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        name="🎁 O QUE VOCÊ GANHA",
+        value="Um espaço no servidor para divulgar seu trabalho e seus projetos.",
+        inline=False
+    )
+    embed.add_field(
+        name="⏳ INSCRIÇÕES",
+        value="As inscrições oficiais ainda estão fechadas; o botão permite indicar sua área de interesse.",
+        inline=False
     )
     embed.set_footer(text="C.C © • Escolha uma área no botão abaixo")
     return embed
@@ -5227,67 +5234,28 @@ async def renomear_categorias_solicitadas(guild: discord.Guild):
 
 
 
-# FREE_PROJECTS_PANEL_V1: categorias privadas com acesso automático pelo botão.
+# FREE_PROJECTS_PANEL_V2: os botões abrem tópicos privados; não criam categorias nem canais.
 FREE_PROJECTS_CONFIG_KEY = "free_projects_panels"
 FREE_PROJECTS_GUILD_ID = 1561513043886743562
 
 FREE_PROJECTS = {
     "packs": {
         "channel_id": 1561513293934362705,
-        "category": "📦 PACKS GRÁTIS",
-        "channel_names": {"packs-gratis", "packs-grátis", "packs-gratis"},
         "title": "📦 PACKS GRÁTIS",
-        "description": (
-            "**Melhore suas produções sem gastar nada!**\n"
-            "-# Confira os packs gratuitos disponíveis para você!\n\n"
-            "### <:box_1:1561761829502459964> Packs para suas produções!\n"
-            "Encontre novos sons, samples e recursos para dar mais criatividade aos seus projetos."
-        ),
-        "custom_id": "cc:free-projects:packs"
+        "description": "Abra seu tópico privado para acessar e conversar sobre packs gratuitos.",
+        "custom_id": "cc:free-projects:packs",
+        "button_label": "Ver packs",
+        "thread_prefix": "packs"
     },
     "projetos": {
         "channel_id": 1561513295352037507,
-        "category": "🎛️ PROJETOS GRÁTIS",
-        "channel_names": {"projeto-la-gratis", "projetos-gratis", "projetos-grátis", "projeto-gratis"},
         "title": "🎛️ PROJETOS GRÁTIS",
-        "description": (
-            "**Aprenda, explore e crie sem gastar nada!**\n"
-            "-# Acesse projetos gratuitos para suas produções.\n\n"
-            "### <:box_1:1561761829502459964> Projetos disponíveis para você!\n"
-            "Confira projetos compartilhados gratuitamente e aproveite novas ideias para suas produções."
-        ),
-        "custom_id": "cc:free-projects:projetos"
+        "description": "Abra seu tópico privado para acessar e conversar sobre projetos gratuitos.",
+        "custom_id": "cc:free-projects:projetos",
+        "button_label": "Ver projetos",
+        "thread_prefix": "projetos"
     }
 }
-
-
-def _free_project_channel_key(name):
-    return unicodedata.normalize("NFKD", name.casefold()).encode("ascii", "ignore").decode("ascii").replace("_", "-")
-
-
-async def _get_or_create_free_category(guild, category_name):
-    category = discord.utils.get(guild.categories, name=category_name)
-    if category is not None:
-        return category
-    overwrites = {
-        guild.default_role: discord.PermissionOverwrite(view_channel=False),
-    }
-    admin = guild.get_member(ADMIN_ID)
-    if admin is None:
-        try:
-            admin = await guild.fetch_member(ADMIN_ID)
-        except discord.HTTPException:
-            admin = None
-    if admin is not None:
-        overwrites[admin] = discord.PermissionOverwrite(
-            view_channel=True, send_messages=True, read_message_history=True,
-            manage_channels=True, manage_messages=True
-        )
-    return await guild.create_category(
-        category_name,
-        overwrites=overwrites,
-        reason="Categoria privada de conteúdo gratuito liberada pelo botão do CC BOT"
-    )
 
 
 class FreeProjectsAccessView(discord.ui.View):
@@ -5296,122 +5264,157 @@ class FreeProjectsAccessView(discord.ui.View):
         self.kind = kind
         cfg = FREE_PROJECTS[kind]
         button = discord.ui.Button(
-            label="Ver projetos",
-            emoji="📦",
+            label=cfg["button_label"],
+            emoji="📦" if kind == "packs" else "🎛️",
             style=discord.ButtonStyle.primary,
             custom_id=cfg["custom_id"]
         )
-        button.callback = self.grant_access
+        button.callback = self.open_private_thread
         self.add_item(button)
 
-    async def grant_access(self, interaction: discord.Interaction):
-        if interaction.guild is None:
-            await interaction.response.send_message("Use este botão dentro do servidor.", ephemeral=True)
-            return
-        cfg = FREE_PROJECTS[self.kind]
-        guild = interaction.guild
-        category = await _get_or_create_free_category(guild, cfg["category"])
-        try:
-            overwrite = category.overwrites_for(interaction.user)
-            overwrite.view_channel = True
-            overwrite.read_message_history = True
-            overwrite.send_messages = True
-            await category.set_permissions(
-                interaction.user, overwrite=overwrite,
-                reason=f"Acesso solicitado pelo botão {cfg['title']}"
-            )
+    async def open_private_thread(self, interaction: discord.Interaction):
+        if interaction.guild is None or not isinstance(interaction.channel, discord.TextChannel):
             await interaction.response.send_message(
-                f"✅ Acesso liberado à categoria **{category.name}**! Ela já deve aparecer na sua lista de canais.",
-                ephemeral=True
+                "Use este botão em um canal de texto do servidor.", ephemeral=True
+            )
+            return
+
+        cfg = FREE_PROJECTS[self.kind]
+        channel = interaction.channel
+        thread_name = f"{cfg['thread_prefix']}-{interaction.user.id}"
+        try:
+            thread = next(
+                (
+                    item for item in channel.threads
+                    if item.name == thread_name and not item.archived
+                ),
+                None
+            )
+            created = thread is None
+            if thread is None:
+                thread = await channel.create_thread(
+                    name=thread_name,
+                    type=discord.ChannelType.private_thread,
+                    invitable=False,
+                    auto_archive_duration=1440,
+                    reason=f"Tópico privado de {cfg['title']} solicitado por {interaction.user}"
+                )
+            await thread.add_user(interaction.user)
+            if created:
+                embed = discord.Embed(
+                    title=cfg["title"],
+                    description=(
+                        f"Este é seu tópico privado de **{cfg['button_label'].lower()}**.\n"
+                        "Use este espaço para acessar o conteúdo compartilhado aqui."
+                    ),
+                    color=discord.Color.from_rgb(20, 20, 20)
+                )
+                embed.set_footer(text="C.C © • Conteúdo gratuito")
+                await thread.send(embed=embed)
+            await interaction.response.send_message(
+                f"✅ Seu tópico está pronto: {thread.mention}", ephemeral=True
             )
         except discord.Forbidden:
             await interaction.response.send_message(
-                "Não consegui liberar o acesso. O bot precisa da permissão **Gerenciar Canais**.",
+                "Não consegui abrir o tópico. O bot precisa das permissões **Criar tópicos privados**, **Gerenciar tópicos** e **Enviar mensagens**.",
                 ephemeral=True
             )
         except discord.HTTPException:
-            log.exception("Falha ao liberar categoria grátis para usuário %s", interaction.user.id)
+            log.exception("Falha ao abrir tópico grátis para usuário %s (%s)", interaction.user.id, self.kind)
             await interaction.response.send_message(
-                "Ocorreu um erro ao liberar o acesso. Tente novamente mais tarde.",
+                "Ocorreu um erro ao abrir seu tópico. Tente novamente mais tarde.",
                 ephemeral=True
             )
 
 
 async def configurar_paineis_gratis(guild):
-    saved = settings.get(FREE_PROJECTS_CONFIG_KEY, {})
-    if not isinstance(saved, dict):
-        saved = {}
-    changed = False
-    for kind, cfg in FREE_PROJECTS.items():
-        try:
-            category = await _get_or_create_free_category(guild, cfg["category"])
-            # Reforça a privacidade mesmo se a categoria já existia.
-            await category.set_permissions(
-                guild.default_role,
-                overwrite=discord.PermissionOverwrite(view_channel=False),
-                reason="Manter categoria de conteúdo gratuito privada"
-            )
-            # Cria um canal interno caso a categoria ainda esteja vazia.
-            canal_interno_nome = "packs-gratis" if kind == "packs" else "projetos-gratis"
-            if not any(c.name == canal_interno_nome and c.category_id == category.id for c in guild.text_channels):
-                await guild.create_text_channel(
-                    canal_interno_nome,
-                    category=category,
-                    topic="Conteúdo gratuito liberado pelo botão Ver projetos.",
-                    reason="Criar canal interno da categoria privada de conteúdo gratuito"
-                )
-            # Usa primeiro o ID informado; nomes ficam como alternativa.
-            channel = guild.get_channel(int(cfg["channel_id"])) if cfg.get("channel_id") else None
-            if channel is not None and not isinstance(channel, discord.TextChannel):
-                channel = None
-            if channel is None:
-                accepted = {_free_project_channel_key(n) for n in cfg["channel_names"]}
-                channel = next(
-                    (c for c in guild.text_channels if _free_project_channel_key(c.name) in accepted),
-                    None
-                )
-            if channel is None:
-                # Cria o canal público do painel se o nome esperado não existir.
-                nome_publico = "packs-gratis" if kind == "packs" else "projeto-la-gratis"
-                channel = await guild.create_text_channel(
-                    nome_publico,
-                    topic="Painel público do CC BOT para acessar conteúdo gratuito.",
-                    reason="Criar canal público para publicar painel de conteúdo gratuito"
-                )
-                log.info("Canal público criado para o painel grátis: %s (#%s)", kind, channel.name)
+    """Atualiza os painéis existentes, remove as categorias extras e não cria canais."""
+    if guild.id != FREE_PROJECTS_GUILD_ID:
+        return
 
+    # Mantém os canais de painel e move-os para GRÁTIS (ou sem categoria) antes da limpeza.
+    categorias_indesejadas = {
+        "📦 PACKS GRÁTIS".casefold(),
+        "🎛️ PROJETOS GRÁTIS".casefold(),
+    }
+    categorias = await guild.fetch_channels()
+    free_category = next(
+        (
+            item for item in categorias
+            if isinstance(item, discord.CategoryChannel)
+            and item.name.strip().casefold() in ("free things", "grátis", "gratis", "coisas grátis", "coisas gratis")
+        ),
+        None
+    )
+    for kind, cfg in FREE_PROJECTS.items():
+        channel = guild.get_channel(cfg["channel_id"])
+        if channel is None:
+            try:
+                channel = await guild.fetch_channel(cfg["channel_id"])
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                log.error("Canal do painel grátis não encontrado; não será criado: %s", cfg["channel_id"])
+                continue
+        if not isinstance(channel, discord.TextChannel):
+            log.error("O destino do painel grátis não é canal de texto: %s", cfg["channel_id"])
+            continue
+        if channel.category and channel.category.name.strip().casefold() in categorias_indesejadas:
+            try:
+                await channel.edit(
+                    category=free_category,
+                    reason="Remover categoria extra de packs/projetos grátis e preservar o painel"
+                )
+            except discord.HTTPException:
+                log.exception("Falha ao mover painel grátis para fora da categoria extra: %s", channel.id)
+                continue
+
+        try:
             view = FreeProjectsAccessView(kind)
-            message_id = saved.get(kind, {}).get("message_id") if isinstance(saved.get(kind), dict) else None
+            saved = settings.get(FREE_PROJECTS_CONFIG_KEY, {})
+            record = saved.get(kind, {}) if isinstance(saved, dict) else {}
             message = None
+            message_id = record.get("message_id") if isinstance(record, dict) else None
             if message_id:
                 try:
                     message = await channel.fetch_message(int(message_id))
                 except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                     message = None
             if message is None:
-                async for candidate in channel.history(limit=30):
+                async for candidate in channel.history(limit=50):
                     if candidate.author.id == bot.user.id and candidate.components:
-                        if any(getattr(comp, "custom_id", None) == cfg["custom_id"] for row in candidate.components for comp in getattr(row, "children", [])):
+                        ids = {
+                            getattr(child, "custom_id", None)
+                            for row in candidate.components
+                            for child in getattr(row, "children", [])
+                        }
+                        if cfg["custom_id"] in ids:
                             message = candidate
                             break
             embed = discord.Embed(
                 title=cfg["title"],
-                description=cfg["description"],
+                description=f"**Conteúdo gratuito para suas produções.**\n-# PAINEL ATUALIZADO\n\n{cfg['description']}",
                 color=discord.Color.from_rgb(20, 20, 20)
             )
-            embed.set_footer(text="CC BOT • Conteúdo gratuito")
-            if message is not None:
-                await message.edit(embed=embed, view=view, content=None)
-            else:
+            embed.set_footer(text="C.C © • Clique para abrir seu tópico privado")
+            if message is None:
                 message = await channel.send(embed=embed, view=view)
-            saved[kind] = {"channel_id": channel.id, "message_id": message.id, "category_id": category.id}
-            changed = True
-            log.info("Painel grátis configurado: %s em #%s; categoria privada %s", kind, channel.name, category.name)
+            else:
+                await message.edit(embed=embed, view=view)
+            saved = saved if isinstance(saved, dict) else {}
+            saved[kind] = {"channel_id": channel.id, "message_id": message.id}
+            settings[FREE_PROJECTS_CONFIG_KEY] = saved
+            save_json(DATA_FILE, settings)
+            log.info("Painel grátis atualizado em #%s; botão abre tópico privado.", channel.name)
         except Exception:
             log.exception("Falha ao configurar painel grátis: %s", kind)
-    if changed:
-        settings[FREE_PROJECTS_CONFIG_KEY] = saved
-        save_json(DATA_FILE, settings)
+
+    # Exclui apenas as categorias criadas pelo fluxo antigo. Os painéis são movidos antes.
+    for category in list(guild.categories):
+        if category.name.strip().casefold() in categorias_indesejadas:
+            try:
+                await category.delete(reason="Remover categorias extras; acesso passa a usar tópicos privados")
+                log.info("Categoria extra removida: %s", category.name)
+            except discord.HTTPException:
+                log.exception("Falha ao remover categoria extra %s", category.name)
 
 
 @bot.event
