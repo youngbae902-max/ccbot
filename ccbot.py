@@ -3811,7 +3811,7 @@ async def receber_zip_emojis(message: discord.Message):
             ]
             if grandes:
                 await message.reply(
-                    f"❌ Há imagem(ns) maior(es) que 20 MB: \`{Path(grandes[0]).name}\`.",
+                    f"❌ Há imagem(ns) maior(es) que 20 MB: `{Path(grandes[0]).name}`.",
                     mention_author=False
                 )
                 return
@@ -3835,7 +3835,7 @@ async def receber_zip_emojis(message: discord.Message):
                 nome = re.sub(r"_+", "_", nome).strip("_")
                 nome = (nome if len(nome) >= 2 else f"em_{nome or 'emoji'}")[:32]
                 if nome.casefold() in existentes:
-                    ignorados.append(f"\`:{nome}:\`")
+                    ignorados.append(f"`:{nome}:`")
                     continue
                 try:
                     conteudo = arquivo_zip.read(item)
@@ -3846,18 +3846,18 @@ async def receber_zip_emojis(message: discord.Message):
                         image=conteudo,
                         reason=f"Importação por ZIP no Discord pelo administrador {message.author.id}"
                     )
-                    adicionados.append(f"{emoji} \`:{nome}:\`")
+                    adicionados.append(f"{emoji} `:{nome}:`")
                     existentes.add(nome.casefold())
                 except discord.Forbidden:
-                    falhas.append(f"\`{nome}\`: sem permissão ou limite de emojis do servidor")
+                    falhas.append(f"`{nome}`: sem permissão ou limite de emojis do servidor")
                     break
                 except discord.HTTPException as exc:
-                    falhas.append(f"\`{nome}\`: Discord HTTP {exc.status} — {str(exc)[:80]}")
+                    falhas.append(f"`{nome}`: Discord HTTP {exc.status} — {str(exc)[:80]}")
                 except (OSError, ValueError, RuntimeError) as exc:
-                    falhas.append(f"\`{nome}\`: {type(exc).__name__} — {str(exc)[:60]}")
+                    falhas.append(f"`{nome}`: {type(exc).__name__} — {str(exc)[:60]}")
                 except Exception as exc:
                     log.exception("Falha ao importar emoji do ZIP: %s", nome)
-                    falhas.append(f"\`{nome}\`: {type(exc).__name__}")
+                    falhas.append(f"`{nome}`: {type(exc).__name__}")
 
         resumo = (
             "## 📦 Importação de emojis concluída\n"
