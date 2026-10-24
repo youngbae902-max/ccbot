@@ -3815,7 +3815,22 @@ async def painel(interaction: discord.Interaction):
 
 
 
-EMOJIS_DIR = Path("/sdcard/Download/EMOJIS")
+# A pasta principal é a de Downloads; o segundo caminho cobre instalações Android
+# que expõem o armazenamento com um ponto de montagem diferente no Termux.
+EMOJIS_DIRS = (
+    Path("/sdcard/Download/EMOJIS"),
+    Path("/storage/emulated/0/Download/EMOJIS"),
+)
+EMOJI_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+def localizar_pasta_emojis():
+    for pasta in EMOJIS_DIRS:
+        try:
+            if pasta.is_dir() and os.access(pasta, os.R_OK | os.X_OK):
+                return pasta
+        except OSError:
+            continue
+    return None
 
 async def adicionar_emojis(interaction: discord.Interaction):
     if not is_admin(interaction):
@@ -3827,18 +3842,41 @@ async def adicionar_emojis(interaction: discord.Interaction):
 
     membro = interaction.guild.me
     if membro is None or not membro.guild_permissions.manage_emojis_and_stickers:
-        await interaction.response.send_message("Preciso da permissão Gerenciar Expressões.", ephemeral=True)
-        return
-    if not EMOJIS_DIR.is_dir():
-        await interaction.response.send_message(f"Pasta não encontrada: {EMOJIS_DIR}", ephemeral=True)
+        await interaction.response.send_message(
+            "❌ O bot precisa da permissão **Gerenciar Expressões** neste servidor.",
+            ephemeral=True
+        )
         return
 
-    arquivos = sorted(
-        x for x in EMOJIS_DIR.iterdir()
-        if x.is_file() and x.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".gif"}
-    )
+    pasta = localizar_pasta_emojis()
+    if pasta is None:
+        caminhos = "\\n".join(f"• `{p}`" for p in EMOJIS_DIRS)
+        await interaction.response.send_message(
+            "❌ **Não consegui acessar a pasta de emojis.**\n"
+            f"Procurei nestes caminhos:\\n{caminhos}\\n\\n"
+            "No Termux, execute `termux-setup-storage`, aceite a permissão de arquivos "
+            "e confirme que as imagens estão dentro de `Download/EMOJIS`.",
+            ephemeral=True
+        )
+        return
+
+    try:
+        arquivos = sorted(
+            (x for x in pasta.rglob("*") if x.is_file() and x.suffix.lower() in EMOJI_EXTENSIONS),
+            key=lambda x: str(x.relative_to(pasta)).casefold()
+        )
+    except OSError as exc:
+        await interaction.response.send_message(
+            f"❌ Não consegui ler `{pasta}` ({type(exc).__name__}). Verifique a permissão de arquivos do Termux.",
+            ephemeral=True
+        )
+        return
+
     if not arquivos:
-        await interaction.response.send_message("Não encontrei imagens na pasta EMOJIS.", ephemeral=True)
+        await interaction.response.send_message(
+            f"📂 A pasta `{pasta}` está acessível, mas não encontrei PNG, JPG, WEBP ou GIF nela nem nas subpastas.",
+            ephemeral=True
+        )
         return
 
     await interaction.response.defer(ephemeral=True, thinking=True)
@@ -3846,41 +3884,54 @@ async def adicionar_emojis(interaction: discord.Interaction):
     ok, ignorados, falhas = [], [], []
 
     for arquivo in arquivos:
-        nome = arquivo.stem.lower().replace("-", "_").replace(" ", "_")
-        nome = "".join(ch for ch in nome if ch.isalnum() or ch == "_").strip("_")
-        nome = (nome if len(nome) >= 2 else "em_" + nome)[:32]
+        nome = arquivo.stem.casefold().replace("-", "_").replace(" ", "_")
+        # Nomes de emoji do Discord: letras ASCII, números e underscore.
+        nome = re.sub(r"[^a-z0-9_]", "_", unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode("ascii"))
+        nome = re.sub(r"_+", "_", nome).strip("_")
+        nome = (nome if len(nome) >= 2 else f"em_{nome or 'emoji'}")[:32]
 
         if nome.casefold() in existentes:
-            ignorados.append(f"{arquivo.name}: já existe")
+            ignorados.append(f"{arquivo.name}: :{nome}: já existe")
             continue
 
         try:
             dados = await asyncio.to_thread(arquivo.read_bytes)
+            if not dados:
+                raise ValueError("arquivo vazio")
             emoji = await interaction.guild.create_custom_emoji(
                 name=nome,
                 image=dados,
-                reason=f"Importação em lote pelo administrador {interaction.user.id}"
+                reason=f"Importação da pasta {pasta} pelo administrador {interaction.user.id}"
             )
-            ok.append(f"{emoji} :{nome}:")
+            ok.append(f"{emoji} `:{nome}:`")
             existentes.add(nome.casefold())
+        except discord.Forbidden:
+            falhas.append(f"{arquivo.name}: sem permissão ou limite do servidor")
+            break
+        except discord.HTTPException as exc:
+            falhas.append(f"{arquivo.name}: Discord HTTP {exc.status} — {str(exc)[:100]}")
+        except (OSError, ValueError) as exc:
+            falhas.append(f"{arquivo.name}: {type(exc).__name__} — {str(exc)[:80]}")
         except Exception as exc:
+            log.exception("Falha ao importar emoji %s", arquivo)
             falhas.append(f"{arquivo.name}: {type(exc).__name__}")
-            if isinstance(exc, discord.Forbidden):
-                break
 
     texto = [
         "## Importação de emojis concluída",
-        f"**Adicionados:** {len(ok)}",
-        f"**Já existentes:** {len(ignorados)}",
-        f"**Falhas:** {len(falhas)}",
+        f"**Pasta:** `{pasta}`",
+        f"**Imagens encontradas:** {len(arquivos)}",
+        f"**Adicionados:** {len(ok)} • **Já existentes:** {len(ignorados)} • **Falhas:** {len(falhas)}",
     ]
     if ok:
-        texto.append("**Adicionados:**\n" + "\n".join(ok[:15]))
+        texto.append("**Adicionados:**\\n" + "\\n".join(ok[:12]))
     if ignorados:
-        texto.append("**Ignorados:**\n" + "\n".join(ignorados[:8]))
+        texto.append("**Ignorados:**\\n" + "\\n".join(ignorados[:6]))
     if falhas:
-        texto.append("**Falhas:**\n" + "\n".join(falhas[:8]))
-    await interaction.followup.send("\n".join(texto)[:1950], ephemeral=True)
+        texto.append("**Falhas:**\\n" + "\\n".join(falhas[:6]))
+    resposta = "\\n".join(texto)
+    if len(resposta) > 1950:
+        resposta = resposta[:1900] + "\\n… lista reduzida; veja o total acima."
+    await interaction.followup.send(resposta, ephemeral=True)
 
 async def samples(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
