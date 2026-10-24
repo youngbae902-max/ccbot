@@ -2728,7 +2728,7 @@ class IconNomeModal(discord.ui.Modal, title="Nome da pasta de ícones"):
         pendente = ICON_ZIP_PENDING.get(self.user_id)
         if not pendente:
             await interaction.response.send_message(
-                "O ZIP não está mais disponível. Clique em Enviar ZIP de ícones e envie o arquivo novamente.",
+                "Os arquivos não estão mais disponíveis. Abra o formulário e envie novamente.",
                 ephemeral=True
             )
             return
@@ -2771,6 +2771,7 @@ class IconUploadModal(discord.ui.Modal, title="Enviar arquivos de ícones"):
         pasta_imagens.mkdir(parents=True, exist_ok=True)
         imagens_salvas = []
         total_recebido = 0
+        total_imagens_bytes = 0
 
         try:
             for anexo in anexos:
@@ -2789,10 +2790,20 @@ class IconUploadModal(discord.ui.Modal, title="Enviar arquivos de ícones"):
                     (pasta_lote / f"original_{nome_original}").write_bytes(dados)
                     extraidas = await asyncio.to_thread(extrair_imagens_zip, dados)
                     for nome, conteudo in extraidas:
+                        if len(conteudo) > ICON_MAX_FILE_BYTES:
+                            raise ValueError(f"{Path(nome).name} ultrapassa 20 MB.")
+                        total_imagens_bytes += len(conteudo)
+                        if total_imagens_bytes > ICON_MAX_UNPACKED_BYTES:
+                            raise ValueError("As imagens descompactadas ultrapassam 100 MB no total.")
                         destino = pasta_imagens / f"{len(imagens_salvas) + 1:04d}_{Path(nome).name}"
                         destino.write_bytes(conteudo)
                         imagens_salvas.append(destino)
                 else:
+                    if len(dados) > ICON_MAX_FILE_BYTES:
+                        raise ValueError(f"{nome_original} ultrapassa 20 MB.")
+                    total_imagens_bytes += len(dados)
+                    if total_imagens_bytes > ICON_MAX_UNPACKED_BYTES:
+                        raise ValueError("As imagens ultrapassam 100 MB no total.")
                     destino = pasta_imagens / f"{len(imagens_salvas) + 1:04d}_{nome_original}"
                     destino.write_bytes(dados)
                     imagens_salvas.append(destino)
@@ -2860,7 +2871,7 @@ class IconModoPublicacaoView(discord.ui.View):
             return
         pendente = ICON_ZIP_PENDING.get(self.user_id)
         if not pendente or not pendente.get("name"):
-            await interaction.response.send_message("ZIP ou nome não encontrado. Inicie a importação novamente.", ephemeral=True)
+            await interaction.response.send_message("Arquivos ou nome não encontrados. Inicie a importação novamente.", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
@@ -3873,46 +3884,6 @@ async def adicionar_emojis(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(EmojiUploadModal())
 
-
-xcept discord.HTTPException as exc:
-                    falhas.append(f"`{nome}`: Discord HTTP {exc.status} — {str(exc)[:80]}")
-                except (OSError, ValueError, RuntimeError) as exc:
-                    falhas.append(f"`{nome}`: {type(exc).__name__} — {str(exc)[:60]}")
-                except Exception as exc:
-                    log.exception("Falha ao importar emoji do ZIP: %s", nome)
-                    falhas.append(f"`{nome}`: {type(exc).__name__}")
-
-        resumo = (
-            "## 📦 Importação de emojis concluída\n"
-            f"**Imagens no ZIP:** {len(imagens)}\n"
-            f"**Adicionados:** {len(adicionados)} • **Já existentes:** {len(ignorados)} • **Falhas:** {len(falhas)}"
-        )
-        detalhes = []
-        if adicionados:
-            detalhes.append("**Adicionados:** " + ", ".join(adicionados[:20]))
-        if ignorados:
-            detalhes.append("**Já existiam:** " + ", ".join(ignorados[:10]))
-        if falhas:
-            detalhes.append("**Falhas:** " + "\n".join(falhas[:10]))
-        try:
-            await message.delete()
-        except (discord.Forbidden, discord.HTTPException):
-            pass
-        await message.channel.send(
-            resumo + ("\n\n" + "\n".join(detalhes) if detalhes else "")
-        )
-    except (zipfile.BadZipFile, OSError, ValueError) as exc:
-        log.warning("ZIP de emojis inválido enviado por %s: %s", message.author.id, exc)
-        await message.reply(
-            "❌ Não consegui abrir esse arquivo como ZIP válido. Confira o arquivo e tente novamente.",
-            mention_author=False
-        )
-    except Exception as exc:
-        log.exception("Falha ao importar ZIP de emojis")
-        await message.reply(
-            f"❌ A importação falhou ({type(exc).__name__}). Confira as permissões e o limite de emojis do servidor.",
-            mention_author=False
-        )
 
 async def samples(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
