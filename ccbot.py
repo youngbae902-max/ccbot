@@ -1850,6 +1850,142 @@ async def status(interaction: discord.Interaction):
         ephemeral=True
     )
 
+@bot.tree.command(
+    name="embedcomponenty2",
+    description="Criar uma mensagem Discord Components V2 com container, separador, imagem e botão"
+)
+@app_commands.describe(
+    titulo="Título do componente",
+    descricao="Texto principal em Markdown",
+    cor="Cor hexadecimal do container, exemplo #5865F2",
+    imagem_url="URL pública da imagem (opcional)",
+    botao_texto="Texto do botão com link (opcional)",
+    botao_url="URL aberta pelo botão (opcional)",
+    separador="Mostrar separador visual"
+)
+async def embedcomponenty2(
+    interaction: discord.Interaction,
+    titulo: str,
+    descricao: str,
+    cor: str = "#5865F2",
+    imagem_url: str = None,
+    botao_texto: str = None,
+    botao_url: str = None,
+    separador: bool = True
+):
+    """Cria uma mensagem Components V2. Disponível apenas ao administrador configurado."""
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador autorizado pode criar componentes.",
+            ephemeral=True
+        )
+        return
+
+    titulo = titulo.strip()
+    descricao = descricao.strip()
+    if not titulo or not descricao:
+        await interaction.response.send_message(
+            "Título e descrição não podem ficar vazios.",
+            ephemeral=True
+        )
+        return
+    if len(titulo) > 200 or len(descricao) > 3500:
+        await interaction.response.send_message(
+            "Limite excedido: título até 200 caracteres e descrição até 3.500.",
+            ephemeral=True
+        )
+        return
+
+    try:
+        cor_hex = cor.strip().removeprefix("#")
+        if len(cor_hex) not in (3, 6) or not re.fullmatch(r"[0-9a-fA-F]+", cor_hex):
+            raise ValueError
+        if len(cor_hex) == 3:
+            cor_hex = "".join(caractere * 2 for caractere in cor_hex)
+        cor_rgb = int(cor_hex, 16)
+    except (AttributeError, ValueError):
+        await interaction.response.send_message(
+            "Cor inválida. Use hexadecimal, por exemplo #5865F2.",
+            ephemeral=True
+        )
+        return
+
+    if bool(botao_texto) != bool(botao_url):
+        await interaction.response.send_message(
+            "Para criar botão, preencha **botao_texto** e **botao_url** juntos.",
+            ephemeral=True
+        )
+        return
+
+    def url_http_valida(valor):
+        try:
+            parsed = urlparse(valor.strip())
+            return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+        except (AttributeError, ValueError):
+            return False
+
+    if imagem_url and not url_http_valida(imagem_url):
+        await interaction.response.send_message(
+            "A imagem precisa ter uma URL pública começando com https:// ou http://.",
+            ephemeral=True
+        )
+        return
+    if botao_url and not url_http_valida(botao_url):
+        await interaction.response.send_message(
+            "O link do botão precisa começar com https:// ou http://.",
+            ephemeral=True
+        )
+        return
+    if interaction.channel is None or not hasattr(interaction.channel, "send"):
+        await interaction.response.send_message(
+            "Execute o comando dentro de um canal de texto do servidor.",
+            ephemeral=True
+        )
+        return
+
+    try:
+        componentes = [
+            discord.ui.TextDisplay(content=f"# {titulo}"),
+            discord.ui.Separator(
+                visible=separador,
+                spacing=discord.SeparatorSpacing.large
+            ),
+            discord.ui.TextDisplay(content=descricao)
+        ]
+        if imagem_url:
+            galeria = discord.ui.MediaGallery()
+            galeria.add_item(media=imagem_url, description=titulo[:100])
+            componentes.append(galeria)
+
+        container = discord.ui.Container(
+            *componentes,
+            accent_color=discord.Color(cor_rgb)
+        )
+        if botao_texto and botao_url:
+            container.add_item(discord.ui.ActionRow(
+                discord.ui.Button(
+                    label=botao_texto[:80],
+                    style=discord.ButtonStyle.link,
+                    url=botao_url
+                )
+            ))
+
+        layout = discord.ui.LayoutView(timeout=None)
+        layout.add_item(container)
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.channel.send(view=layout)
+        await interaction.edit_original_response(
+            content="✅ Componente V2 publicado neste canal."
+        )
+    except (discord.HTTPException, TypeError, ValueError, AttributeError) as exc:
+        log.exception("Falha ao criar mensagem Components V2")
+        mensagem = str(exc).strip() or type(exc).__name__
+        await interaction.edit_original_response(
+            content=f"Não consegui publicar o componente: {mensagem[:500]}"
+        )
+
+
 class ListaDJsSelect(discord.ui.Select):
     def __init__(self, view):
         self.parent_view = view
