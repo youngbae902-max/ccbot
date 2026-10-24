@@ -2867,7 +2867,7 @@ class IconModoPublicacaoView(discord.ui.View):
 
     async def publicar(self, interaction: discord.Interaction, modo):
         if not is_admin(interaction) or interaction.user.id != self.user_id:
-            await interaction.response.send_message("Somente quem enviou o ZIP pode continuar.", ephemeral=True)
+            await interaction.response.send_message("Somente quem enviou os arquivos pode continuar.", ephemeral=True)
             return
         pendente = ICON_ZIP_PENDING.get(self.user_id)
         if not pendente or not pendente.get("name"):
@@ -2892,7 +2892,7 @@ class IconModoPublicacaoView(discord.ui.View):
         except Exception as exc:
             log.exception("Falha ao processar ZIP de ícones")
             await interaction.edit_original_response(
-                content=f"Não consegui publicar o ZIP: {type(exc).__name__}: {str(exc)[:350]}",
+                content=f"Não consegui publicar os arquivos: {type(exc).__name__}: {str(exc)[:350]}",
                 view=None
             )
 
