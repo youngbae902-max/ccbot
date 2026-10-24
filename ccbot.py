@@ -2387,7 +2387,7 @@ class VoltarPainelButton(discord.ui.Button):
 
 class AdicionarEmojisPainelButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="Adicionar emojis da pasta", emoji="😀", style=discord.ButtonStyle.success, custom_id="ccbot:painel_adicionar_emojis")
+        super().__init__(label="Enviar ZIP de emojis", emoji="😀", style=discord.ButtonStyle.success, custom_id="ccbot:painel_adicionar_emojis")
 
     async def callback(self, interaction: discord.Interaction):
         if not is_admin(interaction):
@@ -3394,7 +3394,7 @@ OPCOES_CATEGORIAS_PAINEL = [
     discord.SelectOption(label="Publicar painéis", description="Samples, acapellas, arrumador, beats e pack personalizado", emoji="📋", value="publicar"),
     discord.SelectOption(label="Testes e manutenção", description="Verificar se o bot está respondendo", emoji="🛠️", value="manutencao"),
     discord.SelectOption(label="Limpar mensagens do PV", description="Apagar mensagens enviadas pelo CC BOT na sua DM", emoji="🧹", value="limpar_pv"),
-    discord.SelectOption(label="Gerenciar ícones", description="Monitorar Pinterest e publicar álbuns de fotos", emoji="🖼️", value="icones"),
+    discord.SelectOption(label="Gerenciar ícones", description="Importar ZIPs e publicar álbuns de imagens", emoji="🖼️", value="icones"),
     discord.SelectOption(label="Permissões das categorias", description="Somente leitura, mantendo bots utilizáveis e Comunidade intacta", emoji="🔒", value="permissoes_categorias"),
     discord.SelectOption(label="Trabalhos ON", description="Publicar aviso no canal e marcar todos", emoji="📣", value="trabalhos_on"),
     discord.SelectOption(label="Analisar hierarquia", description="Enviar categorias, canais, cargos e permissões no PV", emoji="🧭", value="analisar_hierarquia"),
@@ -3514,7 +3514,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 embed=discord.Embed(
                     title="🧰 Ferramentas administrativas",
                     description=(
-                        "**Adicionar emojis:** importa as imagens da pasta EMOJIS no Termux.\n\n"
+                        "**Emojis:** envie um ZIP diretamente pelo Discord; não precisa usar pastas no Termux.\n\n"
                         "**Backup:** salva uma cópia no Termux ou envia o ZIP por mensagem privada.\n\n"
                         f"**Canal de avisos atual:** <#{settings.get('notice_channel', DEFAULT_NOTICE_CHANNEL)}>\n"
                         "Escolha o canal no seletor abaixo para alterar onde os erros e avisos são enviados."
@@ -3566,7 +3566,7 @@ class PublicarPainelButton(discord.ui.Button):
 class PainelPublicarView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(PublicarPainelButton("Adicionar emojis", "😀", "emojis"))
+        self.add_item(PublicarPainelButton("Enviar ZIP de emojis", "😀", "emojis"))
         self.add_item(PublicarPainelButton("Arrumador", "🧰", "arrumador"))
         self.add_item(PublicarPainelButton("Acapellas", "🎙️", "acapellas"))
         self.add_item(PublicarPainelButton("Samples", "🎧", "samples"))
@@ -3712,31 +3712,26 @@ async def painel(interaction: discord.Interaction):
 
 
 
-# A pasta principal é a de Downloads; o segundo caminho cobre instalações Android
-# que expõem o armazenamento com um ponto de montagem diferente no Termux.
-EMOJIS_DIRS = (
-    Path("/sdcard/Download/EMOJIS"),
-    Path("/storage/emulated/0/Download/EMOJIS"),
-)
+# Importação de emojis exclusivamente pelo Discord: ZIP enviado pelo administrador.
 EMOJI_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+EMOJI_ZIP_SESSIONS = {}
+EMOJI_ZIP_MAX_BYTES = 100 * 1024 * 1024
+EMOJI_ZIP_MAX_UNPACKED = 100 * 1024 * 1024
+EMOJI_ZIP_MAX_IMAGE = 20 * 1024 * 1024
+EMOJI_ZIP_MAX_IMAGES = 500
 
-def localizar_pasta_emojis():
-    for pasta in EMOJIS_DIRS:
-        try:
-            if pasta.is_dir() and os.access(pasta, os.R_OK | os.X_OK):
-                return pasta
-        except OSError:
-            continue
-    return None
 
 async def adicionar_emojis(interaction: discord.Interaction):
     if not is_admin(interaction):
-        await interaction.response.send_message("Apenas o administrador pode usar este comando.", ephemeral=True)
+        await interaction.response.send_message(
+            "Apenas o administrador pode importar emojis.", ephemeral=True
+        )
         return
-    if interaction.guild is None:
-        await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
+    if interaction.guild is None or interaction.channel is None:
+        await interaction.response.send_message(
+            "Abra esta função dentro de um canal do servidor.", ephemeral=True
+        )
         return
-
     membro = interaction.guild.me
     if membro is None or not membro.guild_permissions.manage_emojis_and_stickers:
         await interaction.response.send_message(
@@ -3745,106 +3740,156 @@ async def adicionar_emojis(interaction: discord.Interaction):
         )
         return
 
-    # Reconhece a interação antes de consultar o armazenamento ou importar arquivos.
-    await interaction.response.defer(ephemeral=True, thinking=True)
+    EMOJI_ZIP_SESSIONS[interaction.user.id] = {
+        "guild_id": interaction.guild.id,
+        "channel_id": interaction.channel.id,
+        "expires_at": asyncio.get_running_loop().time() + 300,
+    }
+    await interaction.response.send_message(
+        "📦 **Envie o ZIP de emojis aqui neste canal.**\n"
+        "Aceito PNG, JPG, WEBP e GIF dentro do arquivo ZIP, inclusive em subpastas.\n"
+        "Você tem **5 minutos**. O bot vai importar direto pelo Discord — sem pasta Download/EMOJIS.",
+        ephemeral=True
+    )
 
-    pasta = localizar_pasta_emojis()
-    if pasta is None:
-        caminhos = "\n".join(f"• `{p}`" for p in EMOJIS_DIRS)
-        await interaction.followup.send(
-            "❌ **Não consegui acessar a pasta de emojis.**\n"
-            f"Procurei nestes caminhos:\n{caminhos}\n\n"
-            "No Termux, execute `termux-setup-storage`, aceite a permissão de arquivos "
-            "e confirme que as imagens estão dentro de `Download/EMOJIS`.",
-            ephemeral=True
-        )
+
+@bot.listen("on_message")
+async def receber_zip_emojis(message: discord.Message):
+    """Importa emojis de um ZIP enviado pelo administrador no canal escolhido."""
+    if message.author.bot or message.author.id != ADMIN_ID or message.guild is None:
+        return
+    sessao = EMOJI_ZIP_SESSIONS.get(message.author.id)
+    if not sessao:
+        return
+    if asyncio.get_running_loop().time() > sessao["expires_at"]:
+        EMOJI_ZIP_SESSIONS.pop(message.author.id, None)
+        return
+    if message.guild.id != sessao["guild_id"] or message.channel.id != sessao["channel_id"]:
+        return
+    anexos_zip = [
+        a for a in message.attachments
+        if Path(a.filename).suffix.lower() == ".zip"
+    ]
+    if not anexos_zip:
+        return
+
+    EMOJI_ZIP_SESSIONS.pop(message.author.id, None)
+    anexo = anexos_zip[0]
+    if anexo.size > EMOJI_ZIP_MAX_BYTES:
+        await message.reply("❌ O ZIP ultrapassa o limite de 100 MB.", mention_author=False)
         return
 
     try:
-        arquivos = sorted(
-            (x for x in pasta.rglob("*") if x.is_file() and x.suffix.lower() in EMOJI_EXTENSIONS),
-            key=lambda x: str(x.relative_to(pasta)).casefold()
+        dados_zip = await anexo.read(use_cached=True)
+        if not dados_zip or len(dados_zip) > EMOJI_ZIP_MAX_BYTES:
+            raise ValueError("ZIP vazio ou maior que 100 MB.")
+        with zipfile.ZipFile(io.BytesIO(dados_zip), "r") as arquivo_zip:
+            imagens = [
+                item for item in arquivo_zip.infolist()
+                if not item.is_dir()
+                and Path(item.filename.replace("\\", "/")).suffix.lower() in EMOJI_EXTENSIONS
+            ]
+            if not imagens:
+                await message.reply(
+                    "❌ Não encontrei imagens PNG, JPG, WEBP ou GIF dentro desse ZIP.",
+                    mention_author=False
+                )
+                return
+            if len(imagens) > EMOJI_ZIP_MAX_IMAGES:
+                await message.reply(
+                    f"❌ O ZIP tem {len(imagens)} imagens. O limite é {EMOJI_ZIP_MAX_IMAGES}.",
+                    mention_author=False
+                )
+                return
+            tamanho_total = sum(item.file_size for item in imagens)
+            if tamanho_total > EMOJI_ZIP_MAX_UNPACKED:
+                await message.reply("❌ As imagens descompactadas ultrapassam 100 MB no total.", mention_author=False)
+                return
+            grandes = [
+                item.filename for item in imagens
+                if item.file_size > EMOJI_ZIP_MAX_IMAGE
+            ]
+            if grandes:
+                await message.reply(
+                    f"❌ Há imagem(ns) maior(es) que 20 MB: \`{Path(grandes[0]).name}\`.",
+                    mention_author=False
+                )
+                return
+
+            guild = message.guild
+            membro = guild.me
+            if membro is None or not membro.guild_permissions.manage_emojis_and_stickers:
+                await message.reply("❌ O bot precisa da permissão **Gerenciar Expressões**.", mention_author=False)
+                return
+
+            existentes = {emoji.name.casefold() for emoji in guild.emojis}
+            adicionados, ignorados, falhas = [], [], []
+            for item in imagens:
+                nome_arquivo = item.filename.replace("\\", "/").rsplit("/", 1)[-1]
+                nome = Path(nome_arquivo).stem.casefold().replace("-", "_").replace(" ", "_")
+                nome = re.sub(
+                    r"[^a-z0-9_]",
+                    "_",
+                    unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode("ascii")
+                )
+                nome = re.sub(r"_+", "_", nome).strip("_")
+                nome = (nome if len(nome) >= 2 else f"em_{nome or 'emoji'}")[:32]
+                if nome.casefold() in existentes:
+                    ignorados.append(f"\`:{nome}:\`")
+                    continue
+                try:
+                    conteudo = arquivo_zip.read(item)
+                    if not conteudo:
+                        raise ValueError("arquivo vazio")
+                    emoji = await guild.create_custom_emoji(
+                        name=nome,
+                        image=conteudo,
+                        reason=f"Importação por ZIP no Discord pelo administrador {message.author.id}"
+                    )
+                    adicionados.append(f"{emoji} \`:{nome}:\`")
+                    existentes.add(nome.casefold())
+                except discord.Forbidden:
+                    falhas.append(f"\`{nome}\`: sem permissão ou limite de emojis do servidor")
+                    break
+                except discord.HTTPException as exc:
+                    falhas.append(f"\`{nome}\`: Discord HTTP {exc.status} — {str(exc)[:80]}")
+                except (OSError, ValueError, RuntimeError) as exc:
+                    falhas.append(f"\`{nome}\`: {type(exc).__name__} — {str(exc)[:60]}")
+                except Exception as exc:
+                    log.exception("Falha ao importar emoji do ZIP: %s", nome)
+                    falhas.append(f"\`{nome}\`: {type(exc).__name__}")
+
+        resumo = (
+            "## 📦 Importação de emojis concluída\n"
+            f"**Imagens no ZIP:** {len(imagens)}\n"
+            f"**Adicionados:** {len(adicionados)} • **Já existentes:** {len(ignorados)} • **Falhas:** {len(falhas)}"
         )
-    except OSError as exc:
-        await interaction.followup.send(
-            f"❌ Não consegui ler `{pasta}` ({type(exc).__name__}). Verifique a permissão de arquivos do Termux.",
-            ephemeral=True
-        )
-        return
-
-    if not arquivos:
-        await interaction.followup.send(
-            f"📂 A pasta `{pasta}` está acessível, mas não encontrei PNG, JPG, WEBP ou GIF nela nem nas subpastas.",
-            ephemeral=True
-        )
-        return
-
-    existentes = {e.name.casefold() for e in interaction.guild.emojis}
-    ok, ignorados, falhas = [], [], []
-
-    for arquivo in arquivos:
-        nome = arquivo.stem.casefold().replace("-", "_").replace(" ", "_")
-        # Nomes de emoji do Discord: letras ASCII, números e underscore.
-        nome = re.sub(r"[^a-z0-9_]", "_", unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode("ascii"))
-        nome = re.sub(r"_+", "_", nome).strip("_")
-        nome = (nome if len(nome) >= 2 else f"em_{nome or 'emoji'}")[:32]
-
-        if nome.casefold() in existentes:
-            ignorados.append(f"{arquivo.name}: :{nome}: já existe")
-            continue
-
+        detalhes = []
+        if adicionados:
+            detalhes.append("**Adicionados:** " + ", ".join(adicionados[:20]))
+        if ignorados:
+            detalhes.append("**Já existiam:** " + ", ".join(ignorados[:10]))
+        if falhas:
+            detalhes.append("**Falhas:** " + "\n".join(falhas[:10]))
         try:
-            dados = await asyncio.to_thread(arquivo.read_bytes)
-            if not dados:
-                raise ValueError("arquivo vazio")
-            emoji = await interaction.guild.create_custom_emoji(
-                name=nome,
-                image=dados,
-                reason=f"Importação da pasta {pasta} pelo administrador {interaction.user.id}"
-            )
-            ok.append(f"{emoji} `:{nome}:`")
-            existentes.add(nome.casefold())
-        except discord.Forbidden:
-            falhas.append(f"{arquivo.name}: sem permissão ou limite do servidor")
-            break
-        except discord.HTTPException as exc:
-            falhas.append(f"{arquivo.name}: Discord HTTP {exc.status} — {str(exc)[:100]}")
-        except (OSError, ValueError) as exc:
-            falhas.append(f"{arquivo.name}: {type(exc).__name__} — {str(exc)[:80]}")
-        except Exception as exc:
-            log.exception("Falha ao importar emoji %s", arquivo)
-            falhas.append(f"{arquivo.name}: {type(exc).__name__}")
-
-    resumo = (
-        "## Importação de emojis concluída\n"
-        f"**Pasta:** `{pasta}`\n"
-        f"**Imagens encontradas:** {len(arquivos)}\n"
-        f"**Adicionados:** {len(ok)} • **Já existentes:** {len(ignorados)} • **Falhas:** {len(falhas)}"
-    )
-    await interaction.followup.send(resumo, ephemeral=True)
-
-    # Envia a lista completa em mensagens separadas para não cortar emojis
-    # quando a resposta ultrapassar o limite de 2.000 caracteres do Discord.
-    async def enviar_lista(titulo, itens):
-        if not itens:
-            return
-        blocos = []
-        atual = f"**{titulo}:**"
-        for item in itens:
-            linha = f"\n{item}"
-            if len(atual) + len(linha) > 1750:
-                blocos.append(atual)
-                atual = f"**{titulo} (continuação):**" + linha
-            else:
-                atual += linha
-        if atual:
-            blocos.append(atual)
-        for bloco in blocos:
-            await interaction.followup.send(bloco, ephemeral=True)
-
-    await enviar_lista("Emojis adicionados", ok)
-    await enviar_lista("Ignorados", ignorados)
-    await enviar_lista("Falhas", falhas)
+            await message.delete()
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+        await message.channel.send(
+            resumo + ("\n\n" + "\n".join(detalhes) if detalhes else "")
+        )
+    except (zipfile.BadZipFile, OSError, ValueError) as exc:
+        log.warning("ZIP de emojis inválido enviado por %s: %s", message.author.id, exc)
+        await message.reply(
+            "❌ Não consegui abrir esse arquivo como ZIP válido. Confira o arquivo e tente novamente.",
+            mention_author=False
+        )
+    except Exception as exc:
+        log.exception("Falha ao importar ZIP de emojis")
+        await message.reply(
+            f"❌ A importação falhou ({type(exc).__name__}). Confira as permissões e o limite de emojis do servidor.",
+            mention_author=False
+        )
 
 async def samples(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
