@@ -38,6 +38,7 @@ from discord.ext import commands, tasks
 from discord import app_commands
 
 import github_bridge
+from support_features import configure_support
 
 BASE = Path.home() / "ccbot-repo"
 CONFIG = BASE / "config"
@@ -139,6 +140,8 @@ class CCBot(commands.Bot):
             ("Central de Ícones", PainelIconesView),
             ("Packs grátis", lambda: FreeProjectsAccessView("packs")),
             ("Projetos grátis", lambda: FreeProjectsAccessView("projetos")),
+            ("Painel de suporte", SupportPanelView),
+            ("Encerramento de ticket", TicketCloseView),
         ]
         for nome_view, criar_view in views_persistentes:
             try:
@@ -4432,6 +4435,7 @@ PARTNERSHIPS_CHANNEL_ID = 1561843704518549604
 WORK_WITH_US_CHANNEL_ID = 1561843767860789318
 WHATSAPP_NUMBER = "5511914038635"
 CONTACT_DISCORD_ID = ADMIN_ID
+SupportPanelView, TicketCloseView, criar_embed_suporte, garantir_painel_suporte, garantir_regras, garantir_canal_divulgacoes = configure_support(bot, ADMIN_ID, WHATSAPP_NUMBER, is_admin, log)
 
 
 def link_whatsapp(mensagem: str) -> str:
@@ -5504,10 +5508,21 @@ async def on_ready():
             save_json(DATA_FILE, settings)
             log.info("Limpeza única de #%s concluída: %s mensagens apagadas.", canal_limpeza.name, apagadas)
 
+        servidor_cc = bot.get_guild(1561513043886743562)
         try:
-            await garantir_painel_info_vendas(bot.get_guild(1561513043886743562))
+            await garantir_painel_info_vendas(servidor_cc)
         except Exception:
             log.exception("Falha ao criar/atualizar a área de informações de vendas.")
+        for funcao, descricao in ((garantir_regras, "regras"), (garantir_canal_divulgacoes, "divulgações de beats"), (garantir_painel_suporte, "suporte dedicado")):
+            try:
+                await funcao(servidor_cc)
+            except Exception:
+                log.exception("Falha ao atualizar %s.", descricao)
+        try:
+            await obter_canal_confirmacao(servidor_cc)
+            await obter_canal_cancelados(servidor_cc)
+        except Exception:
+            log.exception("Falha ao mover pedidos/cancelamentos para ANDAMENTO.")
 
         try:
             servidor = bot.get_guild(1561513043886743562)
