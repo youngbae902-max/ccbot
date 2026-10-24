@@ -5414,6 +5414,7 @@ async def configurar_paineis_gratis(guild):
         save_json(DATA_FILE, settings)
 
 
+@bot.event
 async def on_ready():
     try:
         guild = discord.Object(id=1561513043886743562)
