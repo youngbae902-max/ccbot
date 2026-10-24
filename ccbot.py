@@ -3909,11 +3909,6 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
             )
             return
 
-        await interaction.followup.send(
-            "Pix confirmado! Te enviei as instruções para enviar o projeto no PV.",
-            ephemeral=True
-        )
-
         hosts_permitidos = (
             "drive.google.com", "docs.google.com", "dropbox.com", "www.dropbox.com",
             "1drv.ms", "onedrive.live.com", "wetransfer.com", "www.wetransfer.com"
