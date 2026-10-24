@@ -3745,7 +3745,34 @@ class GeradorSamplesView(discord.ui.LayoutView):
                     discord.ui.TextDisplay(
                         content=(
                             "### <:box:1561761831587160140>  GERADOR DE SAMPLES\n"
-                            "**Tenha acesso a novas possibilidades para suas produções# Importação de emojis pelo formulário do Discord: ZIP ou imagens soltas.
+                            "**Tenha acesso a novas possibilidades para suas produções!**\n"
+                            "-# Novo Gerador de Samples da atualidade\n"
+                        )
+                    ),
+                    accessory=discord.ui.Thumbnail(
+                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
+                    )
+                ),
+                discord.ui.Separator(
+                    visible=True,
+                    spacing=discord.SeparatorSpacing.large
+                ),
+                discord.ui.TextDisplay(
+                    content=(
+                        "## **PAINEL ATUALIZADO**\n"
+                        "-# Confira abaixo todas as funcionalidades disponíveis e descubra tudo o que você pode fazer com o nosso painel!\n\n"
+                        "### <:box_1:1561761829502459964> Samples No Estilo Dos Djs!\n"
+                        "Clique em **Gerar Samples** e escolha um DJ cadastrado pelo administrador.\n\n"
+                        "### <:box_1:1561761829502459964> Gere __Quantas Samples Quiser!__\n"
+                        "Tenha liberdade para gerar **quantas samples quiser**, de forma prática, rápida e direto pelo painel."
+                    )
+                ),
+                discord.ui.ActionRow(GerarSamplesButton())
+            )
+        )
+
+
+# Importação de emojis pelo formulário do Discord: ZIP ou imagens soltas.
 EMOJI_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 EMOJI_UPLOAD_DIR = BASE / "uploads" / "emojis"
 EMOJI_ZIP_MAX_BYTES = 100 * 1024 * 1024
