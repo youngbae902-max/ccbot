@@ -4824,16 +4824,15 @@ SALES_INFO_TITLE = "🛒 COMO FUNCIONAM AS VENDAS"
 async def garantir_painel_info_vendas(guild):
     if guild is None:
         return
-    categoria = next((cat for cat in guild.categories if cat.name.strip().casefold() in {"vendas", "sales information", "informações de vendas", "informacoes de vendas"}), None)
+    categoria = guild.get_channel(1561513260501569576)
+    if not isinstance(categoria, discord.CategoryChannel):
+        categoria = next((cat for cat in guild.categories if cat.name.strip().casefold() in {"information", "informações", "informacoes", "info"}), None)
     if categoria is None:
-        categoria = await guild.create_category(
-            SALES_INFO_CATEGORY,
-            reason="Criar área pública com instruções do fluxo de vendas"
-        )
-    elif categoria.name != SALES_INFO_CATEGORY:
-        await categoria.edit(name=SALES_INFO_CATEGORY, reason="Renomear categoria de vendas sem alterar a hierarquia")
+        categoria = await guild.create_category("INFORMAÇÕES", reason="Área de informações do servidor")
 
-    canal = discord.utils.get(guild.text_channels, name=SALES_INFO_CHANNEL)
+    canal = next((ch for ch in guild.text_channels if ch.name == SALES_INFO_CHANNEL and ch.category_id == categoria.id), None)
+    if canal is None:
+        canal = discord.utils.get(guild.text_channels, name=SALES_INFO_CHANNEL)
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(
             view_channel=True, read_message_history=True, send_messages=False,
@@ -4890,7 +4889,21 @@ async def garantir_painel_info_vendas(guild):
         await mensagem_existente.edit(embed=embed)
     else:
         await canal.send(embed=embed)
-    log.info("Painel de informações de vendas garantido em #%s.", canal.name)
+
+    # Remove apenas duplicatas exatas do mesmo guia, mantendo uma única versão em INFORMAÇÕES.
+    for duplicado in list(guild.text_channels):
+        if duplicado.id != canal.id and duplicado.name == SALES_INFO_CHANNEL:
+            try:
+                await duplicado.delete(reason="Remover canal duplicado de como funcionam as vendas")
+            except discord.HTTPException:
+                log.exception("Não foi possível remover o canal duplicado %s.", duplicado.id)
+    for cat_antiga in list(guild.categories):
+        if cat_antiga.name.strip().casefold() in {"vendas", "sales information", "informações de vendas", "informacoes de vendas"} and not cat_antiga.channels:
+            try:
+                await cat_antiga.delete(reason="Remover categoria redundante de vendas")
+            except discord.HTTPException:
+                log.exception("Não foi possível remover categoria redundante de vendas.")
+    log.info("Canal único de informações de vendas garantido em #%s.", canal.name)
 
 async def renomear_categorias_principais(guild: discord.Guild):
     """Renomeia as categorias principais pelos IDs, sem depender do painel de estrutura."""
