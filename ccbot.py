@@ -3848,24 +3848,69 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
+            ticket, txid = await criar_pedido_pagamento(
+                interaction,
+                "Arrumador de Projetos",
+                33.99,
+                f"Pedido de mudança: {str(self.mudancas.value).strip()}",
+                tipo="arrumador"
+            )
+            await interaction.edit_original_response(
+                content=(
+                    f"🧾 **Arrumador de Projetos — {formatar_reais(33.99)}**\\n"
+                    f"Seu pedido foi registrado. Faça o Pix no canal privado {ticket.mention}.\\n"
+                    f"Identificador: {txid}.\\n"
+                    "Depois do pagamento, aguarde a confirmação manual. O envio do ZIP será liberado após a aprovação."
+                ),
+                view=None
+            )
+        except Exception as exc:
+            log.exception("Falha ao abrir checkout Pix do Arrumador")
+            await interaction.edit_original_response(
+                content=f"Não consegui abrir o pagamento: {str(exc)[:400]}",
+                view=None
+            )
+            return
+
+        # Só solicita e encaminha os arquivos depois da aprovação manual do Pix.
+        prazo_pagamento = asyncio.get_running_loop().time() + 1800
+        while asyncio.get_running_loop().time() < prazo_pagamento:
+            pedido_pagamento = pix_orders.get(txid, {})
+            status_pagamento = pedido_pagamento.get("status")
+            if status_pagamento == "pago_confirmado_manualmente":
+                break
+            if status_pagamento == "cancelado_manualmente":
+                return
+            await asyncio.sleep(5)
+        else:
+            try:
+                await interaction.user.send(
+                    f"⏰ O prazo de 30 minutos para confirmar o Pix do Arrumador expirou. "
+                    f"Se você já pagou, fale com a administração e informe o identificador {txid}."
+                )
+            except discord.HTTPException:
+                pass
+            return
+
+        try:
             await interaction.user.send(
-                "**🧰 Arrumador de Projetos**\n"
-                "Recebi sua descrição. Envie o ZIP aqui no PV se o Discord permitir.\n\n"
-                "**Se o arquivo for grande e o Discord pedir Nitro:**\n"
-                "1. Envie o ZIP para o Google Drive.\n"
-                "2. No Drive, abra **Compartilhar** e mude o acesso para **Qualquer pessoa com o link** (leitor).\n"
-                "3. Cole o link aqui nesta conversa privada.\n\n"
+                "**🧰 Arrumador de Projetos — pagamento confirmado**\\n"
+                "Agora envie o ZIP aqui no PV se o Discord permitir.\\n\\n"
+                "**Se o arquivo for grande e o Discord pedir Nitro:**\\n"
+                "1. Envie o ZIP para o Google Drive.\\n"
+                "2. No Drive, abra **Compartilhar** e mude o acesso para **Qualquer pessoa com o link** (leitor).\\n"
+                "3. Cole o link aqui nesta conversa privada.\\n\\n"
                 "Aceito anexos ZIP ou links do Google Drive, Dropbox, OneDrive e WeTransfer. Você tem **10 minutos**."
             )
         except discord.Forbidden:
             await interaction.followup.send(
-                "Não consegui abrir seu PV. Ative mensagens diretas deste servidor e execute /arrumador novamente.",
+                "Não consegui abrir seu PV. Ative mensagens diretas deste servidor e fale com a administração para continuar após o pagamento.",
                 ephemeral=True
             )
             return
 
         await interaction.followup.send(
-            "Te enviei as instruções no PV. Se o ZIP for grande demais para o Discord, pode mandar um link de compartilhamento.",
+            "Pix confirmado! Te enviei as instruções para enviar o projeto no PV.",
             ephemeral=True
         )
 
@@ -4057,11 +4102,9 @@ def criar_embed_arrumador():
         title="🧰 ARRUMADOR DE ARQUIVOS",
         description=(
             "Organize seu projeto do FL Studio Mobile do jeito que você precisa.\n\n"
-            "Descreva as mudanças desejadas e envie seu projeto em **.ZIP** pelo PV do bot. "
-            "Seu pedido e o arquivo serão encaminhados ao responsável para análise.\n\n"
-            "📦 **Como começar**\n"
-            "Clique no botão **MANDAR** abaixo e descreva o que deseja mudar."
-        ),
+            "Valor do serviço: **R$ 33,99**. O envio do projeto é liberado após a confirmação manual do Pix.\\n\\n"
+            "📦 **Como começar**\\n"
+            "Clique em **MANDAR**, descreva as mudanças e faça o Pix no canal privado.\\n"        ),
         color=discord.Color.red()
     )
     embed.set_thumbnail(
