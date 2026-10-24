@@ -2558,120 +2558,77 @@ class VoltarPainelButtonView(discord.ui.View):
 
 
 
-# Sistema de ícones importados da pasta do Pinterest no Android.
-PINTEREST_PINS_DIR = Path("/sdcard/Pictures/100PINT/Pins")
+# Sistema de ícones: importação manual por ZIP, sem monitoramento de pastas.
 ICONS_CHANNEL_ID = 1561513290473934998
 ICON_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-ICON_POLL_SECONDS = 5
+ICON_MAX_FILES = 500
+ICON_MAX_UNPACKED_BYTES = 100 * 1024 * 1024
+ICON_MAX_FILE_BYTES = 20 * 1024 * 1024
+ICON_ZIP_PENDING = {}
+ICON_UPLOAD_SESSIONS = {}
 
-def icon_folder_status():
-    """Diagnóstico real da pasta local do Termux, exibido no painel."""
-    try:
-        if not PINTEREST_PINS_DIR.exists():
-            return {
-                "ok": False,
-                "message": "PASTA NÃO ENCONTRADA",
-                "detail": f"{PINTEREST_PINS_DIR} não existe para o processo do bot."
-            }
-        if not PINTEREST_PINS_DIR.is_dir():
-            return {
-                "ok": False,
-                "message": "CAMINHO NÃO É PASTA",
-                "detail": str(PINTEREST_PINS_DIR)
-            }
-        arquivos = [
-            p for p in PINTEREST_PINS_DIR.iterdir()
-            if p.is_file() and p.suffix.lower() in ICON_EXTENSIONS
-        ]
-        return {
-            "ok": True,
-            "message": "PASTA ACESSÍVEL",
-            "detail": f"{len(arquivos)} imagem(ns) encontrada(s)."
-        }
-    except PermissionError as exc:
-        log.exception("Permissão negada ao acessar pasta de ícones: %s", PINTEREST_PINS_DIR)
-        return {
-            "ok": False,
-            "message": "SEM PERMISSÃO",
-            "detail": f"{type(exc).__name__}: {exc}. No Termux, execute termux-setup-storage e autorize o acesso aos arquivos."
-        }
-    except OSError as exc:
-        log.exception("Erro ao acessar pasta de ícones: %s", PINTEREST_PINS_DIR)
-        return {
-            "ok": False,
-            "message": "ERRO AO LER A PASTA",
-            "detail": f"{type(exc).__name__}: {exc}"
-        }
-
-
-def icon_files():
-    try:
-        return sorted(
-            (p for p in PINTEREST_PINS_DIR.iterdir()
-             if p.is_file() and p.suffix.lower() in ICON_EXTENSIONS),
-            key=lambda p: (p.stat().st_mtime, p.name.lower())
-        )
-    except (FileNotFoundError, PermissionError, OSError):
-        log.exception("Não consegui acessar a pasta de ícones: %s", PINTEREST_PINS_DIR)
-        return []
-
-
-def icon_file_signature(path):
-    """Detecta também arquivos substituídos com o mesmo nome."""
-    path = Path(path)
-    stat = path.stat()
-    return f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
 
 def icon_state():
-    state = settings.setdefault("icon_system", {})
-    state.setdefault("monitoring", False)
-    state.setdefault("pending", None)
-    state.setdefault("known_files", [])
-    state.setdefault("post_mode", "single")
-    state.setdefault("last_scan_count", 0)
-    state.setdefault("last_error", "")
-    return state
+    return settings.setdefault("icon_system", {"albums": {}})
 
-async def publicar_album_icone(nome, paths):
-    """Publica o álbum completo no canal, com título e botão para abrir a versão privada."""
-    if not paths:
-        raise ValueError("Nenhuma foto encontrada para publicar.")
-    canal = bot.get_channel(ICONS_CHANNEL_ID)
-    if canal is None:
-        canal = await bot.fetch_channel(ICONS_CHANNEL_ID)
-    if not isinstance(canal, discord.TextChannel):
-        raise TypeError("O canal de ícones configurado não é um canal de texto.")
 
-    nome = str(nome).strip() or "Ícone"
-    caminhos = [str(Path(path).resolve()) for path in paths]
-    chave = nome.casefold()
-    state = icon_state()
-    albuns = state.setdefault("albums", {})
-    albuns[chave] = {
-        "name": nome,
-        "paths": caminhos,
-        "private_categories": albuns.get(chave, {}).get("private_categories", {})
-    }
-    save_json(DATA_FILE, settings)
+def icon_safe_name(value):
+    nome = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not nome:
+        raise ValueError("Digite o nome da pasta/ícone.")
+    return nome[:80]
 
-    enviados = 0
-    for inicio in range(0, len(paths), 10):
-        lote = paths[inicio:inicio + 10]
-        arquivos = []
+
+def extrair_imagens_zip(dados_zip):
+    imagens = []
+    total_bytes = 0
+    with zipfile.ZipFile(io.BytesIO(dados_zip), "r") as arquivo_zip:
+        membros = sorted(arquivo_zip.infolist(), key=lambda item: item.filename.casefold())
+        for membro in membros:
+            if membro.is_dir():
+                continue
+            caminho = Path(membro.filename.replace("\\", "/"))
+            if caminho.name.startswith(".") or caminho.suffix.lower() not in ICON_EXTENSIONS:
+                continue
+            if membro.file_size <= 0:
+                continue
+            if membro.file_size > ICON_MAX_FILE_BYTES:
+                raise ValueError(f"{caminho.name} ultrapassa 20 MB descompactado.")
+            total_bytes += membro.file_size
+            if total_bytes > ICON_MAX_UNPACKED_BYTES:
+                raise ValueError("O ZIP passa do limite de 100 MB descompactados.")
+            if len(imagens) >= ICON_MAX_FILES:
+                raise ValueError("O ZIP contém mais de 500 imagens.")
+            conteudo = arquivo_zip.read(membro)
+            if not conteudo:
+                continue
+            nome = re.sub(r"[^A-Za-z0-9._ -]", "_", caminho.name)[:180] or f"icon_{len(imagens) + 1}.png"
+            imagens.append((nome, conteudo))
+    if not imagens:
+        raise ValueError("Não encontrei JPG, PNG, WEBP ou GIF dentro do ZIP.")
+    return imagens
+
+
+async def enviar_lote_imagens(destino, imagens, nome, descricao=None, primeira=False, view=None):
+    enviados = []
+    for inicio in range(0, len(imagens), 10):
+        lote = imagens[inicio:inicio + 10]
+        arquivos = [discord.File(io.BytesIO(dados), filename=arquivo_nome) for arquivo_nome, dados in lote]
+        embed = discord.Embed(
+            title=f"🖼️ Icon - {nome}",
+            description=descricao if inicio == 0 else None,
+            color=discord.Color.from_rgb(0, 0, 0)
+        )
+        embed.set_footer(text="CC BOT • Icons")
+        if primeira and inicio == 0 and lote:
+            embed.set_image(url=f"attachment://{lote[0][0]}")
         try:
-            for path in lote:
-                arquivos.append(discord.File(str(path), filename=path.name))
-            embed = discord.Embed(
-                title=f"🖼️ Icon - {nome}" if inicio == 0 else f"🖼️ Icon - {nome} (continuação)",
-                description=None if inicio else f"📸 {len(paths)} foto(s)",
-                color=discord.Color.from_rgb(0, 0, 0)
+            mensagem = await destino.send(
+                embed=embed if inicio == 0 else None,
+                files=arquivos,
+                view=view if inicio == 0 else None
             )
-            embed.set_footer(text="CC BOT • Icons")
-            if inicio == 0:
-                await canal.send(embed=embed, files=arquivos, view=IconVerIconsView())
-            else:
-                await canal.send(embed=embed, files=arquivos)
-            enviados += len(lote)
+            enviados.append(mensagem)
         finally:
             for arquivo in arquivos:
                 try:
@@ -2679,6 +2636,274 @@ async def publicar_album_icone(nome, paths):
                 except Exception:
                     pass
     return enviados
+
+
+async def publicar_zip_icone(nome, imagens, modo):
+    if not imagens:
+        raise ValueError("O ZIP não contém imagens válidas.")
+    canal = bot.get_channel(ICONS_CHANNEL_ID)
+    if canal is None:
+        canal = await bot.fetch_channel(ICONS_CHANNEL_ID)
+    if not isinstance(canal, discord.TextChannel):
+        raise TypeError("O canal configurado para ícones não é um canal de texto.")
+
+    nome = icon_safe_name(nome)
+    chave = nome.casefold()
+    state = icon_state()
+    albuns = state.setdefault("albums", {})
+    registro = albuns.get(chave, {})
+    thread = None
+    thread_id = registro.get("thread_id") if isinstance(registro, dict) else None
+    if thread_id:
+        try:
+            thread = bot.get_channel(int(thread_id))
+            if thread is None:
+                thread = await bot.fetch_channel(int(thread_id))
+            if not isinstance(thread, discord.Thread):
+                thread = None
+            elif thread.archived:
+                await thread.edit(archived=False)
+        except (discord.NotFound, discord.HTTPException, TypeError, ValueError):
+            log.warning("Tópico salvo para '%s' não está acessível; será criado outro.", nome)
+            thread = None
+
+    if modo == "single":
+        primeira_nome, primeira_dados = imagens[0]
+        arquivo_capa = discord.File(io.BytesIO(primeira_dados), filename=primeira_nome)
+        embed = discord.Embed(
+            title=f"🖼️ Icon - {nome}",
+            description=f"📸 {len(imagens)} foto(s) • Abra Ver icons para acessar o tópico.",
+            color=discord.Color.from_rgb(0, 0, 0)
+        )
+        embed.set_image(url=f"attachment://{primeira_nome}")
+        embed.set_footer(text="CC BOT • Icons")
+        try:
+            postagem = await canal.send(embed=embed, file=arquivo_capa, view=IconVerIconsView())
+        finally:
+            arquivo_capa.close()
+        if thread is None:
+            thread = await postagem.create_thread(name=f"Icon - {nome}"[:100])
+    else:
+        postagens = await enviar_lote_imagens(
+            canal, imagens, nome,
+            descricao=f"Álbum • {len(imagens)} foto(s)",
+            primeira=True,
+            view=None
+        )
+        if thread is None:
+            thread = await postagens[0].create_thread(name=f"Icon - {nome}"[:100])
+
+    await enviar_lote_imagens(
+        thread, imagens, nome,
+        descricao=f"Nova importação • {len(imagens)} foto(s)",
+        primeira=True,
+        view=None
+    )
+    albuns[chave] = {
+        "name": nome,
+        "thread_id": thread.id,
+        "post_mode": modo,
+        "last_import_count": len(imagens),
+        "updated_at": datetime.now().isoformat(timespec="seconds")
+    }
+    save_json(DATA_FILE, settings)
+    return thread, len(imagens)
+
+
+class IconNomeModal(discord.ui.Modal, title="Nome da pasta de ícones"):
+    nome = discord.ui.TextInput(
+        label="Nome da pasta / ícone",
+        placeholder="Ex.: brocasito",
+        min_length=1,
+        max_length=80
+    )
+
+    def __init__(self, user_id):
+        super().__init__(timeout=300)
+        self.user_id = user_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode importar ícones.", ephemeral=True)
+            return
+        pendente = ICON_ZIP_PENDING.get(self.user_id)
+        if not pendente:
+            await interaction.response.send_message(
+                "O ZIP não está mais disponível. Clique em Enviar ZIP de ícones e envie o arquivo novamente.",
+                ephemeral=True
+            )
+            return
+        try:
+            pendente["name"] = icon_safe_name(self.nome.value)
+        except ValueError as exc:
+            await interaction.response.send_message(str(exc), ephemeral=True)
+            return
+        await interaction.response.send_message(
+            f"Nome: {pendente['name']}\nAgora escolha como publicar este lote:",
+            view=IconModoPublicacaoView(self.user_id),
+            ephemeral=True
+        )
+
+
+class IconProcessarZipButton(discord.ui.Button):
+    def __init__(self, user_id):
+        super().__init__(
+            label="Definir nome e publicação",
+            emoji="🗂️",
+            style=discord.ButtonStyle.success,
+            custom_id=f"ccbot:icons_name_zip:{user_id}"
+        )
+        self.user_id = user_id
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction) or interaction.user.id != self.user_id:
+            await interaction.response.send_message("Somente quem enviou o ZIP pode continuar.", ephemeral=True)
+            return
+        if self.user_id not in ICON_ZIP_PENDING:
+            await interaction.response.send_message("ZIP expirado. Envie o arquivo novamente.", ephemeral=True)
+            return
+        await interaction.response.send_modal(IconNomeModal(self.user_id))
+
+
+class IconZipRecebidoView(discord.ui.View):
+    def __init__(self, user_id):
+        super().__init__(timeout=600)
+        self.add_item(IconProcessarZipButton(user_id))
+
+
+class IconModoPublicacaoView(discord.ui.View):
+    def __init__(self, user_id):
+        super().__init__(timeout=300)
+        self.user_id = user_id
+
+    async def publicar(self, interaction: discord.Interaction, modo):
+        if not is_admin(interaction) or interaction.user.id != self.user_id:
+            await interaction.response.send_message("Somente quem enviou o ZIP pode continuar.", ephemeral=True)
+            return
+        pendente = ICON_ZIP_PENDING.get(self.user_id)
+        if not pendente or not pendente.get("name"):
+            await interaction.response.send_message("ZIP ou nome não encontrado. Inicie a importação novamente.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            imagens = await asyncio.to_thread(extrair_imagens_zip, pendente["data"])
+            thread, total = await publicar_zip_icone(pendente["name"], imagens, modo)
+            ICON_ZIP_PENDING.pop(self.user_id, None)
+            await interaction.edit_original_response(
+                content=(
+                    f"✅ Importação concluída\n"
+                    f"Ícone: {pendente['name']}\n"
+                    f"Fotos: {total}\n"
+                    f"Publicação: {'Post único (capa + Ver icons)' if modo == 'single' else 'Post em álbum (todas as fotos)'}\n"
+                    f"Tópico permanente: {thread.mention}\n"
+                    "Novas importações com o mesmo nome serão adicionadas a esse mesmo tópico."
+                ),
+                view=None
+            )
+        except Exception as exc:
+            log.exception("Falha ao processar ZIP de ícones")
+            await interaction.edit_original_response(
+                content=f"Não consegui publicar o ZIP: {type(exc).__name__}: {str(exc)[:350]}",
+                view=None
+            )
+
+    @discord.ui.button(label="Post único (capa + Ver icons)", emoji="🖼️", style=discord.ButtonStyle.primary)
+    async def post_unico(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.publicar(interaction, "single")
+
+    @discord.ui.button(label="Post em álbum", emoji="📚", style=discord.ButtonStyle.secondary)
+    async def post_album(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.publicar(interaction, "album")
+
+
+class IconEnviarZipButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Enviar ZIP de ícones",
+            emoji="📦",
+            style=discord.ButtonStyle.success,
+            custom_id="ccbot:icons_upload_zip"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
+            return
+        if interaction.guild is None or interaction.channel is None:
+            await interaction.response.send_message("Use este botão dentro do servidor.", ephemeral=True)
+            return
+        ICON_UPLOAD_SESSIONS[interaction.user.id] = {"channel_id": interaction.channel.id}
+        ICON_ZIP_PENDING.pop(interaction.user.id, None)
+        await interaction.response.send_message(
+            "Envie o arquivo ZIP neste canal como uma mensagem.\n"
+            "O ZIP deve conter as imagens (JPG, PNG, WEBP ou GIF). Depois você informa o nome e escolhe o formato da publicação.",
+            ephemeral=True
+        )
+
+
+class PainelIconesView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(IconEnviarZipButton())
+        self.add_item(VoltarPainelButton())
+
+
+def criar_embed_painel_icones():
+    embed = discord.Embed(
+        title="🖼️ CENTRAL DE ÍCONES",
+        description=(
+            "Importe coleções por ZIP, sem monitoramento automático.\n\n"
+            "### 📦 Como funciona\n"
+            "1. Clique em Enviar ZIP de ícones.\n"
+            "2. Envie o ZIP neste canal.\n"
+            "3. Informe o nome da pasta/ícone.\n"
+            "4. Escolha o formato da publicação.\n\n"
+            "Post único: uma capa com botão Ver icons para abrir o tópico.\n"
+            "Post em álbum: todas as fotos no canal, sem botão.\n\n"
+            "Importações com o mesmo nome, como brocasito, ficam no mesmo tópico permanente."
+        ),
+        color=discord.Color.from_rgb(190, 45, 75)
+    )
+    embed.set_footer(text="CC BOT • Icons")
+    return embed
+
+
+@bot.listen("on_message")
+async def receber_zip_de_icones(message: discord.Message):
+    if message.author.bot or message.guild is None or not message.attachments:
+        return
+    sessao = ICON_UPLOAD_SESSIONS.get(message.author.id, {})
+    if not is_admin(message.author) or message.channel.id != sessao.get("channel_id"):
+        return
+    anexo = next((a for a in message.attachments if Path(a.filename).suffix.lower() == ".zip"), None)
+    if anexo is None:
+        return
+    try:
+        if anexo.size > 100 * 1024 * 1024:
+            await message.reply("O ZIP deve ter no máximo 100 MB.", mention_author=False)
+            return
+        dados = await anexo.read(use_cached=True)
+        imagens = await asyncio.to_thread(extrair_imagens_zip, dados)
+        ICON_ZIP_PENDING[message.author.id] = {
+            "data": dados,
+            "filename": Path(anexo.filename).name,
+            "image_count": len(imagens)
+        }
+        ICON_UPLOAD_SESSIONS.pop(message.author.id, None)
+        try:
+            await message.delete()
+        except discord.HTTPException:
+            pass
+        await message.channel.send(
+            f"ZIP recebido: {len(imagens)} imagens.\nClique abaixo para informar o nome e escolher a publicação.",
+            view=IconZipRecebidoView(message.author.id)
+        )
+    except (zipfile.BadZipFile, ValueError) as exc:
+        await message.reply(f"ZIP inválido: {str(exc)[:300]}", mention_author=False)
+    except Exception as exc:
+        log.exception("Falha ao receber ZIP de ícones")
+        await message.reply(f"Não consegui ler o ZIP ({type(exc).__name__}).", mention_author=False)
+
 
 class IconVerIconsView(discord.ui.View):
     def __init__(self):
@@ -2697,43 +2922,18 @@ class IconVerIconsButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.guild is None or interaction.message is None:
-            await interaction.response.send_message(
-                "Use esse botão dentro do servidor.", ephemeral=True
-            )
+            await interaction.response.send_message("Use esse botão dentro do servidor.", ephemeral=True)
             return
-
         embeds = interaction.message.embeds
         if not embeds or not embeds[0].title:
-            await interaction.response.send_message(
-                "Não consegui identificar esse ícone.", ephemeral=True
-            )
+            await interaction.response.send_message("Não consegui identificar esse ícone.", ephemeral=True)
             return
-
-        titulo = embeds[0].title.strip()
-        nome = titulo
-        if nome.startswith("🖼️ Icon - "):
-            nome = nome[len("🖼️ Icon - "):].strip()
-        elif nome.startswith("Icon - "):
-            nome = nome[len("Icon - "):].strip()
-        if nome.endswith(" (continuação)"):
-            nome = nome[:-len(" (continuação)")].strip()
-
-        album = icon_state().setdefault("albums", {}).get(nome.casefold())
-        if not isinstance(album, dict):
-            await interaction.response.send_message(
-                "Esse ícone ainda não está registrado. Peça ao administrador para importá-lo novamente.",
-                ephemeral=True
-            )
-            return
-
-        thread_id = album.get("thread_id")
+        nome = embeds[0].title.strip().removeprefix("🖼️ Icon - ").removesuffix(" (continuação)").strip()
+        registro = icon_state().setdefault("albums", {}).get(nome.casefold())
+        thread_id = registro.get("thread_id") if isinstance(registro, dict) else None
         if not thread_id:
-            await interaction.response.send_message(
-                "O tópico permanente desse ícone ainda não existe. O administrador precisa adicionar fotos desse ícone novamente para criá-lo.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("O tópico deste ícone ainda não está registrado.", ephemeral=True)
             return
-
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             thread = bot.get_channel(int(thread_id))
@@ -2743,313 +2943,10 @@ class IconVerIconsButton(discord.ui.Button):
                 raise TypeError("O destino salvo não é um tópico.")
             if thread.archived:
                 await thread.edit(archived=False)
-            await interaction.followup.send(
-                f"Tópico permanente de **{nome}**: {thread.mention}",
-                ephemeral=True
-            )
+            await interaction.followup.send(f"Tópico permanente de {nome}: {thread.mention}", ephemeral=True)
         except Exception:
             log.exception("Falha ao abrir tópico permanente do ícone '%s'.", nome)
-            await interaction.followup.send(
-                "Não consegui acessar o tópico desse ícone. Confira as permissões do bot no servidor.",
-                ephemeral=True
-            )
-
-class IconNomeQuantidadeModal(discord.ui.Modal, title="Cadastrar ícone"):
-    nome = discord.ui.TextInput(
-        label="Nome do ícone",
-        placeholder="Ex.: brocasito",
-        min_length=1,
-        max_length=80
-    )
-    quantidade = discord.ui.TextInput(
-        label="Quantidade de fotos",
-        placeholder="Ex.: 10",
-        min_length=1,
-        max_length=4
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
-            return
-        try:
-            quantidade = int(str(self.quantidade.value).strip())
-            if not 1 <= quantidade <= 500:
-                raise ValueError
-        except ValueError:
-            await interaction.response.send_message(
-                "Informe uma quantidade entre 1 e 500.", ephemeral=True
-            )
-            return
-
-        state = icon_state()
-        atuais = [icon_file_signature(p) for p in icon_files()]
-        state["pending"] = {
-            "name": str(self.nome.value).strip(),
-            "quantity": quantidade,
-            "baseline": atuais,
-            "started_at": datetime.now().isoformat(timespec="seconds")
-        }
-        state["known_files"] = list(set(state.get("known_files", [])) | set(atuais))
-        save_json(DATA_FILE, settings)
-        await interaction.response.send_message(
-            f"Icon - {str(self.nome.value).strip()} cadastrado.\n"
-            f"Agora baixe {quantidade} foto(s) do Pinterest para {PINTEREST_PINS_DIR}. "
-            "Quando a quantidade for atingida, vou publicar o álbum no canal de ícones.",
-            ephemeral=True
-        )
-
-class IconImportarModal(discord.ui.Modal, title="Importar fotos existentes"):
-    nome = discord.ui.TextInput(
-        label="Nome do ícone",
-        placeholder="Ex.: brocasito",
-        min_length=1,
-        max_length=80
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
-            return
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        paths = icon_files()
-        if not paths:
-            await interaction.followup.send(
-                f"Não encontrei fotos em {PINTEREST_PINS_DIR}. Confira a pasta e as permissões do Termux.",
-                ephemeral=True
-            )
-            return
-        try:
-            total = await publicar_album_icone(str(self.nome.value).strip(), paths)
-            state = icon_state()
-            state["known_files"] = list(set(state.get("known_files", [])) | {icon_file_signature(p) for p in paths})
-            save_json(DATA_FILE, settings)
-            await interaction.followup.send(
-                f"Icon - {str(self.nome.value).strip()} publicado com {total} foto(s).",
-                ephemeral=True
-            )
-        except Exception as exc:
-            log.exception("Falha ao importar fotos existentes como ícone")
-            await interaction.followup.send(
-                f"Não consegui publicar as fotos ({type(exc).__name__}). Confira as permissões do bot no canal.",
-                ephemeral=True
-            )
-
-class IconPostModeSelect(discord.ui.Select):
-    def __init__(self):
-        state = icon_state()
-        atual = state.get("post_mode", "single")
-        options = [
-            discord.SelectOption(
-                label="Post único (capa + Ver ícones)",
-                value="single",
-                description="Mostra uma capa; as fotos completas ficam atrás do botão.",
-                emoji="🖼️",
-                default=atual == "single"
-            ),
-            discord.SelectOption(
-                label="Post em álbum (todas as fotos)",
-                value="album",
-                description="Publica as fotos no canal em grupos de até 10.",
-                emoji="📚",
-                default=atual == "album"
-            )
-        ]
-        super().__init__(
-            placeholder="Tipo de publicação: " + ("Post único" if atual == "single" else "Post em álbum"),
-            min_values=1,
-            max_values=1,
-            options=options,
-            custom_id="ccbot:icons_post_mode"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
-            return
-        state = icon_state()
-        state["post_mode"] = self.values[0]
-        save_json(DATA_FILE, settings)
-        await interaction.response.edit_message(
-            embed=criar_embed_painel_icones(),
-            view=PainelIconesView()
-        )
-
-
-class IconMonitoramentoButton(discord.ui.Button):
-    def __init__(self):
-        state = icon_state()
-        ativo = bool(state.get("monitoring"))
-        super().__init__(
-            label="Desativar monitoramento" if ativo else "Ativar monitoramento",
-            emoji="🟢" if ativo else "⚪",
-            style=discord.ButtonStyle.success if ativo else discord.ButtonStyle.secondary,
-            custom_id="ccbot:icons_toggle_monitor"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
-            return
-        state = icon_state()
-        state["monitoring"] = not bool(state.get("monitoring"))
-        save_json(DATA_FILE, settings)
-        await interaction.response.edit_message(
-            embed=criar_embed_painel_icones(),
-            view=PainelIconesView()
-        )
-
-class IconAdicionarButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(
-            label="Cadastrar ícone e quantidade",
-            emoji="➕",
-            style=discord.ButtonStyle.primary,
-            custom_id="ccbot:icons_add"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
-            return
-        await interaction.response.send_modal(IconNomeQuantidadeModal())
-
-class IconImportarButton(discord.ui.Button):
-    def __init__(self):        super().__init__(
-            label="Importar fotos da pasta",
-            emoji="🖼️",
-            style=discord.ButtonStyle.primary,
-            custom_id="ccbot:icons_import"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
-            return
-        await interaction.response.send_modal(IconImportarModal())
-
-class IconAtualizarPainelButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(
-            label="Testar pasta / atualizar",
-            emoji="🔄",
-            style=discord.ButtonStyle.secondary,
-            custom_id="ccbot:icons_refresh"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message(
-                "Apenas o administrador pode usar este painel.", ephemeral=True
-            )
-            return
-        await interaction.response.edit_message(
-            embed=criar_embed_painel_icones(),
-            view=PainelIconesView()
-        )
-
-
-class PainelIconesView(discord.ui.View):
-    def __init__(self):
-        # Painel persistente: os botões continuam funcionando após 5 minutos e reinícios.
-        super().__init__(timeout=None)
-        self.add_item(IconAtualizarPainelButton())
-        self.add_item(IconPostModeSelect())
-        self.add_item(IconMonitoramentoButton())
-        self.add_item(IconAdicionarButton())
-        self.add_item(IconImportarButton())
-        self.add_item(VoltarPainelButton())
-
-def criar_embed_painel_icones():
-    state = icon_state()
-    pendente = state.get("pending")
-    status = "Ativo" if state.get("monitoring") else "Desativado"
-    modo = "Post único (capa + botão)" if state.get("post_mode", "single") == "single" else "Post em álbum"
-    diagnostico = icon_folder_status()
-    quantidade_pasta = diagnostico["detail"] if diagnostico["ok"] else diagnostico["detail"]
-    aguardando = (
-        f"Ícone em andamento: {pendente['name']} · {pendente['quantity']} fotos"
-        if pendente else "Ícone em andamento: nenhum"
-    )
-    embed = discord.Embed(
-        title="Central de Ícones",
-        description=(
-            f"Monitoramento: {status}\n"
-            f"Tipo de post: {modo}\n"
-            f"Leitura da pasta: **{diagnostico['message']}**\n"
-            f"Fotos na pasta: {quantidade_pasta}\n"
-            f"{aguardando}\n\n"
-            f"Caminho usado: {PINTEREST_PINS_DIR}\n"
-            f"Canal de publicação: <#{ICONS_CHANNEL_ID}>\n"
-            + (f"Último erro do monitor: {state['last_error']}\n" if state.get("last_error") else "")
-            + "\n1. Confira se a leitura da pasta está como **PASTA ACESSÍVEL**.\n"
-            "2. Ative o monitoramento e cadastre o nome e a quantidade de fotos novas.\n"
-            "3. Baixe as fotos para a pasta Pins; ao atingir a quantidade, o post será publicado automaticamente.\n"
-            "4. Importar fotos publica imediatamente as imagens que já estão na pasta.\n"
-            "Se aparecer **PASTA NÃO ENCONTRADA** ou **SEM PERMISSÃO**, o painel agora mostra o motivo."
-        ),
-        color=discord.Color.from_rgb(190, 45, 75)
-    )
-    embed.set_footer(text="CC BOT • Icons")
-    return embed
-
-@tasks.loop(seconds=ICON_POLL_SECONDS)
-async def monitorar_pasta_icones():
-    state = icon_state()
-    try:
-        arquivos_pasta = icon_files()
-        state["last_scan_count"] = len(arquivos_pasta)
-        if not state.get("monitoring"):
-            return
-        pendente = state.get("pending")
-        if not isinstance(pendente, dict):
-            return
-
-        baseline = set(pendente.get("baseline", []))
-        caminhos = []
-        agora = datetime.now().timestamp()
-        for path in arquivos_pasta:
-            resolved = str(path.resolve())
-            try:
-                assinatura = icon_file_signature(path)
-                stat = path.stat()
-            except OSError:
-                continue
-
-            # Não contar um download enquanto ainda está sendo gravado.
-            if agora - stat.st_mtime < 2:
-                continue
-            # Formato antigo guardava apenas o caminho; formato atual guarda assinatura.
-            if resolved in baseline or assinatura in baseline:
-                continue
-            caminhos.append(path)
-
-        quantidade = int(pendente.get("quantity", 0))
-        if quantidade < 1 or len(caminhos) < quantidade:
-            return
-
-        selecionadas = caminhos[:quantidade]
-        nome = str(pendente.get("name", "Ícone")).strip() or "Ícone"
-        total = await publicar_album_icone(nome, selecionadas)
-        state["known_files"] = list(set(state.get("known_files", [])) | {
-            icon_file_signature(p) for p in selecionadas
-        })
-        state["pending"] = None
-        state["last_error"] = ""
-        save_json(DATA_FILE, settings)
-        await notify_admin(
-            f"Ícone publicado automaticamente: {nome}\nFotos contabilizadas: {len(selecionadas)}\nModo: {state.get('post_mode', 'single')}\nCanal: <#{ICONS_CHANNEL_ID}>"
-        )
-        log.info("Monitor de ícones publicou %s foto(s) para '%s'.", total, nome)
-    except Exception as exc:
-        state["last_error"] = f"{type(exc).__name__}: {exc}"[:500]
-        save_json(DATA_FILE, settings)
-        log.exception("Erro no monitoramento automático da pasta Pins")
-
-
-@monitorar_pasta_icones.before_loop
-async def antes_de_monitorar_pasta_icones():
-    await bot.wait_until_ready()
+            await interaction.followup.send("Não consegui acessar o tópico desse ícone. Confira as permissões do bot.", ephemeral=True)
 
 
 class PermissoesCategoriasView(discord.ui.View):
@@ -5549,9 +5446,7 @@ async def on_ready():
         # A marca é salva em config.json para impedir duplicações em reinícios futuros.
         await publicar_embeds_promocionais()
 
-        # Inicia o monitor de fotos baixadas do Pinterest.
-        if not monitorar_pasta_icones.is_running():
-            monitorar_pasta_icones.start()
+        # O sistema de ícones agora importa ZIPs manualmente; não existe monitoramento de pastas.
 
         # Atualiza a mensagem do painel já publicada, sem criar outra.
         try:
