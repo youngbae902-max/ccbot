@@ -39,6 +39,7 @@ from discord import app_commands
 
 import github_bridge
 from support_features import configure_support
+from promo_features import configure_promos
 
 BASE = Path.home() / "ccbot-repo"
 CONFIG = BASE / "config"
@@ -182,7 +183,6 @@ async def notify_admin(message):
     except Exception:
         log.exception("Não foi possível enviar aviso ao administrador.")
 
-
 async def enviar_pedido_admin(mensagem, embed=None):
     """Envia pedidos somente ao canal central de pedidos, nunca ao PV."""
     try:
@@ -193,8 +193,6 @@ async def enviar_pedido_admin(mensagem, embed=None):
     except Exception:
         log.exception("Não foi possível enviar pedido ao canal central %s.", ORDERS_CHANNEL_ID)
         raise
-
-
 
 class Config(app_commands.Group):
     def __init__(self):
@@ -222,7 +220,6 @@ class Config(app_commands.Group):
             f"Modelos: `config/modelos.json`",
             ephemeral=True
         )
-
 
 class Backup(app_commands.Group):
     def __init__(self):
@@ -276,12 +273,10 @@ class Backup(app_commands.Group):
                 ephemeral=True
             )
 
-
 BEAT_AUDIO_EXTENSIONS = {
     ".mp3", ".wav", ".ogg", ".oga", ".opus", ".m4a", ".aac",
     ".flac", ".aiff", ".aif", ".wma", ".mid", ".midi", ".amr", ".3gp"
 }
-
 
 class ConfirmarPublicacaoBeatView(discord.ui.View):
     def __init__(self, canal, nome, descricao, estilo, preco, preview_path):
@@ -357,7 +352,6 @@ class ConfirmarPublicacaoBeatView(discord.ui.View):
             content="❌ Publicação cancelada. O embed do beat não foi enviado.",
             view=None
         )
-
 
 class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
     nome = discord.ui.TextInput(label="Nome do beat", placeholder="Ex.: Noite de Baile", max_length=100)
@@ -548,7 +542,6 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
                 view=None
             )
 
-
 class OuvirPreviaBeatButton(discord.ui.Button):
     def __init__(self, preview_path):
         super().__init__(label="Ouvir prévia", emoji="🎧", style=discord.ButtonStyle.primary, custom_id="ccbot:beat:preview")
@@ -591,7 +584,6 @@ class OuvirPreviaBeatButton(discord.ui.Button):
                 )
             except Exception:
                 log.exception("Falha ao informar erro da prévia do beat")
-
 
 class ComprarBeatButton(discord.ui.Button):
     def __init__(self, nome: str, preco: str):
@@ -648,14 +640,11 @@ class ComprarBeatButton(discord.ui.Button):
                 view=None
             )
 
-
-
 class VendaBeatView(discord.ui.View):
     def __init__(self, nome: str, preco: str, preview_path):
         super().__init__(timeout=None)
         self.add_item(OuvirPreviaBeatButton(preview_path))
         self.add_item(ComprarBeatButton(nome, preco))
-
 
 async def venda_de_beats(interaction: discord.Interaction):
     if not is_admin(interaction):
@@ -665,8 +654,6 @@ async def venda_de_beats(interaction: discord.Interaction):
         )
         return
     await interaction.response.send_modal(BeatInfoModal())
-
-
 
 class PackBasicoModal(discord.ui.Modal, title="Encomendar Pack Personalizado"):
     nome = discord.ui.TextInput(
@@ -696,7 +683,6 @@ class PackBasicoModal(discord.ui.Modal, title="Encomendar Pack Personalizado"):
             log.exception("Falha ao abrir adicionais do Pack Personalizado")
             if not interaction.response.is_done():
                 await interaction.response.send_message("Não consegui abrir os adicionais. Tente novamente.", ephemeral=True)
-
 
 class PackPremiumModal(discord.ui.Modal, title="Encomendar Pack Premium"):
     nome = discord.ui.TextInput(
@@ -732,7 +718,6 @@ class PackPremiumModal(discord.ui.Modal, title="Encomendar Pack Premium"):
             []
         )
 
-
 class PackAdicionais(discord.ui.Select):
     def __init__(self):
         super().__init__(
@@ -761,7 +746,6 @@ class PackAdicionais(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         # O menu só atualiza a seleção; confirma a interação imediatamente.
         await interaction.response.defer()
-
 
 async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
     try:
@@ -804,7 +788,6 @@ async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
             )
         except Exception:
             pass
-
 
 class PackAdicionaisView(discord.ui.LayoutView):
     def __init__(self, owner_id, nome, estilo, detalhes):
@@ -857,7 +840,6 @@ class PackAdicionaisView(discord.ui.LayoutView):
             await interaction.edit_original_response(view=None)
         except discord.HTTPException:
             pass
-
 
 PACK_QUESTIONS = {
     "Pack Personalizado": [
@@ -1109,8 +1091,6 @@ class PackPerguntasView(discord.ui.LayoutView):
                 view=None
             )
 
-
-
 class PackPersonalizadoView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
@@ -1135,7 +1115,6 @@ class PackPersonalizadoView(discord.ui.LayoutView):
             log.exception("Falha ao abrir o fluxo Pack Personalizado")
             if not interaction.response.is_done():
                 await interaction.response.send_message("Não consegui abrir o pedido. Tente novamente.", ephemeral=True)
-
 
 async def criar_pack_personalizado(interaction: discord.Interaction):
     if not is_admin(interaction):
@@ -1163,8 +1142,6 @@ async def criar_pack_personalizado(interaction: discord.Interaction):
             )
         else:
             await interaction.response.send_message("Não consegui publicar o painel. Verifique as permissões do bot.", ephemeral=True)
-
-
 
 ROLE_NAMES = ("Fundador", "Staff", "Parceiro", "DJ / Produtor", "Cliente", "Membro")
 
@@ -1264,7 +1241,6 @@ class Cargos(app_commands.Group):
 
 bot.tree.add_command(Cargos())
 
-
 # Checkout Pix direto: QR Code por compra e registro local de cada pedido.
 PIX_ORDERS_FILE = CONFIG / "pix_pedidos.json"
 pix_orders = load_json(PIX_ORDERS_FILE, {})
@@ -1272,13 +1248,11 @@ if not isinstance(pix_orders, dict):
     pix_orders = {}
     save_json(PIX_ORDERS_FILE, pix_orders)
 
-
 def pix_tlv(campo: str, valor: str) -> str:
     tamanho = len(valor.encode("utf-8"))
     if tamanho > 99:
         raise ValueError(f"Campo Pix excede o limite: {campo}")
     return f"{campo}{tamanho:02d}{valor}"
-
 
 def pix_crc16(texto: str) -> str:
     crc = 0xFFFF
@@ -1288,7 +1262,6 @@ def pix_crc16(texto: str) -> str:
             crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
     return f"{crc:04X}"
 
-
 def pix_texto_ascii(texto: str, limite: int) -> str:
     texto = unicodedata.normalize("NFKD", str(texto))
     texto = "".join(c for c in texto if not unicodedata.combining(c))
@@ -1297,7 +1270,6 @@ def pix_texto_ascii(texto: str, limite: int) -> str:
     if not texto:
         raise ValueError("Nome do recebedor e cidade não podem ficar vazios.")
     return texto[:limite]
-
 
 def gerar_payload_pix(chave: str, nome: str, cidade: str, valor: float, txid: str) -> str:
     chave = str(chave).strip()
@@ -1323,16 +1295,13 @@ def gerar_payload_pix(chave: str, nome: str, cidade: str, valor: float, txid: st
     sem_crc = campos + "6304"
     return sem_crc + pix_crc16(sem_crc)
 
-
 # Checkout unificado do Mercado: QR Pix, canal privado e aprovação manual.
 PAYMENT_CATEGORY_NAME = "cc store"
 PAYMENT_ADMIN_CATEGORY_NAME = "ANDAMENTO"
 PAYMENT_ADMIN_CHANNEL_NAME = "pc-confirmar-pagamentos"
 
-
 def formatar_reais(valor):
     return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
 
 def extrair_txid_da_mensagem(message):
     if not message or not message.embeds:
@@ -1351,7 +1320,6 @@ def extrair_txid_da_mensagem(message):
             if candidato in pix_orders:
                 return candidato
     return None
-
 
 async def obter_canal_confirmacao(guild):
     canal_id = settings.get("payment_admin_channel_id")
@@ -1418,7 +1386,6 @@ async def obter_canal_cancelados(guild):
     settings["payment_cancelled_channel_id"] = canal.id
     save_json(DATA_FILE, settings)
     return canal
-
 
 async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tipo="digital"):
     if interaction.guild is None:
@@ -1558,7 +1525,6 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
         raise
     return ticket, txid
 
-
 class CopiarCodigoPixView(discord.ui.View):
     """Mostra o Pix copia e cola em uma resposta privada para facilitar copiar no celular."""
     def __init__(self, payload: str, txid: str):
@@ -1613,7 +1579,6 @@ class CopiarCodigoPixView(discord.ui.View):
             "O pagamento só será liberado depois da conferência manual.",
             ephemeral=True
         )
-
 
 class ConfirmarPagamentoView(discord.ui.View):
     def __init__(self):
@@ -1743,7 +1708,6 @@ class ConfirmarPagamentoView(discord.ui.View):
     async def cancelar(self, interaction, button):
         await self.finalizar_pedido(interaction, False)
 
-
 class Pix(app_commands.Group):
     def __init__(self):
         super().__init__(name="pix", description="Gerar Pix e identificar pedidos do CC BOT")
@@ -1836,9 +1800,7 @@ class Pix(app_commands.Group):
             ephemeral=True
         )
 
-
 bot.tree.add_command(Pix())
-
 
 @bot.tree.command(name="status", description="Verificar se o CC BOT está funcionando")
 async def status(interaction: discord.Interaction):
@@ -1984,7 +1946,6 @@ async def embedcomponenty2(
             content=f"Não consegui publicar o componente: {mensagem[:500]}"
         )
 
-
 class ListaDJsSelect(discord.ui.Select):
     def __init__(self, view):
         self.parent_view = view
@@ -2031,7 +1992,6 @@ class ListaDJsSelect(discord.ui.Select):
                     ephemeral=True
                 )
 
-
 class NavegarDJsButton(discord.ui.Button):
     def __init__(self, view, delta):
         self.parent_view = view
@@ -2057,7 +2017,6 @@ class NavegarDJsButton(discord.ui.Button):
                 selected_dj=self.parent_view.selected_dj
             )
         )
-
 
 class ConfirmarDJButton(discord.ui.Button):
     def __init__(self, view):
@@ -2118,7 +2077,6 @@ class ConfirmarDJButton(discord.ui.Button):
             except Exception:
                 log.exception("Falha ao informar o usuário sobre o erro na confirmação do DJ")
 
-
 class ListaDJsView(discord.ui.LayoutView):
     def __init__(self, page=0, selected_dj=None):
         super().__init__(timeout=300)
@@ -2157,7 +2115,6 @@ class ListaDJsView(discord.ui.LayoutView):
 
         self.add_item(discord.ui.Container(*container_items))
 
-
 class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
     nome = discord.ui.TextInput(
         label="Nome do DJ",
@@ -2191,7 +2148,6 @@ class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
             await interaction.delete_original_response()
         except (discord.NotFound, discord.HTTPException):
             pass
-
 
 class AlterarDJModal(discord.ui.Modal, title="Alterar nome de DJ"):
     antigo = discord.ui.TextInput(
@@ -2266,7 +2222,6 @@ class ExcluirDJSelect(discord.ui.Select):
         except (discord.NotFound, discord.HTTPException):
             pass
 
-
 class ExcluirDJView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
@@ -2278,7 +2233,6 @@ class ExcluirDJView(discord.ui.LayoutView):
                 )
             )
 
-
 class AdicionarDJButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label="Adicionar DJ", style=discord.ButtonStyle.success, custom_id="ccbot:adicionar_djs")
@@ -2288,7 +2242,6 @@ class AdicionarDJButton(discord.ui.Button):
             await interaction.response.send_message("Apenas o administrador pode usar esse painel.", ephemeral=True)
             return
         await interaction.response.send_modal(AdicionarDJModal())
-
 
 class AlterarDJButton(discord.ui.Button):
     def __init__(self):
@@ -2303,7 +2256,6 @@ class AlterarDJButton(discord.ui.Button):
             return
         await interaction.response.send_modal(AlterarDJModal())
 
-
 class ExcluirDJButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label="Excluir DJ", style=discord.ButtonStyle.danger, custom_id="ccbot:botao_excluir_dj")
@@ -2316,7 +2268,6 @@ class ExcluirDJButton(discord.ui.Button):
             await interaction.response.send_message("Ainda não há DJs cadastrados.", ephemeral=True)
             return
         await interaction.response.send_message(view=ExcluirDJView(), ephemeral=True)
-
 
 class TestarBoasVindasButton(discord.ui.Button):
     def __init__(self):
@@ -2369,7 +2320,6 @@ class TestarBoasVindasButton(discord.ui.Button):
                     ephemeral=True
                 )
 
-
 class VoltarPainelButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label="Voltar ao painel", emoji="↩️", style=discord.ButtonStyle.secondary, custom_id="ccbot:painel_voltar")
@@ -2383,7 +2333,6 @@ class VoltarPainelButton(discord.ui.Button):
             view=PainelAdminView()
         )
 
-
 class AdicionarEmojisPainelButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label="Enviar ZIP ou imagens", emoji="😀", style=discord.ButtonStyle.success, custom_id="ccbot:painel_adicionar_emojis")
@@ -2393,7 +2342,6 @@ class AdicionarEmojisPainelButton(discord.ui.Button):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
         await adicionar_emojis(interaction)
-
 
 class DefinirCanalAvisosSelect(discord.ui.ChannelSelect):
     def __init__(self):
@@ -2416,7 +2364,6 @@ class DefinirCanalAvisosSelect(discord.ui.ChannelSelect):
             f"Canal de avisos definido para {canal.mention}.",
             ephemeral=True
         )
-
 
 class BackupPainelButton(discord.ui.Button):
     def __init__(self, destino: str):
@@ -2458,7 +2405,6 @@ class BackupPainelButton(discord.ui.Button):
             await notify_admin(f"Falha ao criar backup pelo painel: {exc}")
             await interaction.followup.send("Não consegui criar o backup. Verifique os avisos do bot.", ephemeral=True)
 
-
 class PainelFerramentasView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
@@ -2466,20 +2412,17 @@ class PainelFerramentasView(discord.ui.View):
         self.add_item(BackupPainelButton("discord"))
         self.add_item(VoltarPainelButton())
 
-
 class PainelEmojisView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(AdicionarEmojisPainelButton())
         self.add_item(VoltarPainelButton())
 
-
 class PainelCanalAvisosView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(DefinirCanalAvisosSelect())
         self.add_item(VoltarPainelButton())
-
 
 class ConfirmarLimpezaPVButton(discord.ui.Button):
     def __init__(self):
@@ -2534,7 +2477,6 @@ class ConfirmarLimpezaPVButton(discord.ui.Button):
                 ephemeral=True
             )
 
-
 class CancelarLimpezaPVButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
@@ -2553,21 +2495,16 @@ class CancelarLimpezaPVButton(discord.ui.Button):
             view=PainelAdminView()
         )
 
-
 class LimparPVView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=180)
         self.add_item(ConfirmarLimpezaPVButton())
         self.add_item(CancelarLimpezaPVButton())
 
-
 class VoltarPainelButtonView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=180)
         self.add_item(VoltarPainelButton())
-
-
-
 
 # Sistema de ícones: importação manual por ZIP, sem monitoramento de pastas.
 ICONS_CHANNEL_ID = 1561513290473934998
@@ -2577,17 +2514,14 @@ ICON_MAX_UNPACKED_BYTES = 100 * 1024 * 1024
 ICON_MAX_FILE_BYTES = 20 * 1024 * 1024
 ICON_ZIP_PENDING = {}
 
-
 def icon_state():
     return settings.setdefault("icon_system", {"albums": {}})
-
 
 def icon_safe_name(value):
     nome = re.sub(r"\s+", " ", str(value or "")).strip()
     if not nome:
         raise ValueError("Digite o nome da pasta/ícone.")
     return nome[:80]
-
 
 def extrair_imagens_zip(dados_zip):
     imagens = []
@@ -2618,7 +2552,6 @@ def extrair_imagens_zip(dados_zip):
         raise ValueError("Não encontrei JPG, PNG, WEBP ou GIF dentro do ZIP.")
     return imagens
 
-
 async def enviar_lote_imagens(destino, imagens, nome, descricao=None, primeira=False, view=None):
     enviados = []
     for inicio in range(0, len(imagens), 10):
@@ -2646,7 +2579,6 @@ async def enviar_lote_imagens(destino, imagens, nome, descricao=None, primeira=F
                 except Exception:
                     pass
     return enviados
-
 
 async def publicar_zip_icone(nome, imagens, modo):
     if not imagens:
@@ -2719,7 +2651,6 @@ async def publicar_zip_icone(nome, imagens, modo):
     save_json(DATA_FILE, settings)
     return thread, len(imagens)
 
-
 class IconNomeModal(discord.ui.Modal, title="Nome da pasta de ícones"):
     nome = discord.ui.TextInput(
         label="Nome da pasta / ícone",
@@ -2753,7 +2684,6 @@ class IconNomeModal(discord.ui.Modal, title="Nome da pasta de ícones"):
             view=IconModoPublicacaoView(self.user_id),
             ephemeral=True
         )
-
 
 class IconUploadModal(discord.ui.Modal, title="Enviar arquivos de ícones"):
     arquivos = discord.ui.Label(
@@ -2844,7 +2774,6 @@ class IconUploadModal(discord.ui.Modal, title="Enviar arquivos de ícones"):
             log.exception("Falha no formulário de upload de ícones")
             await interaction.followup.send(f"Falha ao processar o envio ({type(exc).__name__}).", ephemeral=True)
 
-
 class IconProcessarZipButton(discord.ui.Button):
     def __init__(self, user_id):
         super().__init__(
@@ -2864,12 +2793,10 @@ class IconProcessarZipButton(discord.ui.Button):
             return
         await interaction.response.send_modal(IconNomeModal(self.user_id))
 
-
 class IconZipRecebidoView(discord.ui.View):
     def __init__(self, user_id):
         super().__init__(timeout=600)
         self.add_item(IconProcessarZipButton(user_id))
-
 
 class IconModoPublicacaoView(discord.ui.View):
     def __init__(self, user_id):
@@ -2915,7 +2842,6 @@ class IconModoPublicacaoView(discord.ui.View):
     async def post_album(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.publicar(interaction, "album")
 
-
 class IconEnviarZipButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
@@ -2932,13 +2858,11 @@ class IconEnviarZipButton(discord.ui.Button):
         ICON_ZIP_PENDING.pop(interaction.user.id, None)
         await interaction.response.send_modal(IconUploadModal())
 
-
 class PainelIconesView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(IconEnviarZipButton())
         self.add_item(VoltarPainelButton())
-
 
 def criar_embed_painel_icones():
     embed = discord.Embed(
@@ -2959,12 +2883,10 @@ def criar_embed_painel_icones():
     embed.set_footer(text="CC BOT • Icons")
     return embed
 
-
 class IconVerIconsView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(IconVerIconsButton())
-
 
 class IconVerIconsButton(discord.ui.Button):
     def __init__(self):
@@ -3002,7 +2924,6 @@ class IconVerIconsButton(discord.ui.Button):
         except Exception:
             log.exception("Falha ao abrir tópico permanente do ícone '%s'.", nome)
             await interaction.followup.send("Não consegui acessar o tópico desse ícone. Confira as permissões do bot.", ephemeral=True)
-
 
 class PermissoesCategoriasView(discord.ui.View):
     def __init__(self):
@@ -3063,7 +2984,6 @@ class PermissoesCategoriasView(discord.ui.View):
             return
         await interaction.response.edit_message(content="Operação cancelada. Nenhuma permissão foi alterada.", embed=None, view=None)
 
-
 async def abrir_permissoes_categorias(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
@@ -3087,9 +3007,7 @@ async def abrir_permissoes_categorias(interaction: discord.Interaction):
     )
     await interaction.response.edit_message(embed=embed, view=PermissoesCategoriasView())
 
-
 TRABALHOS_ON_CHANNEL_ID = 1561837934649409696
-
 
 class TrabalhosOnView(discord.ui.View):
     def __init__(self):
@@ -3144,7 +3062,6 @@ class TrabalhosOnView(discord.ui.View):
             return
         await interaction.response.edit_message(content="Publicação cancelada. Nenhum aviso foi enviado.", embed=None, view=None)
 
-
 async def abrir_trabalhos_on(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
@@ -3160,8 +3077,6 @@ async def abrir_trabalhos_on(interaction: discord.Interaction):
     )
     await interaction.response.edit_message(embed=embed, view=TrabalhosOnView())
 
-
-
 def formatar_permissoes_overwrite(canal):
     linhas = []
     for alvo, overwrite in canal.overwrites.items():
@@ -3174,7 +3089,6 @@ def formatar_permissoes_overwrite(canal):
         linhas.append(f"      permite: {', '.join(permitidas) if permitidas else 'nenhuma explicitamente'}")
         linhas.append(f"      nega: {', '.join(negadas) if negadas else 'nenhuma explicitamente'}")
     return linhas
-
 
 def gerar_relatorio_hierarquia(guild, canais):
     agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
@@ -3248,7 +3162,6 @@ def gerar_relatorio_hierarquia(guild, canais):
     ])
     return "\n".join(linhas)
 
-
 async def analisar_hierarquia(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador pode usar esta função.", ephemeral=True)
@@ -3294,8 +3207,6 @@ async def analisar_hierarquia(interaction: discord.Interaction):
             f"❌ Não consegui gerar o relatório ({type(exc).__name__}). Confira os avisos do bot.",
             ephemeral=True
         )
-
-
 
 HIERARQUIA_CATEGORIAS = {
     "admin": {"id": 1561513258211352626, "nome": "administration", "posicao": 5},
@@ -3365,7 +3276,6 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
             view=None
         )
 
-
 async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador pode usar esta função.", ephemeral=True)
@@ -3387,7 +3297,6 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
         embed=embed,
         view=ConfirmarOrganizacaoHierarquiaView(interaction.guild.id)
     )
-
 
 @bot.tree.command(name="painel", description="Abrir o painel administrativo do CC BOT")
 async def painel(interaction: discord.Interaction):
@@ -3419,7 +3328,6 @@ async def painel(interaction: discord.Interaction):
         except discord.HTTPException:
             pass
 
-
 @bot.tree.command(name="hierarquia", description="Abrir o painel para atualizar a hierarquia do servidor")
 async def hierarquia(interaction: discord.Interaction):
     if not is_admin(interaction):
@@ -3443,7 +3351,6 @@ async def hierarquia(interaction: discord.Interaction):
         view=ConfirmarOrganizacaoHierarquiaView(interaction.guild.id),
         ephemeral=True
     )
-
 
 PAINEL_ADMIN_COLOR = discord.Color.from_rgb(35, 37, 42)
 
@@ -3491,7 +3398,6 @@ OPCOES_CATEGORIAS_PAINEL = [
     discord.SelectOption(label="Organizar hierarquia", description="Reordenar canais após confirmação", emoji="🗂️", value="organizar_hierarquia"),
 ]
 
-
 class PainelGrupoSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
@@ -3522,7 +3428,6 @@ class PainelGrupoSelect(discord.ui.Select):
             ),
             view=PainelSubcategoriasView(grupo)
         )
-
 
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self, grupo):
@@ -3641,7 +3546,6 @@ class CategoriaPainelSelect(discord.ui.Select):
                 view=PainelManutencaoView()
             )
 
-
 class PublicarPainelButton(discord.ui.Button):
     def __init__(self, label, emoji, action):
         super().__init__(
@@ -3670,7 +3574,6 @@ class PublicarPainelButton(discord.ui.Button):
         }
         await handlers[self.action](interaction)
 
-
 class PainelPublicarView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
@@ -3682,19 +3585,16 @@ class PainelPublicarView(discord.ui.View):
         self.add_item(PublicarPainelButton("Pack personalizado", "📦", "pack"))
         self.add_item(VoltarPainelButton())
 
-
 class PainelSubcategoriasView(discord.ui.View):
     def __init__(self, grupo):
         super().__init__(timeout=300)
         self.add_item(CategoriaPainelSelect(grupo))
         self.add_item(VoltarPainelButton())
 
-
 class PainelAdminView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(PainelGrupoSelect())
-
 
 class PainelDJsView(discord.ui.View):
     def __init__(self):
@@ -3704,13 +3604,11 @@ class PainelDJsView(discord.ui.View):
         self.add_item(ExcluirDJButton())
         self.add_item(VoltarPainelButton())
 
-
 class PainelBoasVindasView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(TestarBoasVindasButton())
         self.add_item(VoltarPainelButton())
-
 
 class VerificarBotButton(discord.ui.Button):
     def __init__(self):
@@ -3727,13 +3625,11 @@ class VerificarBotButton(discord.ui.Button):
             ephemeral=True
         )
 
-
 class PainelManutencaoView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(VerificarBotButton())
         self.add_item(VoltarPainelButton())
-
 
 def criar_embed_painel():
     return discord.Embed(
@@ -3762,7 +3658,6 @@ class GerarSamplesButton(discord.ui.Button):
             view=ListaDJsView(),
             ephemeral=True
         )
-
 
 class GeradorSamplesView(discord.ui.LayoutView):
     def __init__(self):
@@ -3808,7 +3703,6 @@ class GeradorSamplesView(discord.ui.LayoutView):
             )
         )
 
-
 # Importação de emojis pelo formulário do Discord: ZIP ou imagens soltas.
 EMOJI_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 EMOJI_UPLOAD_DIR = BASE / "uploads" / "emojis"
@@ -3816,7 +3710,6 @@ EMOJI_ZIP_MAX_BYTES = 100 * 1024 * 1024
 EMOJI_ZIP_MAX_UNPACKED = 100 * 1024 * 1024
 EMOJI_ZIP_MAX_IMAGE = 20 * 1024 * 1024
 EMOJI_ZIP_MAX_IMAGES = 500
-
 
 def nome_seguro_emoji(filename):
     nome = Path(filename).stem.casefold().replace("-", "_").replace(" ", "_")
@@ -3827,7 +3720,6 @@ def nome_seguro_emoji(filename):
     )
     nome = re.sub(r"_+", "_", nome).strip("_")
     return (nome if len(nome) >= 2 else f"em_{nome or 'emoji'}")[:32]
-
 
 class EmojiUploadModal(discord.ui.Modal, title="Enviar emojis e GIFs"):
     arquivos = discord.ui.Label(
@@ -3967,7 +3859,6 @@ class EmojiUploadModal(discord.ui.Modal, title="Enviar emojis e GIFs"):
             log.exception("Falha no formulário de importação de emojis")
             await interaction.followup.send(f"Falha ao importar ({type(exc).__name__}).", ephemeral=True)
 
-
 async def adicionar_emojis(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
@@ -3978,7 +3869,6 @@ async def adicionar_emojis(interaction: discord.Interaction):
         await interaction.response.send_message("Use esta função dentro do servidor.", ephemeral=True)
         return
     await interaction.response.send_modal(EmojiUploadModal())
-
 
 async def samples(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
@@ -4006,12 +3896,10 @@ class AcapellasActivityButton(discord.ui.Button):
                     ephemeral=True
                 )
 
-
 class AcapellasActivityView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(AcapellasActivityButton())
-
 
 async def painel_acapellas(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
@@ -4306,7 +4194,6 @@ class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
             )
             return
 
-
 class MandarArrumadorButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
@@ -4319,12 +4206,10 @@ class MandarArrumadorButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(ArrumadorModal())
 
-
 class ArrumadorPainelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(MandarArrumadorButton())
-
 
 def criar_embed_arrumador():
     embed = discord.Embed(
@@ -4343,7 +4228,6 @@ def criar_embed_arrumador():
     embed.set_footer(text="CC BOT • Arrumador de Projetos")
     return embed
 
-
 async def arrumador(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
@@ -4351,9 +4235,6 @@ async def arrumador(interaction: discord.Interaction):
         embed=criar_embed_arrumador(),
         view=ArrumadorPainelView()
     )
-
-
-
 
 PROMO_CHANNELS = {
     "Loja CC": 1561513281049595958,
@@ -4366,7 +4247,6 @@ PROMO_URLS = {
     "Garimpo": "https://garimoh.lovable.app/perfil",
 }
 
-
 class PromoLinksView(discord.ui.View):
     def __init__(self, label: str, url: str):
         super().__init__(timeout=None)
@@ -4376,7 +4256,6 @@ class PromoLinksView(discord.ui.View):
             url=url,
             emoji="🔗"
         ))
-
 
 def criar_embed_promocional(nome: str) -> discord.Embed:
     textos = {
@@ -4394,7 +4273,6 @@ def criar_embed_promocional(nome: str) -> discord.Embed:
         embed.set_thumbnail(url=guild.icon.url)
     embed.set_footer(text="CC • LINKS OFICIAIS")
     return embed
-
 
 async def publicar_embeds_promocionais():
     """Atualiza os embeds já publicados; nunca cria mensagens promocionais novas."""
@@ -4424,7 +4302,9 @@ async def publicar_embeds_promocionais():
         except Exception:
             log.exception("Falha ao atualizar embed promocional: %s", nome)
 
-
+PromoLinksView, criar_embed_promocional, publicar_embeds_promocionais = configure_promos(
+    bot, PROMO_CHANNELS, PROMO_URLS, settings, DATA_FILE, save_json, log
+)
 
 # Painéis de Parcerias e Trampar Conosco — publicados/atualizados sem duplicar mensagens.
 PARTNERSHIPS_CHANNEL_ID = 1561843704518549604
@@ -4433,11 +4313,9 @@ WHATSAPP_NUMBER = "5511914038635"
 CONTACT_DISCORD_ID = ADMIN_ID
 SupportPanelView, TicketCloseView, criar_embed_suporte, garantir_painel_suporte, garantir_regras, garantir_canal_divulgacoes = configure_support(bot, ADMIN_ID, WHATSAPP_NUMBER, is_admin, log)
 
-
 def link_whatsapp(mensagem: str) -> str:
     from urllib.parse import quote
     return f"https://wa.me/{WHATSAPP_NUMBER}?text={quote(mensagem)}"
-
 
 class ContatoOportunidadeView(discord.ui.View):
     def __init__(self, assunto: str):
@@ -4460,7 +4338,6 @@ class ContatoOportunidadeView(discord.ui.View):
             url=link_whatsapp(texto),
             emoji="📱"
         ))
-
 
 class SelecionarAreaTrabalho(discord.ui.Select):
     def __init__(self):
@@ -4494,12 +4371,10 @@ class SelecionarAreaTrabalho(discord.ui.Select):
             ephemeral=True
         )
 
-
 class SelecionarAreaTrabalhoView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(SelecionarAreaTrabalho())
-
 
 class AbrirAreasTrabalhoButton(discord.ui.Button):
     def __init__(self):
@@ -4517,12 +4392,10 @@ class AbrirAreasTrabalhoButton(discord.ui.Button):
             ephemeral=True
         )
 
-
 class TramparConoscoView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(AbrirAreasTrabalhoButton())
-
 
 class ParceriasView(discord.ui.View):
     def __init__(self):
@@ -4536,7 +4409,6 @@ class ParceriasView(discord.ui.View):
             ),
             emoji="🤝"
         ))
-
 
 def criar_embed_parcerias() -> discord.Embed:
     embed = discord.Embed(
@@ -4558,7 +4430,6 @@ def criar_embed_parcerias() -> discord.Embed:
     )
     embed.set_footer(text="C.C © • Parcerias")
     return embed
-
 
 def criar_embed_trampar_conosco() -> discord.Embed:
     embed = discord.Embed(
@@ -4651,7 +4522,6 @@ SALES_SOURCE_CHANNEL_ID = 1561513284191125625
 SALES_COUNTER_CHANNEL_ID = 1561513273554374686
 SALES_COUNTER_PREFIX = "│💶﹒Vendas : "
 
-
 @bot.event
 async def on_message(message: discord.Message):
     if message.channel.id != SALES_SOURCE_CHANNEL_ID:
@@ -4661,7 +4531,6 @@ async def on_message(message: discord.Message):
     settings["sales_count"] = int(settings.get("sales_count", 0)) + 1
     save_json(DATA_FILE, settings)
     log.info("Mensagem nova; contador de vendas: %s", settings["sales_count"])
-
 
 async def contar_mensagens_do_canal():
     channel = bot.get_channel(SALES_SOURCE_CHANNEL_ID)
@@ -4678,7 +4547,6 @@ async def contar_mensagens_do_canal():
     save_json(DATA_FILE, settings)
     log.info("Contagem recalculada: %s mensagens atuais no canal de vendas", total)
 
-
 @bot.event
 async def on_raw_message_delete(payload: discord.RawMessageDeleteEvent):
     if payload.channel_id != SALES_SOURCE_CHANNEL_ID:
@@ -4688,7 +4556,6 @@ async def on_raw_message_delete(payload: discord.RawMessageDeleteEvent):
     except Exception:
         log.exception("Falha ao recalcular vendas após exclusão de mensagem")
 
-
 @bot.event
 async def on_raw_bulk_message_delete(payload: discord.RawBulkMessageDeleteEvent):
     if payload.channel_id != SALES_SOURCE_CHANNEL_ID:
@@ -4697,7 +4564,6 @@ async def on_raw_bulk_message_delete(payload: discord.RawBulkMessageDeleteEvent)
         await contar_mensagens_do_canal()
     except Exception:
         log.exception("Falha ao recalcular vendas após exclusão em massa")
-
 
 @tasks.loop(seconds=10)
 async def atualizar_contador_vendas():
@@ -4716,11 +4582,9 @@ async def atualizar_contador_vendas():
     except Exception:
         log.exception("Falha ao atualizar o canal do contador de vendas")
 
-
 @atualizar_contador_vendas.before_loop
 async def antes_de_atualizar_contador_vendas():
     await bot.wait_until_ready()
-
 
 @bot.tree.command(name="limpar-boas-vindas", description="Apagar as mensagens do canal de boas-vindas")
 async def limpar_boas_vindas(interaction: discord.Interaction):
@@ -4765,7 +4629,6 @@ async def limpar_boas_vindas(interaction: discord.Interaction):
             f"A limpeza parou por um erro ({type(exc).__name__}). Verifique as permissões do bot.",
             ephemeral=True
         )
-
 
 @bot.event
 async def on_member_join(member: discord.Member):
@@ -4883,7 +4746,6 @@ async def restaurar_botoes_beats_existentes():
         atualizados, examinados
     )
 
-
 async def restaurar_paineis_existentes():
     """Reanexa callbacks aos painéis já publicados, editando as mensagens existentes."""
     guild = bot.get_guild(1561513043886743562)
@@ -4953,8 +4815,6 @@ async def restaurar_paineis_existentes():
             log.exception("Falha ao examinar histórico do canal %s durante restauração.", canal.id)
 
     log.info("Restauração de painéis concluída: %s mensagens existentes atualizadas.", atualizados)
-
-
 
 # Categoria pública com explicação do fluxo de compras. Atualiza a mensagem existente sem duplicar.
 SALES_INFO_CATEGORY = "Vendas"
@@ -5032,7 +4892,6 @@ async def garantir_painel_info_vendas(guild):
         await canal.send(embed=embed)
     log.info("Painel de informações de vendas garantido em #%s.", canal.name)
 
-
 async def renomear_categorias_principais(guild: discord.Guild):
     """Renomeia as categorias principais pelos IDs, sem depender do painel de estrutura."""
     if guild is None:
@@ -5088,7 +4947,6 @@ async def renomear_categorias_principais(guild: discord.Guild):
             except Exception:
                 log.exception("Falha ao traduzir categoria id=%s", categoria.id)
     log.info("Atualização automática de nomes concluída: %s categoria(s) renomeada(s).", alteradas)
-
 
 async def aplicar_organizacao_automatica(guild: discord.Guild):
     """Organiza categorias e canais separadamente, sem depender do painel manual."""
@@ -5228,7 +5086,6 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
         log.exception("Falha ao aplicar organização automática do servidor.")
         return False
 
-
 async def renomear_categorias_solicitadas(guild: discord.Guild):
     """Renomeia somente categorias; nunca cria, move ou reordena canais/categorias."""
     if guild is None or guild.me is None or not guild.me.guild_permissions.manage_channels:
@@ -5270,8 +5127,6 @@ async def renomear_categorias_solicitadas(guild: discord.Guild):
     log.info("Renomeação pelo painel concluída: %s categoria(s); posições e canais preservados.", alteradas)
     return alteradas
 
-
-
 # FREE_PROJECTS_PANEL_V2: os botões abrem tópicos privados; não criam categorias nem canais.
 FREE_PROJECTS_CONFIG_KEY = "free_projects_panels"
 FREE_PROJECTS_GUILD_ID = 1561513043886743562
@@ -5294,7 +5149,6 @@ FREE_PROJECTS = {
         "thread_prefix": "projetos"
     }
 }
-
 
 class FreeProjectsAccessView(discord.ui.View):
     def __init__(self, kind):
@@ -5363,7 +5217,6 @@ class FreeProjectsAccessView(discord.ui.View):
                 "Ocorreu um erro ao abrir seu tópico. Tente novamente mais tarde.",
                 ephemeral=True
             )
-
 
 async def configurar_paineis_gratis(guild):
     """Atualiza os painéis existentes, remove as categorias extras e não cria canais."""
@@ -5453,7 +5306,6 @@ async def configurar_paineis_gratis(guild):
                 log.info("Categoria extra removida: %s", category.name)
             except discord.HTTPException:
                 log.exception("Falha ao remover categoria extra %s", category.name)
-
 
 @bot.event
 async def on_ready():
@@ -5552,7 +5404,6 @@ async def on_ready():
         if not atualizar_contador_vendas.is_running():
             atualizar_contador_vendas.start()
 
-
         channel_id = settings.get("notice_channel", DEFAULT_NOTICE_CHANNEL)
         channel = bot.get_channel(int(channel_id))
         if channel is None:
@@ -5619,8 +5470,6 @@ async def on_ready():
     except Exception as exc:
         log.exception("Falha ao iniciar ou sincronizar comandos")
         await notify_admin(f"Falha ao iniciar o CC BOT: {exc}")
-
-
 
 @bot.tree.command(name="comprovante", description="Enviar o arquivo do comprovante Pix sem publicar no chat")
 @app_commands.describe(arquivo="Imagem ou PDF do comprovante (até 10 MB)")
@@ -5711,7 +5560,6 @@ async def enviar_comprovante_pix(interaction: discord.Interaction, arquivo: disc
             ephemeral=True
         )
 
-
 @bot.listen("on_message")
 async def receber_comprovante_pix(message: discord.Message):
     """Encaminha comprovantes do comprador para o canal administrativo de confirmação."""
@@ -5783,7 +5631,6 @@ async def receber_comprovante_pix(message: discord.Message):
             except Exception:
                 pass
 
-
 @bot.event
 async def on_app_command_error(interaction, error):
     # Registra todos os erros, inclusive os de usuários comuns, para evitar falhas silenciosas.
@@ -5810,8 +5657,6 @@ async def on_app_command_error(interaction, error):
 
     if is_admin(interaction):
         await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
-
-
 
 @bot.tree.command(name="diagnostico", description="Analisar os canais do servidor e enviar um relatório")
 async def diagnostico(interaction: discord.Interaction):
@@ -5887,7 +5732,6 @@ async def diagnostico(interaction: discord.Interaction):
         ),
         file=arquivo
     )
-
 
 # CCBOT_PROCESS_LOCK: impede múltiplas instâncias de iniciar sessões Discord concorrentes.
 # O descritor fica aberto durante toda a execução; o kernel libera o lock ao encerrar o processo.
