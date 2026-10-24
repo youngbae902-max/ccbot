@@ -1323,7 +1323,7 @@ def gerar_payload_pix(chave: str, nome: str, cidade: str, valor: float, txid: st
 
 # Checkout unificado do Mercado: QR Pix, canal privado e aprovação manual.
 PAYMENT_CATEGORY_NAME = "cc store"
-PAYMENT_ADMIN_CATEGORY_NAME = "administration"
+PAYMENT_ADMIN_CATEGORY_NAME = "ANDAMENTO"
 PAYMENT_ADMIN_CHANNEL_NAME = "pc-confirmar-pagamentos"
 
 
@@ -5279,16 +5279,16 @@ FREE_PROJECTS_GUILD_ID = 1561513043886743562
 FREE_PROJECTS = {
     "packs": {
         "channel_id": 1561513293934362705,
-        "title": "📦 PACKS GRÁTIS",
-        "description": "Abra seu tópico privado para acessar e conversar sobre packs gratuitos.",
+        "title": "<:box:1561761831587160140> 𝗣𝗔𝗖𝗞𝗦 𝗚𝗥𝗔́𝗧𝗜𝗦",
+        "description": "Uma área para descobrir packs gratuitos e encontrar materiais que podem acrescentar novas ideias à sua produção. Abra seu espaço privado pelo botão abaixo e confira as orientações de acesso.",
         "custom_id": "cc:free-projects:packs",
         "button_label": "Ver packs",
         "thread_prefix": "packs"
     },
     "projetos": {
         "channel_id": 1561513295352037507,
-        "title": "🎛️ PROJETOS GRÁTIS",
-        "description": "Abra seu tópico privado para acessar e conversar sobre projetos gratuitos.",
+        "title": "🎛️ 𝗣𝗥𝗢𝗝𝗘𝗧𝗢𝗦 𝗚𝗥𝗔́𝗧𝗜𝗦",
+        "description": "Explore projetos gratuitos para estudar estruturas, testar ideias e conhecer novas formas de organizar suas produções. Abra seu espaço privado pelo botão abaixo para receber as orientações de acesso.",
         "custom_id": "cc:free-projects:projetos",
         "button_label": "Ver projetos",
         "thread_prefix": "projetos"
