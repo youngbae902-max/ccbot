@@ -3236,7 +3236,7 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
         super().__init__(timeout=180)
         self.guild_id = guild_id
 
-    @discord.ui.button(label="Atualizar hierarquia", emoji="🔄", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Aplicar organização", emoji="🔄", style=discord.ButtonStyle.success)
     async def aplicar(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode usar esta função.", ephemeral=True)
@@ -3247,12 +3247,17 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
 
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            alteradas = await renomear_categorias_solicitadas(interaction.guild)
+            guild = interaction.guild
+            organizacao_ok = await aplicar_organizacao_automatica(guild)
+            alteradas = await renomear_categorias_solicitadas(guild)
+            cargos_alterados = await ordenar_cargos_principais(guild)
             await interaction.edit_original_response(
                 content=(
-                    f"✅ **Nomes das categorias atualizados.**\n"
-                    f"Categorias renomeadas: **{alteradas}**.\n"
-                    "A hierarquia, as posições e os canais foram preservados."
+                    "✅ **Organização do servidor aplicada pelo CC BOT.**\n"
+                    f"• Organização de categorias/canais: **{'concluída' if organizacao_ok else 'parcial — confira as permissões'}**\n"
+                    f"• Categorias renomeadas: **{alteradas}**\n"
+                    f"• Cargos reposicionados: **{cargos_alterados}**\n"
+                    "Os canais e mensagens existentes foram preservados; nenhum canal foi apagado."
                 ),
                 embed=None,
                 view=None
@@ -3287,9 +3292,9 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🗂️ Hierarquia do servidor",
         description=(
-            "Use o botão abaixo para deixar os nomes das categorias em português e maiúsculas.\n\n"
-            "Exemplos: **COMUNIDADE**, **INFORMAÇÕES**, **ADMINISTRAÇÃO**, **SITES**, **VENDAS** e **GRÁTIS**.\n\n"
-            "Só os nomes serão alterados. A ordem, as posições e os canais não serão mexidos."
+            "O CC BOT vai organizar as categorias e os canais conhecidos, padronizar os nomes e ordenar os cargos principais.\n\n"
+            "A estrutura prioriza Status, Customização, Sites, Mercado/Vendas, Comunidade e Grátis.\n\n"
+            "Canais e mensagens existentes serão preservados; nenhuma categoria ou canal será apagado."
         ),
         color=discord.Color.dark_grey()
     )
@@ -3340,9 +3345,9 @@ async def hierarquia(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🗂️ Hierarquia do servidor",
         description=(
-            "Use o botão abaixo para deixar os nomes das categorias em português e maiúsculas.\n\n"
-            "Exemplos: **COMUNIDADE**, **INFORMAÇÕES**, **ADMINISTRAÇÃO**, **SITES**, **VENDAS** e **GRÁTIS**.\n\n"
-            "Só os nomes serão alterados. A ordem, as posições e os canais não serão mexidos."
+            "O CC BOT vai organizar as categorias e os canais conhecidos, padronizar os nomes e ordenar os cargos principais.\n\n"
+            "A estrutura prioriza Status, Customização, Sites, Mercado/Vendas, Comunidade e Grátis.\n\n"
+            "Canais e mensagens existentes serão preservados; nenhuma categoria ou canal será apagado."
         ),
         color=discord.Color.dark_grey()
     )
@@ -4978,7 +4983,7 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
 
         custom = next((
             x for x in categorias
-            if x.name.casefold() in ("customization", "customisation", "personalização", "personalizacao", "ícones", "icones", "icons")
+            if x.name.casefold() in ("customization", "customisation", "custom", "customização", "customizacao", "personalização", "personalizacao", "ícones", "icones", "icons")
         ), None)
         if custom is None:
             custom = await guild.create_category("customization", reason="Organização automática CC BOT")
@@ -4987,7 +4992,7 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
 
         free = next((
             x for x in categorias
-            if x.name.casefold() in ("free things", "free stuff", "coisas grátis", "coisas gratis")
+            if x.name.casefold() in ("free things", "free stuff", "coisas grátis", "coisas gratis", "grátis", "gratis")
         ), None)
         if free is None:
             free = await guild.create_category("free things", reason="Organização automática CC BOT")
@@ -5039,16 +5044,20 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
 
         # A ordem é aplicada SOMENTE às categorias, nunca à lista misturada de canais.
         ordem_preferida = []
+        sites = next((
+            x for x in categorias
+            if x.name.strip().casefold() in ("pattern", "sites")
+        ), None)
         for cat in (
-            status, custom,
-            por_id.get(1561513261424447609),  # Partners logo abaixo de Customization
-            por_id.get(1561513258970521743),  # Statistics
-            por_id.get(1561513263286452275),  # CC Store
+            status, custom, sites,
+            por_id.get(1561513263286452275),  # Mercado
             categoria_vendas,                 # explicação das vendas junto do mercado
             comunidade,
             free,
             informacao,
             administracao,
+            por_id.get(1561513261424447609),  # Parceiros
+            por_id.get(1561513258970521743),  # Estatísticas
         ):
             if cat is not None and cat not in ordem_preferida:
                 ordem_preferida.append(cat)
@@ -5098,6 +5107,40 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
     except Exception:
         log.exception("Falha ao aplicar organização automática do servidor.")
         return False
+
+async def ordenar_cargos_principais(guild: discord.Guild) -> int:
+    """Ordena os cargos públicos principais sem ultrapassar o cargo do próprio bot."""
+    if guild is None or guild.me is None or not guild.me.guild_permissions.manage_roles:
+        log.warning("Sem permissão Gerenciar cargos; ordem dos cargos não foi alterada.")
+        return 0
+
+    nomes = ("Fundador", "Staff", "Parceiro", "DJ / Produtor", "Cliente", "Membro")
+    por_nome = {role.name.casefold(): role for role in guild.roles}
+    alvos = [por_nome[nome.casefold()] for nome in nomes if nome.casefold() in por_nome]
+    bot_role = guild.me.top_role
+    if not alvos or bot_role.position <= len(alvos):
+        log.warning("Não há espaço seguro abaixo do cargo do bot para ordenar os cargos principais.")
+        return 0
+
+    # Discord interpreta posições maiores como cargos mais altos. Mantém o cargo do bot acima.
+    posicoes = {
+        role: bot_role.position - index - 1
+        for index, role in enumerate(alvos)
+        if not role.managed and role < bot_role
+    }
+    if not posicoes:
+        return 0
+    try:
+        await guild.edit_role_positions(
+            positions=posicoes,
+            reason="Organização da hierarquia de cargos pelo CC BOT"
+        )
+        log.info("Cargos principais reposicionados: %s", ", ".join(role.name for role in posicoes))
+        return len(posicoes)
+    except (discord.Forbidden, discord.HTTPException):
+        log.exception("Falha ao ordenar cargos principais.")
+        return 0
+
 
 async def renomear_categorias_solicitadas(guild: discord.Guild):
     """Renomeia somente categorias; nunca cria, move ou reordena canais/categorias."""
