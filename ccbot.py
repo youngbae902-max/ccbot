@@ -3448,14 +3448,14 @@ PAINEL_GRUPOS = {
         "categorias": ["boas_vindas", "trabalhos_on", "manutencao"],
     },
     "icones": {
-        "titulo": "Ícones e limpeza",
-        "descricao": "Adicione ícones, publique imagens e limpe mensagens privadas enviadas pelo bot.",
-        "categorias": ["icones", "limpar_pv"],
+        "titulo": "Ícones",
+        "descricao": "Adicione ícones e publique imagens no local correto.",
+        "categorias": ["icones"],
     },
     "ferramentas": {
         "titulo": "Ferramentas administrativas",
-        "descricao": "Emojis, backups e configuração do canal de avisos técnicos.",
-        "categorias": ["ferramentas"],
+        "descricao": "Emojis, backups, canal de avisos técnicos e limpeza de mensagens privadas do bot.",
+        "categorias": ["ferramentas", "limpar_pv"],
     },
     "servidor": {
         "titulo": "Estrutura do servidor",
