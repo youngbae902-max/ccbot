@@ -5143,22 +5143,23 @@ async def ordenar_cargos_principais(guild: discord.Guild) -> int:
 
 
 async def renomear_categorias_solicitadas(guild: discord.Guild):
-    """Renomeia somente categorias; nunca cria, move ou reordena canais/categorias."""
+    """Padroniza categorias com nomes curtos e fáceis de entender."""
     if guild is None or guild.me is None or not guild.me.guild_permissions.manage_channels:
         log.warning("Sem permissão Gerenciar canais; nomes das categorias não foram alterados.")
         raise PermissionError("O CC BOT precisa da permissão Gerenciar canais.")
+
     traducoes = {
-        "customization": "CUSTOMIZAÇÃO", "customisation": "CUSTOMIZAÇÃO", "custom": "CUSTOMIZAÇÃO",
-        "personalização": "CUSTOMIZAÇÃO", "personalizacao": "CUSTOMIZAÇÃO",
+        "customization": "CUSTOM", "customisation": "CUSTOM", "custom": "CUSTOM",
+        "personalização": "CUSTOM", "personalizacao": "CUSTOM",
         "icons": "ÍCONES", "ícones": "ÍCONES", "icones": "ÍCONES",
-        "administration": "ADMINISTRAÇÃO", "administração": "ADMINISTRAÇÃO", "administracao": "ADMINISTRAÇÃO",
-        "information": "INFORMAÇÕES", "informação": "INFORMAÇÕES", "informacoes": "INFORMAÇÕES", "informações": "INFORMAÇÕES",
+        "administration": "ADMIN", "administração": "ADMIN", "administracao": "ADMIN",
+        "information": "INFO", "informação": "INFO", "informacoes": "INFO", "informações": "INFO",
         "pattern": "SITES", "sites": "SITES",
         "sales information": "VENDAS", "informações de vendas": "VENDAS", "informacoes de vendas": "VENDAS", "vendas": "VENDAS",
         "community": "COMUNIDADE", "comunidade": "COMUNIDADE",
         "free things": "GRÁTIS", "free stuff": "GRÁTIS", "coisas grátis": "GRÁTIS", "coisas gratis": "GRÁTIS", "grátis": "GRÁTIS", "gratis": "GRÁTIS",
-        "partners": "PARCEIROS", "parceiros": "PARCEIROS",
-        "statistics": "ESTATÍSTICAS", "estatísticas": "ESTATÍSTICAS", "estatisticas": "ESTATÍSTICAS",
+        "partners": "PARCERIAS", "parceiros": "PARCERIAS", "parcerias": "PARCERIAS",
+        "statistics": "STATS", "estatísticas": "STATS", "estatisticas": "STATS", "stats": "STATS",
         "cc store": "MERCADO", "mercado": "MERCADO",
     }
     alteradas = 0
@@ -5175,12 +5176,12 @@ async def renomear_categorias_solicitadas(guild: discord.Guild):
             continue
         try:
             nome_anterior = categoria.name
-            await categoria.edit(name=destino, reason="Pedido do administrador: nomes em português e maiúsculas; preservar hierarquia")
+            await categoria.edit(name=destino, reason="Simplificação dos nomes do servidor pelo CC BOT")
             alteradas += 1
-            log.info("Categoria renomeada sem mover: id=%s %r -> %r", categoria.id, nome_anterior, destino)
+            log.info("Categoria simplificada: id=%s %r -> %r", categoria.id, nome_anterior, destino)
         except Exception:
             log.exception("Falha ao renomear categoria id=%s para %s", categoria.id, destino)
-    log.info("Renomeação pelo painel concluída: %s categoria(s); posições e canais preservados.", alteradas)
+    log.info("Simplificação de categorias concluída: %s categoria(s).", alteradas)
     return alteradas
 
 # FREE_PROJECTS_PANEL_V2: os botões abrem tópicos privados; não criam categorias nem canais.
