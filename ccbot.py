@@ -3438,42 +3438,47 @@ PAINEL_ADMIN_COLOR = discord.Color.from_rgb(35, 37, 42)
 
 PAINEL_GRUPOS = {
     "mercado": {
-        "titulo": "Publicação de painéis",
-        "descricao": "Acesse os painéis de produtos e conteúdo do servidor.",
-        "categorias": ["publicar"],
+        "titulo": "Painéis e produtos",
+        "descricao": "Tudo que publica conteúdo no servidor, incluindo o gerenciamento dos DJs usados nos painéis.",
+        "categorias": ["publicar", "djs"],
     },
     "comunidade": {
         "titulo": "Comunidade",
-        "descricao": "Gerencie DJs, boas-vindas e avisos de trabalho.",
-        "categorias": ["djs", "boas_vindas", "trabalhos_on"],
+        "descricao": "Funções voltadas diretamente aos membros e à organização da comunidade.",
+        "categorias": [],
+    },
+    "bot": {
+        "titulo": "Central do bot",
+        "descricao": "Reúna mensagens enviadas pelo bot, avisos operacionais e verificação de funcionamento.",
+        "categorias": ["boas_vindas", "trabalhos_on", "manutencao"],
+    },
+    "icones": {
+        "titulo": "Ícones e limpeza",
+        "descricao": "Adicione ícones, publique imagens e limpe mensagens privadas enviadas pelo bot.",
+        "categorias": ["icones", "limpar_pv"],
     },
     "ferramentas": {
         "titulo": "Ferramentas administrativas",
-        "descricao": "Acesse emojis, backups, canal de avisos, ícones e limpeza de mensagens.",
-        "categorias": ["ferramentas", "icones", "limpar_pv"],
+        "descricao": "Emojis, backups e configuração do canal de avisos técnicos.",
+        "categorias": ["ferramentas"],
     },
     "servidor": {
         "titulo": "Estrutura do servidor",
         "descricao": "Consulte permissões e organize a hierarquia de canais.",
         "categorias": ["permissoes_categorias", "analisar_hierarquia", "organizar_hierarquia"],
     },
-    "sistema": {
-        "titulo": "Sistema e manutenção",
-        "descricao": "Verifique o estado do bot e acesse ferramentas de manutenção.",
-        "categorias": ["manutencao"],
-    },
 }
 
 OPCOES_CATEGORIAS_PAINEL = [
-    discord.SelectOption(label="Gerenciar DJs", description="Adicionar, editar ou remover DJs", emoji="🎧", value="djs"),
-    discord.SelectOption(label="Mensagem de boas-vindas", description="Enviar uma mensagem de teste", emoji="👋", value="boas_vindas"),
-    discord.SelectOption(label="Ferramentas administrativas", description="Emojis, backups e canal de avisos", emoji="🧰", value="ferramentas"),
+    discord.SelectOption(label="Gerenciar DJs", description="Adicionar, editar ou remover DJs dos painéis", emoji="🎧", value="djs"),
+    discord.SelectOption(label="Mensagem de boas-vindas", description="Testar a mensagem enviada aos novos membros", emoji="👋", value="boas_vindas"),
+    discord.SelectOption(label="Ferramentas administrativas", description="Emojis, backups e canal de avisos técnicos", emoji="🧰", value="ferramentas"),
     discord.SelectOption(label="Painéis e produtos", description="Samples, acapellas, arrumador, beats e packs", emoji="📋", value="publicar"),
-    discord.SelectOption(label="Verificar funcionamento", description="Conferir se o bot responde", emoji="🛠️", value="manutencao"),
+    discord.SelectOption(label="Verificar funcionamento", description="Conferir se o bot está online e respondendo", emoji="🛠️", value="manutencao"),
     discord.SelectOption(label="Limpar mensagens privadas", description="Apagar somente mensagens do bot na sua DM", emoji="🧹", value="limpar_pv"),
-    discord.SelectOption(label="Gerenciar ícones", description="Importar ZIPs e publicar imagens", emoji="🖼️", value="icones"),
+    discord.SelectOption(label="Adicionar ícones", description="Importar ZIPs ou imagens para publicar", emoji="🖼️", value="icones"),
     discord.SelectOption(label="Permissões dos canais", description="Revisar acesso sem alterar a Comunidade", emoji="🔒", value="permissoes_categorias"),
-    discord.SelectOption(label="Aviso de trabalhos", description="Publicar aviso com menção a todos", emoji="📣", value="trabalhos_on"),
+    discord.SelectOption(label="Aviso de trabalhos", description="Publicar aviso de que os trabalhos estão abertos", emoji="📣", value="trabalhos_on"),
     discord.SelectOption(label="Consultar hierarquia", description="Enviar relatório de canais, cargos e permissões", emoji="🧭", value="analisar_hierarquia"),
     discord.SelectOption(label="Organizar hierarquia", description="Reordenar canais após confirmação", emoji="🗂️", value="organizar_hierarquia"),
 ]
@@ -3487,11 +3492,12 @@ class PainelGrupoSelect(discord.ui.Select):
             max_values=1,
             custom_id="ccbot:painel_grupo",
             options=[
-                discord.SelectOption(label="Painéis e produtos", description="Publicar ou atualizar painéis", emoji="📋", value="mercado"),
-                discord.SelectOption(label="Comunidade", description="DJs, boas-vindas e avisos", emoji="👥", value="comunidade"),
-                discord.SelectOption(label="Ferramentas", description="Emojis, backups, ícones e mensagens", emoji="🧰", value="ferramentas"),
+                discord.SelectOption(label="Painéis e produtos", description="Publicações, produtos e DJs", emoji="📋", value="mercado"),
+                discord.SelectOption(label="Comunidade", description="Funções diretamente ligadas aos membros", emoji="👥", value="comunidade"),
+                discord.SelectOption(label="Central do bot", description="Boas-vindas, avisos e funcionamento", emoji="🤖", value="bot"),
+                discord.SelectOption(label="Ícones e limpeza", description="Adicionar ícones e limpar mensagens", emoji="🖼️", value="icones"),
+                discord.SelectOption(label="Ferramentas", description="Emojis, backups e canal de avisos técnicos", emoji="🧰", value="ferramentas"),
                 discord.SelectOption(label="Servidor", description="Permissões e organização dos canais", emoji="🗂️", value="servidor"),
-                discord.SelectOption(label="Sistema", description="Verificar o bot e manutenção", emoji="⚙️", value="sistema"),
             ]
         )
 
