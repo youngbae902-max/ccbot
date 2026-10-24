@@ -3378,6 +3378,26 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
     )
 
 
+@bot.tree.command(name="painel", description="Abrir o painel administrativo do CC BOT")
+async def painel(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador pode usar este comando.", ephemeral=True
+        )
+        return
+    if interaction.guild is None or interaction.guild.id != 1561513043886743562:
+        await interaction.response.send_message(
+            "Use este comando dentro do servidor oficial do CC BOT.", ephemeral=True
+        )
+        return
+
+    await interaction.response.send_message(
+        embed=criar_embed_painel(),
+        view=PainelAdminView(),
+        ephemeral=True
+    )
+
+
 @bot.tree.command(name="hierarquia", description="Abrir o painel para atualizar a hierarquia do servidor")
 async def hierarquia(interaction: discord.Interaction):
     if not is_admin(interaction):
