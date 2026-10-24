@@ -2463,9 +2463,21 @@ class BackupPainelButton(discord.ui.Button):
 class PainelFerramentasView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(AdicionarEmojisPainelButton())
         self.add_item(BackupPainelButton("termux"))
         self.add_item(BackupPainelButton("discord"))
+        self.add_item(VoltarPainelButton())
+
+
+class PainelEmojisView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(AdicionarEmojisPainelButton())
+        self.add_item(VoltarPainelButton())
+
+
+class PainelCanalAvisosView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
         self.add_item(DefinirCanalAvisosSelect())
         self.add_item(VoltarPainelButton())
 
@@ -3437,25 +3449,25 @@ async def hierarquia(interaction: discord.Interaction):
 PAINEL_ADMIN_COLOR = discord.Color.from_rgb(35, 37, 42)
 
 PAINEL_GRUPOS = {
-    "mercado": {
-        "titulo": "Painéis e produtos",
-        "descricao": "Tudo que publica conteúdo no servidor, incluindo o gerenciamento dos DJs usados nos painéis.",
+    "publicacoes": {
+        "titulo": "Publicações e produtos",
+        "descricao": "Painéis publicados no servidor e cadastros usados por eles.",
         "categorias": ["publicar", "djs"],
     },
     "bot": {
         "titulo": "Central do bot",
-        "descricao": "Reúna mensagens enviadas pelo bot, avisos operacionais e verificação de funcionamento.",
-        "categorias": ["boas_vindas", "trabalhos_on", "manutencao"],
+        "descricao": "Tudo que o bot envia, administra ou usa para comunicar-se: boas-vindas, avisos, limpeza de mensagens e funcionamento.",
+        "categorias": ["boas_vindas", "trabalhos_on", "limpar_pv", "manutencao", "canal_avisos"],
     },
-    "icones": {
-        "titulo": "Ícones",
-        "descricao": "Adicione ícones e publique imagens no local correto.",
-        "categorias": ["icones"],
+    "personalizacao": {
+        "titulo": "Personalização",
+        "descricao": "Emojis, ícones e imagens usados para personalizar o servidor.",
+        "categorias": ["emojis", "icones"],
     },
-    "ferramentas": {
-        "titulo": "Ferramentas administrativas",
-        "descricao": "Emojis, backups, canal de avisos técnicos e limpeza de mensagens privadas do bot.",
-        "categorias": ["ferramentas", "limpar_pv"],
+    "sistema": {
+        "titulo": "Sistema e backups",
+        "descricao": "Faça cópias de segurança e acesse ferramentas técnicas do bot.",
+        "categorias": ["ferramentas"],
     },
     "servidor": {
         "titulo": "Estrutura do servidor",
@@ -3467,13 +3479,15 @@ PAINEL_GRUPOS = {
 OPCOES_CATEGORIAS_PAINEL = [
     discord.SelectOption(label="Gerenciar DJs", description="Adicionar, editar ou remover DJs dos painéis", emoji="🎧", value="djs"),
     discord.SelectOption(label="Mensagem de boas-vindas", description="Testar a mensagem enviada aos novos membros", emoji="👋", value="boas_vindas"),
-    discord.SelectOption(label="Ferramentas administrativas", description="Emojis, backups e canal de avisos técnicos", emoji="🧰", value="ferramentas"),
-    discord.SelectOption(label="Painéis e produtos", description="Samples, acapellas, arrumador, beats e packs", emoji="📋", value="publicar"),
+    discord.SelectOption(label="Aviso de trabalhos", description="Publicar aviso de que os trabalhos estão abertos", emoji="📣", value="trabalhos_on"),
     discord.SelectOption(label="Verificar funcionamento", description="Conferir se o bot está online e respondendo", emoji="🛠️", value="manutencao"),
     discord.SelectOption(label="Limpar mensagens privadas", description="Apagar somente mensagens do bot na sua DM", emoji="🧹", value="limpar_pv"),
+    discord.SelectOption(label="Canal de avisos do bot", description="Definir onde o bot envia erros e avisos técnicos", emoji="📨", value="canal_avisos"),
+    discord.SelectOption(label="Adicionar emojis", description="Enviar ZIP ou imagens para personalizar o servidor", emoji="😀", value="emojis"),
     discord.SelectOption(label="Adicionar ícones", description="Importar ZIPs ou imagens para publicar", emoji="🖼️", value="icones"),
+    discord.SelectOption(label="Backups", description="Salvar cópia no Termux ou enviar por mensagem privada", emoji="💾", value="ferramentas"),
+    discord.SelectOption(label="Painéis e produtos", description="Samples, acapellas, arrumador, beats e packs", emoji="📋", value="publicar"),
     discord.SelectOption(label="Permissões dos canais", description="Revisar acesso sem alterar a Comunidade", emoji="🔒", value="permissoes_categorias"),
-    discord.SelectOption(label="Aviso de trabalhos", description="Publicar aviso de que os trabalhos estão abertos", emoji="📣", value="trabalhos_on"),
     discord.SelectOption(label="Consultar hierarquia", description="Enviar relatório de canais, cargos e permissões", emoji="🧭", value="analisar_hierarquia"),
     discord.SelectOption(label="Organizar hierarquia", description="Reordenar canais após confirmação", emoji="🗂️", value="organizar_hierarquia"),
 ]
@@ -3487,11 +3501,11 @@ class PainelGrupoSelect(discord.ui.Select):
             max_values=1,
             custom_id="ccbot:painel_grupo",
             options=[
-                discord.SelectOption(label="Painéis e produtos", description="Publicações, produtos e DJs", emoji="📋", value="mercado"),
-                discord.SelectOption(label="Central do bot", description="Boas-vindas, avisos e funcionamento", emoji="🤖", value="bot"),
-                discord.SelectOption(label="Ícones e limpeza", description="Adicionar ícones e limpar mensagens", emoji="🖼️", value="icones"),
-                discord.SelectOption(label="Ferramentas", description="Emojis, backups e canal de avisos técnicos", emoji="🧰", value="ferramentas"),
-                discord.SelectOption(label="Servidor", description="Permissões e organização dos canais", emoji="🗂️", value="servidor"),
+                discord.SelectOption(label="Publicações e produtos", description="Painéis e DJs", emoji="📋", value="publicacoes"),
+                discord.SelectOption(label="Central do bot", description="Mensagens, avisos e funcionamento do bot", emoji="🤖", value="bot"),
+                discord.SelectOption(label="Personalização", description="Emojis, ícones e imagens", emoji="🎨", value="personalizacao"),
+                discord.SelectOption(label="Sistema e backups", description="Cópias de segurança e ferramentas técnicas", emoji="💾", value="sistema"),
+                discord.SelectOption(label="Estrutura do servidor", description="Permissões e organização dos canais", emoji="🗂️", value="servidor"),
             ]
         )
 
@@ -3568,10 +3582,28 @@ class CategoriaPainelSelect(discord.ui.Select):
             await analisar_hierarquia(interaction)
         elif categoria == "organizar_hierarquia":
             await abrir_organizacao_hierarquia(interaction)
+        elif categoria == "emojis":
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="🎨 Personalização • Emojis",
+                    description="Envie um ZIP ou imagens para adicionar emojis personalizados ao servidor.",
+                    color=PAINEL_ADMIN_COLOR
+                ),
+                view=PainelEmojisView()
+            )
         elif categoria == "icones":
             await interaction.response.edit_message(
                 embed=criar_embed_painel_icones(),
                 view=PainelIconesView()
+            )
+        elif categoria == "canal_avisos":
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="📨 Canal de avisos do bot",
+                    description=f"Canal atual: <#{settings.get('notice_channel', DEFAULT_NOTICE_CHANNEL)}>\n\nEscolha abaixo onde o bot deve enviar erros e avisos técnicos.",
+                    color=PAINEL_ADMIN_COLOR
+                ),
+                view=PainelCanalAvisosView()
             )
         elif categoria == "limpar_pv":
             await interaction.response.edit_message(
