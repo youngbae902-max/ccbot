@@ -4976,6 +4976,40 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
         canais = await guild.fetch_channels()
         categorias = [x for x in canais if isinstance(x, discord.CategoryChannel)]
 
+        # Junta categorias pequenas às áreas principais, sem apagar canais ou mensagens.
+        # Só mescla áreas semanticamente relacionadas; os canais mantêm suas permissões próprias.
+        categorias_mescladas = {}
+        regras_mescla = (
+            (("sales information", "informações de vendas", "informacoes de vendas", "vendas"), ("cc store", "mercado"), "MERCADO"),
+            (("statistics", "estatísticas", "estatisticas", "stats"), ("information", "informações", "informacao", "informação", "info"), "INFO"),
+            (("partners", "parceiros", "parcerias"), ("community", "comunidade"), "COMUNIDADE"),
+        )
+        def normalizar_categoria(nome):
+            return " ".join(nome.strip().casefold().split())
+        for nomes_origem, nomes_destino, rotulo_destino in regras_mescla:
+            origem = next((cat for cat in categorias if normalizar_categoria(cat.name) in nomes_origem), None)
+            destino = next((cat for cat in categorias if cat is not origem and normalizar_categoria(cat.name) in nomes_destino), None)
+            if origem is None or destino is None or origem.id == destino.id:
+                continue
+            movidos = []
+            for filho in list(origem.channels):
+                try:
+                    await filho.edit(category=destino, reason=f"Organização CC BOT: mesclar {origem.name} em {rotulo_destino}")
+                    movidos.append(filho.id)
+                except (discord.Forbidden, discord.HTTPException):
+                    log.exception("Não consegui mover %s da categoria %s para %s", filho.name, origem.name, destino.name)
+            if not origem.channels:
+                try:
+                    await origem.delete(reason=f"Categoria desnecessária mesclada em {rotulo_destino}")
+                    categorias = [cat for cat in categorias if cat.id != origem.id]
+                    categorias_mescladas.setdefault(destino.id, []).extend(movidos)
+                    log.info("Categoria %s mesclada em %s; %s canal(is) movido(s).", origem.name, destino.name, len(movidos))
+                except (discord.Forbidden, discord.HTTPException):
+                    log.exception("Canais movidos, mas não consegui excluir categoria vazia %s", origem.name)
+            else:
+                log.warning("Categoria %s mantida porque ainda contém canais que não puderam ser movidos.", origem.name)
+
+
         status = next((
             x for x in categorias
             if any(p in x.name.casefold() for p in ("cc •", "cc ·", "server status", "status do servidor"))
@@ -5085,6 +5119,11 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
         }
         canais_por_categoria[custom.id] = [1561513290473934998]
         canais_por_categoria[free.id] = [1561513293934362705, 1561513295352037507]
+
+        # Inclui na ordenação os canais trazidos das categorias mescladas.
+        for destino_id, ids_mesclados in categorias_mescladas.items():
+            canais_por_categoria.setdefault(destino_id, [])
+            canais_por_categoria[destino_id].extend(cid for cid in ids_mesclados if cid not in canais_por_categoria[destino_id])
 
         # Posiciona canais listados no início da categoria e preserva os demais depois.
         for cat_id, ids in canais_por_categoria.items():
