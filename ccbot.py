@@ -2780,7 +2780,7 @@ class IconUploadModal(discord.ui.Modal, title="Enviar arquivos de ícones"):
                     continue
                 if anexo.size > ICON_MAX_UNPACKED_BYTES:
                     raise ValueError(f"{Path(anexo.filename).name} é maior que 100 MB.")
-                dados = await anexo.read(use_cached=True)
+                dados = await anexo.read(use_cached=False)
                 total_recebido += len(dados)
                 if total_recebido > ICON_MAX_UNPACKED_BYTES:
                     raise ValueError("O total dos arquivos enviados ultrapassa 100 MB.")
@@ -3380,6 +3380,7 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
 
 @bot.tree.command(name="painel", description="Abrir o painel administrativo do CC BOT")
 async def painel(interaction: discord.Interaction):
+    # Validações simples respondem imediatamente; a montagem do painel ocorre após defer.
     if not is_admin(interaction):
         await interaction.response.send_message(
             "Apenas o administrador pode usar este comando.", ephemeral=True
@@ -3391,11 +3392,21 @@ async def painel(interaction: discord.Interaction):
         )
         return
 
-    await interaction.response.send_message(
-        embed=criar_embed_painel(),
-        view=PainelAdminView(),
-        ephemeral=True
-    )
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        embed = criar_embed_painel()
+        view = PainelAdminView()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        log.info("Comando /painel aberto por %s (%s).", interaction.user, interaction.user.id)
+    except Exception as exc:
+        log.exception("Falha ao abrir /painel")
+        try:
+            await interaction.followup.send(
+                f"Não consegui abrir o painel ({type(exc).__name__}). O erro foi registrado no log.",
+                ephemeral=True
+            )
+        except discord.HTTPException:
+            pass
 
 
 @bot.tree.command(name="hierarquia", description="Abrir o painel para atualizar a hierarquia do servidor")
@@ -5695,21 +5706,30 @@ async def receber_comprovante_pix(message: discord.Message):
 
 @bot.event
 async def on_app_command_error(interaction, error):
-    if not is_admin(interaction):
-        return
-    log.error("Erro em comando slash: %s", error, exc_info=error)
+    # Registra todos os erros, inclusive os de usuários comuns, para evitar falhas silenciosas.
+    log.error(
+        "Erro em comando slash (%s; usuário=%s/%s): %s",
+        getattr(getattr(interaction, "command", None), "qualified_name", "desconhecido"),
+        getattr(interaction, "user", None),
+        getattr(getattr(interaction, "user", None), "id", "desconhecido"),
+        error,
+        exc_info=(type(error), error, error.__traceback__)
+    )
     try:
+        mensagem = (
+            "Ocorreu um erro ao executar o comando. O administrador foi avisado."
+            if is_admin(interaction)
+            else "Não consegui concluir esse comando. Tente novamente em instantes."
+        )
         if interaction.response.is_done():
-            await interaction.followup.send(
-                "Ocorreu um erro. O administrador foi avisado.", ephemeral=True
-            )
+            await interaction.followup.send(mensagem, ephemeral=True)
         else:
-            await interaction.response.send_message(
-                "Ocorreu um erro. O administrador foi avisado.", ephemeral=True
-            )
+            await interaction.response.send_message(mensagem, ephemeral=True)
     except Exception:
-        pass
-    await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
+        log.exception("Não foi possível responder à interação que falhou.")
+
+    if is_admin(interaction):
+        await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
 
 
