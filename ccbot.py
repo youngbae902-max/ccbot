@@ -5036,7 +5036,7 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
         ]
         categoria_vendas = next((
             x for x in categorias
-            if x.name.casefold() in ("sales information", "informações de vendas", "informacoes de vendas")
+            if x.name.strip().casefold() in ("sales information", "informações de vendas", "informacoes de vendas", "vendas")
         ), None)
         comunidade = por_id.get(1561513265006116877)
         informacao = por_id.get(1561513260501569576)
