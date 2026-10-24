@@ -2387,7 +2387,7 @@ class VoltarPainelButton(discord.ui.Button):
 
 class AdicionarEmojisPainelButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="Enviar ZIP de emojis", emoji="😀", style=discord.ButtonStyle.success, custom_id="ccbot:painel_adicionar_emojis")
+        super().__init__(label="Enviar ZIP ou imagens", emoji="😀", style=discord.ButtonStyle.success, custom_id="ccbot:painel_adicionar_emojis")
 
     async def callback(self, interaction: discord.Interaction):
         if not is_admin(interaction):
@@ -2565,7 +2565,6 @@ ICON_MAX_FILES = 500
 ICON_MAX_UNPACKED_BYTES = 100 * 1024 * 1024
 ICON_MAX_FILE_BYTES = 20 * 1024 * 1024
 ICON_ZIP_PENDING = {}
-ICON_UPLOAD_SESSIONS = {}
 
 
 def icon_state():
@@ -2745,6 +2744,85 @@ class IconNomeModal(discord.ui.Modal, title="Nome da pasta de ícones"):
         )
 
 
+class IconUploadModal(discord.ui.Modal, title="Enviar arquivos de ícones"):
+    arquivos = discord.ui.Label(
+        text="ZIP ou imagens (até 10 arquivos)",
+        description="Envie um ZIP ou até 10 imagens JPG, PNG, WEBP ou GIF.",
+        component=discord.ui.FileUpload(
+            custom_id="ccbot_icons_files",
+            min_values=1,
+            max_values=10,
+            required=True
+        )
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode importar ícones.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        anexos = self.arquivos.component.values
+        if not anexos:
+            await interaction.followup.send("Selecione um ZIP ou imagens no formulário.", ephemeral=True)
+            return
+
+        pasta_lote = BASE / "uploads" / "icons" / f"{interaction.user.id}_{uuid.uuid4().hex}"
+        pasta_imagens = pasta_lote / "images"
+        pasta_imagens.mkdir(parents=True, exist_ok=True)
+        imagens_salvas = []
+        total_recebido = 0
+
+        try:
+            for anexo in anexos:
+                extensao = Path(anexo.filename).suffix.lower()
+                if extensao != ".zip" and extensao not in ICON_EXTENSIONS:
+                    continue
+                if anexo.size > ICON_MAX_UNPACKED_BYTES:
+                    raise ValueError(f"{Path(anexo.filename).name} é maior que 100 MB.")
+                dados = await anexo.read(use_cached=True)
+                total_recebido += len(dados)
+                if total_recebido > ICON_MAX_UNPACKED_BYTES:
+                    raise ValueError("O total dos arquivos enviados ultrapassa 100 MB.")
+
+                nome_original = Path(anexo.filename).name.replace("/", "_").replace(chr(92), "_")
+                if extensao == ".zip":
+                    (pasta_lote / f"original_{nome_original}").write_bytes(dados)
+                    extraidas = await asyncio.to_thread(extrair_imagens_zip, dados)
+                    for nome, conteudo in extraidas:
+                        destino = pasta_imagens / f"{len(imagens_salvas) + 1:04d}_{Path(nome).name}"
+                        destino.write_bytes(conteudo)
+                        imagens_salvas.append(destino)
+                else:
+                    destino = pasta_imagens / f"{len(imagens_salvas) + 1:04d}_{nome_original}"
+                    destino.write_bytes(dados)
+                    imagens_salvas.append(destino)
+
+                if len(imagens_salvas) > ICON_MAX_FILES:
+                    raise ValueError("O limite é de 500 imagens por envio.")
+
+            if not imagens_salvas:
+                raise ValueError("Envie um ZIP com imagens ou imagens soltas JPG, PNG, WEBP ou GIF.")
+
+            ICON_ZIP_PENDING[interaction.user.id] = {
+                "folder": str(pasta_lote),
+                "files": [str(path) for path in imagens_salvas],
+                "image_count": len(imagens_salvas),
+                "name": None
+            }
+            await interaction.followup.send(
+                f"Recebi {len(imagens_salvas)} imagem(ns) e salvei os arquivos na pasta uploads/icons do bot.\n"
+                "Agora informe o nome da pasta/ícone e escolha como publicar.",
+                view=IconZipRecebidoView(interaction.user.id),
+                ephemeral=True
+            )
+        except (zipfile.BadZipFile, ValueError, OSError) as exc:
+            log.warning("Upload de ícones inválido: %s", exc)
+            await interaction.followup.send(f"Não consegui processar os arquivos: {str(exc)[:350]}", ephemeral=True)
+        except Exception as exc:
+            log.exception("Falha no formulário de upload de ícones")
+            await interaction.followup.send(f"Falha ao processar o envio ({type(exc).__name__}).", ephemeral=True)
+
+
 class IconProcessarZipButton(discord.ui.Button):
     def __init__(self, user_id):
         super().__init__(
@@ -2757,10 +2835,10 @@ class IconProcessarZipButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         if not is_admin(interaction) or interaction.user.id != self.user_id:
-            await interaction.response.send_message("Somente quem enviou o ZIP pode continuar.", ephemeral=True)
+            await interaction.response.send_message("Somente quem enviou os arquivos pode continuar.", ephemeral=True)
             return
         if self.user_id not in ICON_ZIP_PENDING:
-            await interaction.response.send_message("ZIP expirado. Envie o arquivo novamente.", ephemeral=True)
+            await interaction.response.send_message("Envio expirado. Selecione os arquivos novamente.", ephemeral=True)
             return
         await interaction.response.send_modal(IconNomeModal(self.user_id))
 
@@ -2786,7 +2864,7 @@ class IconModoPublicacaoView(discord.ui.View):
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            imagens = await asyncio.to_thread(extrair_imagens_zip, pendente["data"])
+            imagens = await asyncio.to_thread(lambda: [(Path(caminho).name, Path(caminho).read_bytes()) for caminho in pendente["files"]])
             thread, total = await publicar_zip_icone(pendente["name"], imagens, modo)
             ICON_ZIP_PENDING.pop(self.user_id, None)
             await interaction.edit_original_response(
@@ -2819,8 +2897,8 @@ class IconModoPublicacaoView(discord.ui.View):
 class IconEnviarZipButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
-            label="Enviar ZIP de ícones",
-            emoji="📦",
+            label="Enviar ZIP ou imagens",
+            emoji="📎",
             style=discord.ButtonStyle.success,
             custom_id="ccbot:icons_upload_zip"
         )
@@ -2829,16 +2907,8 @@ class IconEnviarZipButton(discord.ui.Button):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
-        if interaction.guild is None or interaction.channel is None:
-            await interaction.response.send_message("Use este botão dentro do servidor.", ephemeral=True)
-            return
-        ICON_UPLOAD_SESSIONS[interaction.user.id] = {"channel_id": interaction.channel.id}
         ICON_ZIP_PENDING.pop(interaction.user.id, None)
-        await interaction.response.send_message(
-            "Envie o arquivo ZIP neste canal como uma mensagem.\n"
-            "O ZIP deve conter as imagens (JPG, PNG, WEBP ou GIF). Depois você informa o nome e escolhe o formato da publicação.",
-            ephemeral=True
-        )
+        await interaction.response.send_modal(IconUploadModal())
 
 
 class PainelIconesView(discord.ui.View):
@@ -2852,10 +2922,10 @@ def criar_embed_painel_icones():
     embed = discord.Embed(
         title="🖼️ CENTRAL DE ÍCONES",
         description=(
-            "Importe coleções por ZIP, sem monitoramento automático.\n\n"
+            "Envie ZIPs ou imagens diretamente pelo formulário, sem monitoramento de pastas.\n\n"
             "### 📦 Como funciona\n"
-            "1. Clique em Enviar ZIP de ícones.\n"
-            "2. Envie o ZIP neste canal.\n"
+            "1. Clique em Enviar ZIP ou imagens.\n"
+            "2. Anexe um ZIP ou até 10 imagens no formulário.\n"
             "3. Informe o nome da pasta/ícone.\n"
             "4. Escolha o formato da publicação.\n\n"
             "Post único: uma capa com botão Ver icons para abrir o tópico.\n"
@@ -2866,43 +2936,6 @@ def criar_embed_painel_icones():
     )
     embed.set_footer(text="CC BOT • Icons")
     return embed
-
-
-@bot.listen("on_message")
-async def receber_zip_de_icones(message: discord.Message):
-    if message.author.bot or message.guild is None or not message.attachments:
-        return
-    sessao = ICON_UPLOAD_SESSIONS.get(message.author.id, {})
-    if message.author.id != ADMIN_ID or message.channel.id != sessao.get("channel_id"):
-        return
-    anexo = next((a for a in message.attachments if Path(a.filename).suffix.lower() == ".zip"), None)
-    if anexo is None:
-        return
-    try:
-        if anexo.size > 100 * 1024 * 1024:
-            await message.reply("O ZIP deve ter no máximo 100 MB.", mention_author=False)
-            return
-        dados = await anexo.read(use_cached=True)
-        imagens = await asyncio.to_thread(extrair_imagens_zip, dados)
-        ICON_ZIP_PENDING[message.author.id] = {
-            "data": dados,
-            "filename": Path(anexo.filename).name,
-            "image_count": len(imagens)
-        }
-        ICON_UPLOAD_SESSIONS.pop(message.author.id, None)
-        try:
-            await message.delete()
-        except discord.HTTPException:
-            pass
-        await message.channel.send(
-            f"ZIP recebido: {len(imagens)} imagens.\nClique abaixo para informar o nome e escolher a publicação.",
-            view=IconZipRecebidoView(message.author.id)
-        )
-    except (zipfile.BadZipFile, ValueError) as exc:
-        await message.reply(f"ZIP inválido: {str(exc)[:300]}", mention_author=False)
-    except Exception as exc:
-        log.exception("Falha ao receber ZIP de ícones")
-        await message.reply(f"Não consegui ler o ZIP ({type(exc).__name__}).", mention_author=False)
 
 
 class IconVerIconsView(discord.ui.View):
@@ -3514,7 +3547,7 @@ class CategoriaPainelSelect(discord.ui.Select):
                 embed=discord.Embed(
                     title="🧰 Ferramentas administrativas",
                     description=(
-                        "**Emojis:** envie um ZIP diretamente pelo Discord; não precisa usar pastas no Termux.\n\n"
+                        "**Emojis:** envie um ZIP ou imagens diretamente pelo formulário do Discord.\n\n"
                         "**Backup:** salva uma cópia no Termux ou envia o ZIP por mensagem privada.\n\n"
                         f"**Canal de avisos atual:** <#{settings.get('notice_channel', DEFAULT_NOTICE_CHANNEL)}>\n"
                         "Escolha o canal no seletor abaixo para alterar onde os erros e avisos são enviados."
@@ -3566,7 +3599,7 @@ class PublicarPainelButton(discord.ui.Button):
 class PainelPublicarView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(PublicarPainelButton("Enviar ZIP de emojis", "😀", "emojis"))
+        self.add_item(PublicarPainelButton("Enviar ZIP ou imagens", "😀", "emojis"))
         self.add_item(PublicarPainelButton("Arrumador", "🧰", "arrumador"))
         self.add_item(PublicarPainelButton("Acapellas", "🎙️", "acapellas"))
         self.add_item(PublicarPainelButton("Samples", "🎧", "samples"))
@@ -3670,55 +3703,163 @@ class GeradorSamplesView(discord.ui.LayoutView):
                     discord.ui.TextDisplay(
                         content=(
                             "### <:box:1561761831587160140>  GERADOR DE SAMPLES\n"
-                            "**Tenha acesso a novas possibilidades para suas produções!**\n"
-                            "-# Novo Gerador de Samples da atualidade\n"
-                        )
-                    ),
-                    accessory=discord.ui.Thumbnail(
-                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
-                    )
-                ),
-                discord.ui.Separator(
-                    visible=True,
-                    spacing=discord.SeparatorSpacing.large
-                ),
-                discord.ui.TextDisplay(
-                    content=(
-                        "## **PAINEL ATUALIZADO**\n"
-                        "-# Confira abaixo todas as funcionalidades disponíveis e descubra tudo o que você pode fazer com o nosso painel!\n\n"
-                        "### <:box_1:1561761829502459964> Samples No Estilo Dos Djs!\n"
-                        "Clique em **Gerar Samples** e escolha um DJ cadastrado pelo administrador.\n\n"
-                        "### <:box_1:1561761829502459964> Gere __Quantas Samples Quiser!__\n"
-                        "Tenha liberdade para gerar **quantas samples quiser**, de forma prática, rápida e direto pelo painel."
-                    )
-                ),
-                discord.ui.ActionRow(GerarSamplesButton())
-            )
-        )
-
-
-@bot.tree.command(name="painel", description="Abrir o painel de configuração do CC BOT")
-async def painel(interaction: discord.Interaction):
-    if not is_admin(interaction):
-        await interaction.response.send_message("Apenas o administrador pode abrir esse painel.", ephemeral=True)
-        return
-
-    await interaction.response.send_message(
-        embed=criar_embed_painel(),
-        view=PainelAdminView(),
-        ephemeral=True
-    )
-
-
-
-
-# Importação de emojis exclusivamente pelo Discord: ZIP enviado pelo administrador.
+                            "**Tenha acesso a novas possibilidades para suas produções# Importação de emojis pelo formulário do Discord: ZIP ou imagens soltas.
 EMOJI_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
-EMOJI_ZIP_SESSIONS = {}
+EMOJI_UPLOAD_DIR = BASE / "uploads" / "emojis"
 EMOJI_ZIP_MAX_BYTES = 100 * 1024 * 1024
 EMOJI_ZIP_MAX_UNPACKED = 100 * 1024 * 1024
 EMOJI_ZIP_MAX_IMAGE = 20 * 1024 * 1024
 EMOJI_ZIP_MAX_IMAGES = 500
+
+
+def nome_seguro_emoji(filename):
+    nome = Path(filename).stem.casefold().replace("-", "_").replace(" ", "_")
+    nome = re.sub(
+        r"[^a-z0-9_]",
+        "_",
+        unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode("ascii")
+    )
+    nome = re.sub(r"_+", "_", nome).strip("_")
+    return (nome if len(nome) >= 2 else f"em_{nome or 'emoji'}")[:32]
+
+
+class EmojiUploadModal(discord.ui.Modal, title="Enviar emojis e GIFs"):
+    arquivos = discord.ui.Label(
+        text="ZIP ou imagens (até 10 arquivos)",
+        description="Anexe ZIPs ou imagens PNG, JPG, WEBP e GIF. Pode misturar os tipos.",
+        component=discord.ui.FileUpload(
+            custom_id="ccbot_emojis_files",
+            min_values=1,
+            max_values=10,
+            required=True
+        )
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode importar emojis.", ephemeral=True)
+            return
+        if interaction.guild is None:
+            await interaction.response.send_message("Use este formulário dentro do servidor.", ephemeral=True)
+            return
+        guild = interaction.guild
+        membro = guild.me
+        if membro is None or not membro.guild_permissions.manage_emojis_and_stickers:
+            await interaction.response.send_message(
+                "O bot precisa da permissão Gerenciar Expressões neste servidor.",
+                ephemeral=True
+            )
+            return
+
+        anexos = self.arquivos.component.values
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        pasta_lote = EMOJI_UPLOAD_DIR / f"{interaction.user.id}_{uuid.uuid4().hex}"
+        pasta_imagens = pasta_lote / "images"
+        pasta_imagens.mkdir(parents=True, exist_ok=True)
+        imagens = []
+        total_recebido = 0
+        total_descompactado = 0
+
+        try:
+            for anexo in anexos:
+                extensao = Path(anexo.filename).suffix.lower()
+                if extensao != ".zip" and extensao not in EMOJI_EXTENSIONS:
+                    continue
+                if anexo.size > EMOJI_ZIP_MAX_BYTES:
+                    raise ValueError(f"{Path(anexo.filename).name} ultrapassa 100 MB.")
+                dados = await anexo.read(use_cached=True)
+                total_recebido += len(dados)
+                if total_recebido > EMOJI_ZIP_MAX_BYTES:
+                    raise ValueError("O total enviado ultrapassa 100 MB.")
+                nome_original = Path(anexo.filename).name.replace("/", "_").replace(chr(92), "_")
+
+                if extensao == ".zip":
+                    (pasta_lote / f"original_{nome_original}").write_bytes(dados)
+                    with zipfile.ZipFile(io.BytesIO(dados), "r") as arquivo_zip:
+                        membros_zip = sorted(arquivo_zip.infolist(), key=lambda item: item.filename.casefold())
+                        candidatos = [
+                            item for item in membros_zip
+                            if not item.is_dir()
+                            and Path(item.filename.replace(chr(92), "/")).suffix.lower() in EMOJI_EXTENSIONS
+                            and not Path(item.filename.replace(chr(92), "/")).name.startswith(".")
+                        ]
+                        if len(imagens) + len(candidatos) > EMOJI_ZIP_MAX_IMAGES:
+                            raise ValueError("O limite é de 500 imagens por envio.")
+                        for item in candidatos:
+                            nome_arquivo = Path(item.filename.replace(chr(92), "/")).name
+                            if item.file_size <= 0:
+                                continue
+                            if item.file_size > EMOJI_ZIP_MAX_IMAGE:
+                                raise ValueError(f"{nome_arquivo} ultrapassa 20 MB descompactado.")
+                            total_descompactado += item.file_size
+                            if total_descompactado > EMOJI_ZIP_MAX_UNPACKED:
+                                raise ValueError("As imagens descompactadas ultrapassam 100 MB no total.")
+                            conteudo = arquivo_zip.read(item)
+                            if not conteudo:
+                                continue
+                            destino = pasta_imagens / f"{len(imagens) + 1:04d}_{nome_arquivo}"
+                            destino.write_bytes(conteudo)
+                            imagens.append({"path": str(destino), "name": nome_seguro_emoji(nome_arquivo), "size": len(conteudo)})
+                else:
+                    if len(imagens) >= EMOJI_ZIP_MAX_IMAGES:
+                        raise ValueError("O limite é de 500 imagens por envio.")
+                    if len(dados) > EMOJI_ZIP_MAX_IMAGE:
+                        raise ValueError(f"{nome_original} ultrapassa 20 MB.")
+                    destino = pasta_imagens / f"{len(imagens) + 1:04d}_{nome_original}"
+                    destino.write_bytes(dados)
+                    imagens.append({"path": str(destino), "name": nome_seguro_emoji(nome_original), "size": len(dados)})
+
+            if not imagens:
+                raise ValueError("Envie um ZIP com imagens ou imagens soltas PNG, JPG, WEBP ou GIF.")
+
+            existentes = {emoji.name.casefold() for emoji in guild.emojis}
+            adicionados, ignorados, falhas = [], [], []
+            for registro in imagens:
+                nome = registro["name"]
+                if nome.casefold() in existentes:
+                    ignorados.append(f":{nome}:")
+                    continue
+                try:
+                    conteudo = await asyncio.to_thread(Path(registro["path"]).read_bytes)
+                    emoji = await guild.create_custom_emoji(
+                        name=nome,
+                        image=conteudo,
+                        reason=f"Importação por formulário do Discord pelo administrador {interaction.user.id}"
+                    )
+                    adicionados.append(f"{emoji} :{nome}:")
+                    existentes.add(nome.casefold())
+                except discord.Forbidden:
+                    falhas.append(f"{nome}: sem permissão ou limite de emojis do servidor")
+                    break
+                except discord.HTTPException as exc:
+                    falhas.append(f"{nome}: Discord HTTP {exc.status} — {str(exc)[:80]}")
+                except Exception as exc:
+                    log.exception("Falha ao importar emoji do formulário: %s", nome)
+                    falhas.append(f"{nome}: {type(exc).__name__}")
+
+            resumo = (
+                "## Importação de emojis concluída\n"
+                f"Imagens no envio: {len(imagens)}\n"
+                f"Adicionados: {len(adicionados)} • Já existentes: {len(ignorados)} • Falhas: {len(falhas)}\n"
+                f"Arquivos salvos em: {pasta_lote}"
+            )
+            detalhes = []
+            if adicionados:
+                detalhes.append("Adicionados: " + ", ".join(adicionados[:20]))
+            if ignorados:
+                detalhes.append("Já existiam: " + ", ".join(ignorados[:10]))
+            if falhas:
+                detalhes.append("Falhas: " + "\n".join(falhas[:10]))
+            await interaction.followup.send(
+                resumo + ("\n\n" + "\n".join(detalhes) if detalhes else ""),
+                ephemeral=True
+            )
+        except (zipfile.BadZipFile, OSError, ValueError) as exc:
+            log.warning("Upload de emojis inválido: %s", exc)
+            await interaction.followup.send(f"Não consegui processar os arquivos: {str(exc)[:350]}", ephemeral=True)
+        except Exception as exc:
+            log.exception("Falha no formulário de importação de emojis")
+            await interaction.followup.send(f"Falha ao importar ({type(exc).__name__}).", ephemeral=True)
 
 
 async def adicionar_emojis(interaction: discord.Interaction):
@@ -3727,131 +3868,13 @@ async def adicionar_emojis(interaction: discord.Interaction):
             "Apenas o administrador pode importar emojis.", ephemeral=True
         )
         return
-    if interaction.guild is None or interaction.channel is None:
-        await interaction.response.send_message(
-            "Abra esta função dentro de um canal do servidor.", ephemeral=True
-        )
+    if interaction.guild is None:
+        await interaction.response.send_message("Use esta função dentro do servidor.", ephemeral=True)
         return
-    membro = interaction.guild.me
-    if membro is None or not membro.guild_permissions.manage_emojis_and_stickers:
-        await interaction.response.send_message(
-            "❌ O bot precisa da permissão **Gerenciar Expressões** neste servidor.",
-            ephemeral=True
-        )
-        return
-
-    EMOJI_ZIP_SESSIONS[interaction.user.id] = {
-        "guild_id": interaction.guild.id,
-        "channel_id": interaction.channel.id,
-        "expires_at": asyncio.get_running_loop().time() + 300,
-    }
-    await interaction.response.send_message(
-        "📦 **Envie o ZIP de emojis aqui neste canal.**\n"
-        "Aceito PNG, JPG, WEBP e GIF dentro do arquivo ZIP, inclusive em subpastas.\n"
-        "Você tem **5 minutos**. O bot vai importar direto pelo Discord — sem pasta Download/EMOJIS.",
-        ephemeral=True
-    )
+    await interaction.response.send_modal(EmojiUploadModal())
 
 
-@bot.listen("on_message")
-async def receber_zip_emojis(message: discord.Message):
-    """Importa emojis de um ZIP enviado pelo administrador no canal escolhido."""
-    if message.author.bot or message.author.id != ADMIN_ID or message.guild is None:
-        return
-    sessao = EMOJI_ZIP_SESSIONS.get(message.author.id)
-    if not sessao:
-        return
-    if asyncio.get_running_loop().time() > sessao["expires_at"]:
-        EMOJI_ZIP_SESSIONS.pop(message.author.id, None)
-        return
-    if message.guild.id != sessao["guild_id"] or message.channel.id != sessao["channel_id"]:
-        return
-    anexos_zip = [
-        a for a in message.attachments
-        if Path(a.filename).suffix.lower() == ".zip"
-    ]
-    if not anexos_zip:
-        return
-
-    EMOJI_ZIP_SESSIONS.pop(message.author.id, None)
-    anexo = anexos_zip[0]
-    if anexo.size > EMOJI_ZIP_MAX_BYTES:
-        await message.reply("❌ O ZIP ultrapassa o limite de 100 MB.", mention_author=False)
-        return
-
-    try:
-        dados_zip = await anexo.read(use_cached=True)
-        if not dados_zip or len(dados_zip) > EMOJI_ZIP_MAX_BYTES:
-            raise ValueError("ZIP vazio ou maior que 100 MB.")
-        with zipfile.ZipFile(io.BytesIO(dados_zip), "r") as arquivo_zip:
-            imagens = [
-                item for item in arquivo_zip.infolist()
-                if not item.is_dir()
-                and Path(item.filename.replace("\\", "/")).suffix.lower() in EMOJI_EXTENSIONS
-            ]
-            if not imagens:
-                await message.reply(
-                    "❌ Não encontrei imagens PNG, JPG, WEBP ou GIF dentro desse ZIP.",
-                    mention_author=False
-                )
-                return
-            if len(imagens) > EMOJI_ZIP_MAX_IMAGES:
-                await message.reply(
-                    f"❌ O ZIP tem {len(imagens)} imagens. O limite é {EMOJI_ZIP_MAX_IMAGES}.",
-                    mention_author=False
-                )
-                return
-            tamanho_total = sum(item.file_size for item in imagens)
-            if tamanho_total > EMOJI_ZIP_MAX_UNPACKED:
-                await message.reply("❌ As imagens descompactadas ultrapassam 100 MB no total.", mention_author=False)
-                return
-            grandes = [
-                item.filename for item in imagens
-                if item.file_size > EMOJI_ZIP_MAX_IMAGE
-            ]
-            if grandes:
-                await message.reply(
-                    f"❌ Há imagem(ns) maior(es) que 20 MB: `{Path(grandes[0]).name}`.",
-                    mention_author=False
-                )
-                return
-
-            guild = message.guild
-            membro = guild.me
-            if membro is None or not membro.guild_permissions.manage_emojis_and_stickers:
-                await message.reply("❌ O bot precisa da permissão **Gerenciar Expressões**.", mention_author=False)
-                return
-
-            existentes = {emoji.name.casefold() for emoji in guild.emojis}
-            adicionados, ignorados, falhas = [], [], []
-            for item in imagens:
-                nome_arquivo = item.filename.replace("\\", "/").rsplit("/", 1)[-1]
-                nome = Path(nome_arquivo).stem.casefold().replace("-", "_").replace(" ", "_")
-                nome = re.sub(
-                    r"[^a-z0-9_]",
-                    "_",
-                    unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode("ascii")
-                )
-                nome = re.sub(r"_+", "_", nome).strip("_")
-                nome = (nome if len(nome) >= 2 else f"em_{nome or 'emoji'}")[:32]
-                if nome.casefold() in existentes:
-                    ignorados.append(f"`:{nome}:`")
-                    continue
-                try:
-                    conteudo = arquivo_zip.read(item)
-                    if not conteudo:
-                        raise ValueError("arquivo vazio")
-                    emoji = await guild.create_custom_emoji(
-                        name=nome,
-                        image=conteudo,
-                        reason=f"Importação por ZIP no Discord pelo administrador {message.author.id}"
-                    )
-                    adicionados.append(f"{emoji} `:{nome}:`")
-                    existentes.add(nome.casefold())
-                except discord.Forbidden:
-                    falhas.append(f"`{nome}`: sem permissão ou limite de emojis do servidor")
-                    break
-                except discord.HTTPException as exc:
+xcept discord.HTTPException as exc:
                     falhas.append(f"`{nome}`: Discord HTTP {exc.status} — {str(exc)[:80]}")
                 except (OSError, ValueError, RuntimeError) as exc:
                     falhas.append(f"`{nome}`: {type(exc).__name__} — {str(exc)[:60]}")
