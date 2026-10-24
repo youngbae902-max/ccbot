@@ -5438,6 +5438,22 @@ async def on_ready():
         except Exception:
             log.exception("Falha ao configurar cargos na inicialização.")
 
+        # Aplica a organização do servidor uma vez por processo, depois de garantir os cargos e painéis base.
+        if not getattr(bot, "_server_hierarchy_applied_this_process", False):
+            try:
+                servidor_estrutura = bot.get_guild(1561513043886743562)
+                if servidor_estrutura is not None:
+                    resultado_estrutura = await aplicar_organizacao_automatica(servidor_estrutura)
+                    categorias_renomeadas = await renomear_categorias_solicitadas(servidor_estrutura)
+                    cargos_reordenados = await ordenar_cargos_principais(servidor_estrutura)
+                    bot._server_hierarchy_applied_this_process = True
+                    log.info(
+                        "Organização do servidor executada na inicialização: sucesso=%s, categorias_renomeadas=%s, cargos_reordenados=%s",
+                        resultado_estrutura, categorias_renomeadas, cargos_reordenados
+                    )
+            except Exception:
+                log.exception("Falha ao aplicar a organização do servidor na inicialização.")
+
         # Repara mensagens existentes antes das tarefas secundárias de inicialização.
         if not getattr(bot, "_panels_restored_this_process", False):
             await restaurar_paineis_existentes()
