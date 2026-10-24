@@ -4976,7 +4976,7 @@ async def aplicar_organizacao_automatica(guild: discord.Guild):
         canais = await guild.fetch_channels()
 
         # Substitui o prefixo antigo dos canais pelo novo, preservando o restante do nome.
-        prefixo_antigo = re.compile(r"^\\s*▢𝂽﹒\\s*")
+        prefixo_antigo = re.compile(r"^\s*▢𝂽﹒\s*")
         renomeados_prefixo = 0
         for canal in canais:
             nome_atual = getattr(canal, "name", "")
