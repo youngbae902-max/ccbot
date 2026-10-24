@@ -305,7 +305,7 @@ class ConfirmarPublicacaoBeatView(discord.ui.View):
         embed = discord.Embed(
             title=f"🎧 {self.nome}",
             description=self.descricao or "Sem descrição.",
-            color=PAINEL_ADMIN_COLOR
+            color=discord.Color.green()
         )
         embed.add_field(name="Estilo", value=self.estilo or "Não informado", inline=True)
         embed.add_field(name="Valor", value=self.preco, inline=True)
@@ -1512,7 +1512,7 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
             "Escaneie o QR Code ou copie o código Pix enviado. Após pagar, aguarde a conferência manual.\n"
             "O pagamento não libera o produto automaticamente."
         ),
-        color=PAINEL_ADMIN_COLOR, timestamp=discord.utils.utcnow()
+        color=discord.Color.orange(), timestamp=discord.utils.utcnow()
     )
     embed.set_image(url="attachment://pix_cc.png")
     if detalhes:
@@ -2616,7 +2616,7 @@ async def enviar_lote_imagens(destino, imagens, nome, descricao=None, primeira=F
         embed = discord.Embed(
             title=f"🖼️ Icon - {nome}",
             description=descricao if inicio == 0 else None,
-            color=PAINEL_ADMIN_COLOR
+            color=discord.Color.from_rgb(0, 0, 0)
         )
         embed.set_footer(text="CC BOT • Icons")
         if primeira and inicio == 0 and lote:
