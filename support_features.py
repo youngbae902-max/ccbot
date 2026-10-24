@@ -107,13 +107,13 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
             description=(
                 "**Uma comunidade criativa, segura e transparente.**\n-# LEIA ANTES DE PARTICIPAR OU COMPRAR\n\n"
                 "**01 · Respeito**\nRacismo, preconceito, assédio, ameaças e discriminação não serão tolerados. Racismo e preconceito geram **banimento permanente**.\n\n"
-                "**02 · Conteúdo proibido**\nÉ proibido divulgar bets/apostas, pornografia, conteúdo sexual explícito/adulto, golpes, links maliciosos ou conteúdo ilegal.\n\n"
+                "**02 · Conteúdo proibido**\nÉ proibido divulgar bets/apostas, pornografia, conteúdo sexual explícito/adulto, golpes, links maliciosos ou conteúdo ilegal. A divulgação de conteúdo adulto, racista ou preconceituoso pode resultar em **banimento permanente**.\n\n"
                 "**03 · Divulgação**\nO canal de divulgações é exclusivo para **beats**. Não divulgue lojas, grupos, servidores, serviços ou produtos fora dos espaços autorizados. Spam pode ser removido.\n\n"
                 "**04 · Compras**\nAntes de pagar, leia **como funcionam as vendas**, confira produto, preço e condições. O pagamento é conferido manualmente; comprovante não significa aprovação automática. Não abra pedidos duplicados.\n\n"
-                "**05 · Golpes**\nTentativa de golpe, fraude, comprovante falso ou tentativa de enganar clientes/equipe pode resultar em **banimento imediato**. Nunca compartilhe senhas ou dados bancários completos.\n\n"
+                "**05 · Golpes**\nTentativa de golpe, fraude, comprovante falso ou tentativa de enganar clientes/equipe gera **banimento imediato**. Nunca compartilhe senhas ou dados bancários completos.\n\n"
                 "**06 · Suporte**\nSe houver problema com compra, entrega ou acesso, abra um ticket no **Suporte Dedicado**. A equipe busca responder em até **24 horas** e também oferece contato por WhatsApp.\n\n"
                 "**07 · Materiais**\nRespeite as condições de cada produto e material gratuito. Não revenda ou redistribua conteúdo contrariando as condições informadas.\n\n"
-                "**08 · Moderação**\nAs regras valem para todos, inclusive clientes. A equipe pode remover conteúdo e aplicar advertência, restrição ou banimento conforme a gravidade.\n\n"
+                "**08 · Moderação**\nAs regras valem para todos, inclusive clientes. Cada compra ajuda a manter o projeto ativo, mas não dá privilégios nem muda as regras. A equipe pode remover conteúdo e aplicar advertência, restrição ou banimento conforme a gravidade.\n\n"
                 "**09 · Segurança nas vendas**\nMantenha a conversa no canal privado do pedido. Se algo parecer estranho, pare e fale com o suporte antes de continuar.\n\n"
                 "*Ao permanecer no servidor, você concorda em seguir estas regras.*"
             ),
