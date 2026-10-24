@@ -1,6 +1,8 @@
 import re
 import discord
 
+SUPPORT_INSTAGRAM_URL = ""
+
 def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
     class TicketCloseView(discord.ui.View):
         def __init__(self):
@@ -68,6 +70,8 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
             description=f"**Precisou de ajuda? Vamos resolver com você.**\n-# ATENDIMENTO HUMANO • C.C ©\n\nAbra um ticket privado para falar com a administração. Respondemos em até **24 horas**. O atendimento é feito por pessoas, não por respostas automáticas.\n\n**📲 CONTATO DIRETO**\nWhatsApp: [falar com o C.C ©](https://wa.me/{whatsapp_number})",
             color=discord.Color.from_rgb(18, 18, 22)
         )
+        if SUPPORT_INSTAGRAM_URL:
+            em.add_field(name="📸 INSTAGRAM", value=f"[Acessar perfil oficial]({SUPPORT_INSTAGRAM_URL})", inline=False)
         em.add_field(name="✦ COMO FUNCIONA", value="Toque em **Chamar ADM**, descreva seu problema e aguarde no ticket. Você e a administração terão acesso ao canal.", inline=False)
         em.set_footer(text="C.C © • Suporte privado")
         return em
@@ -79,7 +83,7 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
             return
         msg = None
         async for m in ch.history(limit=50):
-            if m.author.id == bot.user.id and m.embeds and "suporte dedicado" in (m.embeds[0].title or "").casefold():
+            if m.author.id == bot.user.id and m.embeds and "suporte" in (m.embeds[0].title or "").casefold():
                 msg = m
                 break
         if msg:
@@ -142,7 +146,7 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
         )
         old = None
         async for msg in ch.history(limit=50):
-            if msg.author.id == bot.user.id and "DIVULGAÇÕES DE BEATS" in (msg.content or "").upper():
+            if msg.author.id == bot.user.id and ("DIVULG" in (msg.content or "").upper() or (msg.embeds and "divulg" in (msg.embeds[0].title or "").casefold())):
                 old = msg
                 break
         if old:
