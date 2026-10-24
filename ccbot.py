@@ -3442,11 +3442,6 @@ PAINEL_GRUPOS = {
         "descricao": "Tudo que publica conteúdo no servidor, incluindo o gerenciamento dos DJs usados nos painéis.",
         "categorias": ["publicar", "djs"],
     },
-    "comunidade": {
-        "titulo": "Comunidade",
-        "descricao": "Funções voltadas diretamente aos membros e à organização da comunidade.",
-        "categorias": [],
-    },
     "bot": {
         "titulo": "Central do bot",
         "descricao": "Reúna mensagens enviadas pelo bot, avisos operacionais e verificação de funcionamento.",
@@ -3493,7 +3488,6 @@ class PainelGrupoSelect(discord.ui.Select):
             custom_id="ccbot:painel_grupo",
             options=[
                 discord.SelectOption(label="Painéis e produtos", description="Publicações, produtos e DJs", emoji="📋", value="mercado"),
-                discord.SelectOption(label="Comunidade", description="Funções diretamente ligadas aos membros", emoji="👥", value="comunidade"),
                 discord.SelectOption(label="Central do bot", description="Boas-vindas, avisos e funcionamento", emoji="🤖", value="bot"),
                 discord.SelectOption(label="Ícones e limpeza", description="Adicionar ícones e limpar mensagens", emoji="🖼️", value="icones"),
                 discord.SelectOption(label="Ferramentas", description="Emojis, backups e canal de avisos técnicos", emoji="🧰", value="ferramentas"),
