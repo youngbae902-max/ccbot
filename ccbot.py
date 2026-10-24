@@ -2873,7 +2873,7 @@ async def receber_zip_de_icones(message: discord.Message):
     if message.author.bot or message.guild is None or not message.attachments:
         return
     sessao = ICON_UPLOAD_SESSIONS.get(message.author.id, {})
-    if not is_admin(message.author) or message.channel.id != sessao.get("channel_id"):
+    if message.author.id != ADMIN_ID or message.channel.id != sessao.get("channel_id"):
         return
     anexo = next((a for a in message.attachments if Path(a.filename).suffix.lower() == ".zip"), None)
     if anexo is None:
