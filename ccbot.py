@@ -4555,8 +4555,14 @@ async def atualizar_painel_trampar(interaction: discord.Interaction):
             mensagem = await canal.send(view=TramparConoscoView())
             acao = "publicado"
         else:
-            # Componentes V2 não podem coexistir com embeds/conteúdo tradicionais.
-            await mensagem.edit(content=None, embed=None, view=TramparConoscoView())
+            # Ao converter uma mensagem antiga para Components V2, limpe explicitamente
+            # conteúdo, todos os embeds e anexos conforme exigido pela API do Discord.
+            await mensagem.edit(
+                content=None,
+                embeds=[],
+                attachments=[],
+                view=TramparConoscoView()
+            )
             acao = "atualizado"
 
         registros["Trampar Conosco"] = {"message_id": mensagem.id}
@@ -4569,11 +4575,19 @@ async def atualizar_painel_trampar(interaction: discord.Interaction):
         log.info("Painel Trampar Conosco %s pelo /painel (%s), mensagem %s", acao, interaction.user.id, mensagem.id)
     except Exception as exc:
         log.exception("Falha ao atualizar o painel Trampar Conosco pelo /painel")
-        await interaction.edit_original_response(
-            content=f"❌ Não consegui atualizar o painel ({type(exc).__name__}). Confira os logs do bot.",
-            embed=None,
-            view=None
-        )
+        detalhe = ""
+        if isinstance(exc, discord.HTTPException):
+            detalhe = f" (HTTP {exc.status}, código {exc.code})"
+            if getattr(exc, "text", None):
+                log.error("Resposta HTTP do Discord ao atualizar painel: %s", exc.text[:1000])
+        try:
+            await interaction.edit_original_response(
+                content=f"❌ Não consegui atualizar o painel ({type(exc).__name__}{detalhe}). Confira os logs do bot.",
+                embeds=[],
+                view=None
+            )
+        except discord.HTTPException:
+            log.exception("Também falhou ao enviar o diagnóstico da atualização do painel")
 
 
 async def publicar_paineis_comunidade():
