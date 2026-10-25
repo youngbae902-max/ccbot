@@ -76,6 +76,7 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertIn('if not settings.get("beats_buttons_migrated", False):', startup)
         self.assertNotIn("fetch_channel(SAMPLES_PANEL_CHANNEL_ID)", startup)
         self.assertNotIn("fetch_channel(PACK_PANEL_CHANNEL_ID)", startup)
+        self.assertNotIn("bot.tree.clear_commands(guild=None)", startup)
 
 
 if __name__ == "__main__":
