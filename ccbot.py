@@ -6636,6 +6636,7 @@ async def atualizar_paineis(interaction: discord.Interaction):
     falhas = 0
     vistos = set()
     comprovante_panel_atualizado = False
+    status_comprovante = "ℹ️ Painel informativo de comprovante não encontrado; nenhuma mensagem nova foi criada."
     status_pack = "❌ Não foi possível restaurar o painel."
 
     # Edita a mensagem original e informa o erro real; não cria cópia.
@@ -6752,6 +6753,7 @@ async def atualizar_paineis(interaction: discord.Interaction):
                             view=nova_view
                         )
                         comprovante_panel_atualizado = True
+                        status_comprovante = "✅ Painel de Comprovante restaurado na mensagem existente."
                     else:
                         await mensagem.edit(view=nova_view)
                     vistos.add(mensagem.id)
@@ -6772,7 +6774,8 @@ async def atualizar_paineis(interaction: discord.Interaction):
             f"Painéis atualizados: **{atualizados}**\n"
             f"Mensagens ignoradas: **{ignorados}**\n"
             f"Falhas ou canais sem acesso: **{falhas}**\n\n"
-            f"{status_pack}\n\n"
+            f"{status_pack}\n"
+            f"{status_comprovante}\n\n"
             "Nenhuma mensagem nova foi criada. "
             "A busca verificou até 200 mensagens recentes por canal. "
             "Se algum painel ficou de fora, ainda não existe um modelo automático seguro para ele."
