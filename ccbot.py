@@ -4387,50 +4387,52 @@ class SelecionarAreaTrabalhoView(discord.ui.View):
 class AbrirAreasTrabalhoButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
-            label="Quero trampar conosco",
-            emoji="💼",
+            label="Demonstrar interesse",
             style=discord.ButtonStyle.primary,
             custom_id="ccbot:trabalhar:abrir"
         )
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_message(
-            "Qual área você domina ou gostaria de oferecer?",
+            "Qual especialidade você gostaria de apresentar?",
             view=SelecionarAreaTrabalhoView(),
             ephemeral=True
         )
 
 class TramparConoscoView(discord.ui.LayoutView):
-    """Painel Components V2 com os textos adaptados ao estilo do template DWEEB."""
+    """Central de oportunidades com identidade textual própria, sem emojis."""
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(
             discord.ui.Container(
                 discord.ui.TextDisplay(
                     content=(
-                        "# <:tag:1561787923865665667> TRAMPAR CONOSCO\n"
-                        "Encontre seu espaço no C.C ©. **Conheça as áreas, mostre seu talento e transforme suas ideias em projetos.**"
+                        "# CENTRAL DE OPORTUNIDADES\n"
+                        "## Transforme habilidade em projeto.\n"
+                        "Um espaço para pessoas que querem contribuir, desenvolver ideias e apresentar o próprio trabalho à comunidade."
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+                discord.ui.TextDisplay(
+                    content=(
+                        "### ESPECIALIDADES\n"
+                        "**Desenvolvimento**\n"
+                        "Bots para Discord, ferramentas em Python, automações e soluções com ou sem inteligência artificial.\n\n"
+                        "**Direção visual**\n"
+                        "Banners, artes para comunidades, identidade visual e materiais de divulgação.\n\n"
+                        "**Comunidade e suporte**\n"
+                        "Organização de canais, atendimento, moderação e estruturação de servidores.\n\n"
+                        "**Produção audiovisual**\n"
+                        "Edição de vídeos. Esta área poderá ser aberta futuramente."
                     )
                 ),
                 discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
                 discord.ui.Section(
                     discord.ui.TextDisplay(
                         content=(
-                            "**🧩 Encontre sua área**\n"
-                            "De bots e automações a design e organização, escolha o que combina com você. "
-                            "Também estamos planejando abrir espaço para edição de vídeo."
-                        )
-                    ),
-                    accessory=discord.ui.Thumbnail(
-                        media="https://dweeb.faizo.net/media/defaults/dweeb-default-thumbnail.jpg"
-                    )
-                ),
-                discord.ui.Section(
-                    discord.ui.TextDisplay(
-                        content=(
-                            "**💼 Quer fazer parte?**\n"
-                            "Use o botão ao lado para indicar a área em que atua ou gostaria de contribuir. "
-                            "Sua resposta ajuda a conhecer seu interesse."
+                            "### COMO PARTICIPAR\n"
+                            "Selecione sua especialidade no botão ao lado e informe em que pode contribuir. "
+                            "Isso registra seu interesse, mas não representa aprovação automática."
                         )
                     ),
                     accessory=AbrirAreasTrabalhoButton()
@@ -4438,18 +4440,9 @@ class TramparConoscoView(discord.ui.LayoutView):
                 discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
                 discord.ui.TextDisplay(
                     content=(
-                        "**Áreas disponíveis**\n"
-                        "🤖 **Bots para Discord** — Python, automações e projetos com ou sem IA.\n"
-                        "🎨 **Design** — banners, artes e identidade visual.\n"
-                        "🛠️ **Organização / Staff** — canais, suporte e moderação.\n"
-                        "🎬 **Edição de vídeo** — planejada para o futuro."
-                    )
-                ),
-                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-                discord.ui.TextDisplay(
-                    content=(
-                        "-# ⏳ **Inscrições oficiais ainda fechadas:** indicar seu interesse não significa entrada imediata.\n"
-                        "-# C.C © • Oportunidades e projetos"
+                        "### STATUS DO PROGRAMA\n"
+                        "As inscrições oficiais estão fechadas no momento. As manifestações de interesse podem ser usadas para organizar futuras oportunidades.\n\n"
+                        "-# C.C ©  /  DESENVOLVIMENTO • CRIATIVIDADE • COMUNIDADE"
                     )
                 ),
                 accent_color=5793266
