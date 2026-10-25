@@ -1119,46 +1119,19 @@ class PackPersonalizadoView(discord.ui.LayoutView):
             discord.ui.TextDisplay(content=(
                 "## <:box:1561761831587160140> PACK PERSONALIZADO\n"
                 "### <:tag:1561787923865665667> R$ 50,00\n\n"
-                "Um pack pensado a partir da sua ideia, do seu estilo e da sonoridade que você quer alcançar. "
-                "Você informa os detalhes do projeto e escolhe os extras que fazem sentido para o resultado. "
-                "Assim, o pedido fica alinhado ao que você realmente procura, em vez de receber um pack genérico."
+                "Monte um pack com a sua identidade sonora. Escolha os adicionais e personalize o conteúdo."
             )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
             discord.ui.TextDisplay(content=(
-                "### 📝 COMO VAI FUNCIONAR\n\n"
-                "Ao começar, você vai informar o nome do pack, o estilo musical e explicar a sua ideia. "
-                "Pode descrever referências, tipos de sons e detalhes importantes para orientar a montagem. "
-                "Antes de enviar, você poderá revisar as informações e conferir o valor final."
+                "### ✦ ADICIONAIS\n"
+                "🗂️ **Organização** · + R$ 10\n"
+                "🎛️ **Samples personalizadas** · + R$ 10\n"
+                "🎚️ **Samples de outros packs** · + R$ 20"
             )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
             discord.ui.TextDisplay(content=(
-                "### 🗂️ ORGANIZAÇÃO — + R$ 10,00\n\n"
-                "Adicione a organização dos arquivos para deixar o conteúdo mais fácil de navegar e usar. "
-                "É uma opção útil para quem prefere receber os materiais separados de forma mais clara."
-            )),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-            discord.ui.TextDisplay(content=(
-                "### 🎛️ SAMPLES PERSONALIZADAS — + R$ 10,00\n\n"
-                "Inclua samples personalizadas, pensadas para combinar melhor com a proposta e a identidade "
-                "do pack que você descreveu no pedido."
-            )),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-            discord.ui.TextDisplay(content=(
-                "### 🎚️ SAMPLES DE OUTROS PACKS — + R$ 20,00\n\n"
-                "Se quiser ampliar o conteúdo, você pode adicionar samples provenientes de outros packs. "
-                "Esse extra é opcional e pode ser escolhido junto dos demais."
-            )),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-            discord.ui.TextDisplay(content=(
-                "### 💰 VALOR DO PEDIDO\n\n"
-                "O pack começa em **R$ 50,00**. Os adicionais são opcionais e o bot soma os valores "
-                "selecionados antes de você confirmar o pedido. Você não precisa escolher nenhum extra "
-                "para continuar."
-            )),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-            discord.ui.TextDisplay(content=(
-                "**Quando estiver pronto, comece seu pedido pelo botão abaixo.** "
-                "Você poderá preencher os detalhes e escolher os adicionais antes de confirmar."
+                "Informe o nome, o estilo e a ideia do pack.\n"
+                "### Total ajustado pelos extras escolhidos."
             )),
             discord.ui.ActionRow(basico)
         ))
