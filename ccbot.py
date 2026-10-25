@@ -6597,18 +6597,24 @@ async def atualizar_paineis(interaction: discord.Interaction):
     ignorados = 0
     falhas = 0
     vistos = set()
+    status_pack = "❌ Não foi possível restaurar o painel."
 
-    # Tenta restaurar diretamente o painel conhecido, sem depender da varredura
-    # de histórico nem da identificação dos componentes antigos.
+    # Edita a mensagem original e informa o erro real; não cria cópia.
     try:
         canal_pack = bot.get_channel(PACK_PANEL_CHANNEL_ID) or await bot.fetch_channel(PACK_PANEL_CHANNEL_ID)
+        if not isinstance(canal_pack, (discord.TextChannel, discord.Thread)):
+            raise TypeError(f"O canal {PACK_PANEL_CHANNEL_ID} não é um canal de texto ou thread.")
         mensagem_pack = await canal_pack.fetch_message(PACK_PANEL_MESSAGE_ID)
+        if not bot.user or mensagem_pack.author.id != bot.user.id:
+            raise PermissionError("A mensagem indicada não foi enviada pelo CC BOT.")
         await mensagem_pack.edit(content=None, embeds=[], attachments=[], view=PackPersonalizadoView())
         vistos.add(mensagem_pack.id)
         atualizados += 1
+        status_pack = "✅ Pack Personalizado restaurado na mensagem original."
         log.info("Pack Personalizado restaurado diretamente: canal=%s mensagem=%s", canal_pack.id, mensagem_pack.id)
     except Exception as exc:
         falhas += 1
+        status_pack = f"❌ Pack Personalizado: {type(exc).__name__}: {str(exc)[:250]}"
         log.exception("Falha na restauração direta do Pack Personalizado (canal=%s mensagem=%s)", PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID)
 
     def texto_mensagem(msg):
@@ -6711,7 +6717,8 @@ async def atualizar_paineis(interaction: discord.Interaction):
             f"Painéis atualizados: **{atualizados}**\n"
             f"Mensagens ignoradas: **{ignorados}**\n"
             f"Falhas ou canais sem acesso: **{falhas}**\n\n"
-            "A tentativa direta no Pack Personalizado também foi registrada nos logs. Não criei mensagens novas. "
+            f"{status_pack}\\n\\n"
+            "Nenhuma mensagem nova foi criada. "
             "A busca verificou até 200 mensagens recentes por canal. "
             "Se algum painel ficou de fora, ainda não existe um modelo automático seguro para ele."
         )
