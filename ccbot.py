@@ -4450,39 +4450,57 @@ class TramparConoscoView(discord.ui.LayoutView):
             )
         )
 
-class ParceriasView(discord.ui.View):
+class ParceriasView(discord.ui.LayoutView):
+    """Painel de parcerias em Components V2, inspirado nos templates DWEEB."""
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(discord.ui.Button(
-            label="Quero fechar uma parceria",
+        botao_parceria = discord.ui.Button(
+            label="Conversar sobre parceria",
             style=discord.ButtonStyle.link,
             url=link_whatsapp(
                 "Olá! Quero fechar uma parceria com o servidor C.C ©. "
                 "Já tenho os requisitos mínimos e gostaria de conversar."
             ),
             emoji="🤝"
-        ))
+        )
+        self.add_item(
+            discord.ui.Container(
+                discord.ui.TextDisplay(
+                    content=(
+                        "# 🤝 PARCERIAS\n"
+                        "## Conecte seu projeto ao C.C ©\n"
+                        "Divulgue seu grupo, projeto ou negócio e construa uma parceria com a nossa comunidade."
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+                discord.ui.TextDisplay(
+                    content=(
+                        "### REQUISITOS\n"
+                        "**Grupo de WhatsApp**\n"
+                        "Sua comunidade precisa ter, no mínimo, **30 membros**.\n\n"
+                        "**Acesso administrativo**\n"
+                        "O responsável pelo C.C © precisa ser adicionado como administrador do grupo."
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+                discord.ui.Section(
+                    discord.ui.TextDisplay(
+                        content=(
+                            "### COMO FUNCIONA\n"
+                            "Com o acesso necessário, organizamos as divulgações e alinhamos os detalhes diretamente. "
+                            "O parceiro também poderá receber uma área própria no servidor para divulgar produtos, serviços e projetos."
+                        )
+                    ),
+                    accessory=botao_parceria
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+                discord.ui.TextDisplay(
+                    content="-# C.C ©  /  PARCERIAS • DIVULGAÇÃO • COMUNIDADE"
+                ),
+                accent_color=5793266
+            )
+        )
 
-def criar_embed_parcerias() -> discord.Embed:
-    embed = discord.Embed(
-        title="🤝 Quer fechar uma parceria com o nosso servidor?",
-        description=(
-            "Quer divulgar seu grupo, projeto ou negócio junto com o C.C ©? "
-            "Confira os requisitos antes de entrar em contato.\n\n"
-            "**📋 REQUISITOS MÍNIMOS**\n"
-            "• Ter um grupo de WhatsApp com, no mínimo, **30 membros**.\n"
-            "• Adicionar o responsável pelo C.C © como **administrador do grupo**.\n\n"
-            "**🔄 COMO FUNCIONA?**\n"
-            "Com a permissão de administrador, o responsável poderá enviar as divulgações "
-            "necessárias e organizar a parceria.\n\n"
-            "O parceiro também poderá ter uma área específica no servidor C.C © para divulgar "
-            "seus produtos, serviços e projetos.\n\n"
-            "Os detalhes de cada parceria serão combinados diretamente."
-        ),
-        color=discord.Color.from_rgb(0, 0, 0)
-    )
-    embed.set_footer(text="C.C © • Parcerias")
-    return embed
 
 def criar_embed_trampar_conosco() -> discord.Embed:
     embed = discord.Embed(
@@ -4593,7 +4611,7 @@ async def atualizar_painel_trampar(interaction: discord.Interaction):
 async def publicar_paineis_comunidade():
     """Atualiza painéis existentes; procura a mensagem antiga antes de criar outra."""
     paineis = [
-        ("Parcerias", PARTNERSHIPS_CHANNEL_ID, criar_embed_parcerias, ParceriasView),
+        ("Parcerias", PARTNERSHIPS_CHANNEL_ID, None, ParceriasView),
         ("Trampar Conosco", WORK_WITH_US_CHANNEL_ID, criar_embed_trampar_conosco, TramparConoscoView),
     ]
     registros = settings.setdefault("community_panels", {})
@@ -4637,7 +4655,14 @@ async def publicar_paineis_comunidade():
                     mensagem = await canal.send(view=TramparConoscoView())
                     log.info("Painel %s publicado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
                 else:
-                    await mensagem.edit(content=None, embed=None, view=TramparConoscoView())
+                    await mensagem.edit(content=None, embeds=[], view=TramparConoscoView())
+                    log.info("Painel %s existente atualizado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
+            elif nome == "Parcerias":
+                if mensagem is None:
+                    mensagem = await canal.send(view=ParceriasView())
+                    log.info("Painel %s publicado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
+                else:
+                    await mensagem.edit(content=None, embeds=[], view=ParceriasView())
                     log.info("Painel %s existente atualizado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
             elif mensagem is None:
                 mensagem = await canal.send(embed=criar_embed(), view=criar_view())
