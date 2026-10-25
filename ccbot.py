@@ -6332,11 +6332,7 @@ async def financiamentos(interaction: discord.Interaction):
 
     view = discord.ui.LayoutView(timeout=None)
     view.add_item(discord.ui.Container(
-        discord.ui.TextDisplay(content=(
-            "# 🎯 FINANCIAMENTOS\n"
-            "**Toda contribuição faz a diferença**"
-        )),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content="# 🎯 FINANCIAMENTOS"),
         discord.ui.TextDisplay(content="Ajude nossa comunidade a se manter ativa."),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
         discord.ui.TextDisplay(content=(
