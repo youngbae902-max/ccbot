@@ -4388,6 +4388,7 @@ class AbrirAreasTrabalhoButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
             label="Demonstrar interesse",
+            emoji="✦",
             style=discord.ButtonStyle.primary,
             custom_id="ccbot:trabalhar:abrir"
         )
@@ -4407,7 +4408,7 @@ class TramparConoscoView(discord.ui.LayoutView):
             discord.ui.Container(
                 discord.ui.TextDisplay(
                     content=(
-                        "# CENTRAL DE OPORTUNIDADES\n"
+                        "# ✦ CENTRAL DE OPORTUNIDADES\n"
                         "## Transforme habilidade em projeto.\n"
                         "Um espaço para pessoas que querem contribuir, desenvolver ideias e apresentar o próprio trabalho à comunidade."
                     )
@@ -4416,13 +4417,13 @@ class TramparConoscoView(discord.ui.LayoutView):
                 discord.ui.TextDisplay(
                     content=(
                         "### ESPECIALIDADES\n"
-                        "**Desenvolvimento**\n"
+                        "⚙️ **Desenvolvimento**\n"
                         "Bots para Discord, ferramentas em Python, automações e soluções com ou sem inteligência artificial.\n\n"
-                        "**Direção visual**\n"
+                        "🎨 **Direção visual**\n"
                         "Banners, artes para comunidades, identidade visual e materiais de divulgação.\n\n"
-                        "**Comunidade e suporte**\n"
+                        "🛡️ **Comunidade e suporte**\n"
                         "Organização de canais, atendimento, moderação e estruturação de servidores.\n\n"
-                        "**Produção audiovisual**\n"
+                        "🎬 **Produção audiovisual**\n"
                         "Edição de vídeos. Esta área poderá ser aberta futuramente."
                     )
                 ),
@@ -4430,7 +4431,7 @@ class TramparConoscoView(discord.ui.LayoutView):
                 discord.ui.Section(
                     discord.ui.TextDisplay(
                         content=(
-                            "### COMO PARTICIPAR\n"
+                            "### 📌 COMO PARTICIPAR\n"
                             "Selecione sua especialidade no botão ao lado e informe em que pode contribuir. "
                             "Isso registra seu interesse, mas não representa aprovação automática."
                         )
@@ -4440,7 +4441,7 @@ class TramparConoscoView(discord.ui.LayoutView):
                 discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
                 discord.ui.TextDisplay(
                     content=(
-                        "### STATUS DO PROGRAMA\n"
+                        "### ⏳ STATUS DO PROGRAMA\n"
                         "As inscrições oficiais estão fechadas no momento. As manifestações de interesse podem ser usadas para organizar futuras oportunidades.\n\n"
                         "-# C.C ©  /  DESENVOLVIMENTO • CRIATIVIDADE • COMUNIDADE"
                     )
