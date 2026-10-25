@@ -6500,6 +6500,9 @@ async def atualizar_paineis(interaction: discord.Interaction):
             async for mensagem in canal.history(limit=200):
                 if mensagem.id in vistos or not bot.user or mensagem.author.id != bot.user.id:
                     continue
+                # Só considera mensagens que já tenham componentes interativos; evita alterar pedidos e conversas.
+                if not mensagem.components:
+                    continue
                 tipo_detectado = detectar(texto_mensagem(mensagem))
                 if not tipo_detectado:
                     ignorados += 1
