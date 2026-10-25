@@ -6333,42 +6333,31 @@ async def financiamentos(interaction: discord.Interaction):
     view = discord.ui.LayoutView(timeout=None)
     view.add_item(discord.ui.Container(
         discord.ui.TextDisplay(content=(
-            "# 🤝 FINANCIAMENTO DA C.C.
-"
-            "**A comunidade continua de pé quando todo mundo fortalece.**
-"
+            "# 🤝 FINANCIAMENTO DA C.C.\n"
+            "**A comunidade continua de pé quando todo mundo fortalece.**\n"
             "-# APOIO VOLUNTÁRIO · TRANSPARÊNCIA · COMUNIDADE"
         )),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
         discord.ui.TextDisplay(content=(
             "Manter a C.C. ativa exige tempo, dedicação e recursos. Este espaço existe para quem "
             "quer ajudar o projeto a continuar funcionando, evoluindo e oferecendo oportunidades "
-            "para a comunidade.
-
-"
+            "para a comunidade.\n\n"
             "Sua contribuição ajuda a sustentar esse trabalho e a manter o projeto em movimento. "
             "**Qualquer valor é bem-vindo — contribua apenas se puder.**"
         )),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
         discord.ui.TextDisplay(content=(
-            "## 💜 COMO VOCÊ PODE AJUDAR
-
-"
-            "1. Abra o link oficial de contribuição pelo Nubank.
-"
-            "2. Escolha o valor que faz sentido para você.
-"
-            "3. Confirme os dados antes de concluir.
-
-"
+            "## 💜 COMO VOCÊ PODE AJUDAR\n\n"
+            "1. Abra o link oficial de contribuição pelo Nubank.\n"
+            "2. Escolha o valor que faz sentido para você.\n"
+            "3. Confirme os dados antes de concluir.\n\n"
             "O apoio é voluntário e não é uma compra. Não há obrigação de contribuir nem benefício "
             "garantido em troca. Participar, compartilhar e fortalecer a comunidade também faz diferença."
         )),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
         discord.ui.Section(
             discord.ui.TextDisplay(content=(
-                "**Quer ajudar a manter a C.C. ativa?**
-"
+                "**Quer ajudar a manter a C.C. ativa?**\n"
                 "Acesse o link e contribua se estiver ao seu alcance."
             )),
             accessory=discord.ui.Button(
