@@ -4525,25 +4525,44 @@ class ArrumadorPainelView(discord.ui.View):
         self.add_item(MandarArrumadorButton())
 
 def criar_embed_arrumador():
+    """Painel compacto em estilo ficha de serviço, com preço e fluxo bem separados."""
     embed = criar_embed_estetico(
-        title="🎛️﹒ARRUMADOR DE PROJETOS",
+        title="🧩  ARRUMADOR",
         description=(
-            "Seu projeto no **FL Studio Mobile**, organizado conforme suas necessidades.\n\n"
-            "## 💰﹒VALOR DO SERVIÇO\n"
-            "**R$ 33,99** · Pagamento via Pix com confirmação manual.\n\n"
-            "## 📋﹒COMO SOLICITAR\n"
-            "**01** · Toque em **MANDAR**.\n"
-            "**02** · Explique quais mudanças você quer no projeto.\n"
-            "**03** · Faça o Pix no pedido privado e envie o comprovante.\n\n"
-            "## 🔒﹒LIBERAÇÃO\n"
-            "O serviço será iniciado após a confirmação do pagamento pela administração."
+            "**FL STUDIO MOBILE  /  ORGANIZAÇÃO DE PROJETOS**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "Seu projeto, ajustado ao que você precisa. Explique o resultado que procura e envie os detalhes no pedido privado."
         ),
-        color=discord.Color.from_rgb(43, 45, 49)
+        color=discord.Color.from_rgb(185, 45, 55)
+    )
+    embed.add_field(
+        name="💳  INVESTIMENTO",
+        value="## R$ 33,99\nPix · confirmação manual",
+        inline=True
+    )
+    embed.add_field(
+        name="🛠️  ATENDIMENTO",
+        value="Personalizado\nConforme suas instruções",
+        inline=True
+    )
+    embed.add_field(
+        name="COMO FUNCIONA",
+        value=(
+            "**01**  Clique em **MANDAR** abaixo.\n"
+            "**02**  Descreva as alterações desejadas.\n"
+            "**03**  Pague via Pix no pedido privado e anexe o comprovante."
+        ),
+        inline=False
+    )
+    embed.add_field(
+        name="LIBERAÇÃO DO SERVIÇO",
+        value="O trabalho começa somente após a confirmação manual do pagamento.",
+        inline=False
     )
     embed.set_thumbnail(
         url="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
     )
-    embed.set_footer(text="C.C ©  •  Arrumador de Projetos")
+    embed.set_footer(text="C.C  /  SERVIÇOS DE PRODUÇÃO MUSICAL")
     return embed
 
 async def arrumador(interaction: discord.Interaction):
