@@ -6093,56 +6093,67 @@ async def criar_regras(interaction: discord.Interaction, canal: discord.TextChan
         )
         return
 
-    embed = criar_embed_estetico(
-        title="📜 REGRAS DA COMUNIDADE",
-        description=(
-            "**Uma comunidade criativa, segura e transparente.**\n"
-            "-# LEIA ANTES DE PARTICIPAR OU COMPRAR\n\n"
-            "**01 · Respeito**\n"
-            "Racismo, preconceito, assédio, ameaças e discriminação não serão tolerados. "
-            "Racismo e preconceito geram **banimento permanente**.\n\n"
-            "**02 · Conteúdo proibido**\n"
-            "É proibido divulgar bets/apostas, pornografia, conteúdo sexual explícito/adulto, "
-            "golpes, links maliciosos ou conteúdo ilegal. A divulgação de conteúdo adulto, "
-            "racista ou preconceituoso gera **banimento permanente**.\n\n"
-            "**03 · Divulgação**\n"
-            "O canal de divulgações é exclusivo para **beats**. Não divulgue lojas, grupos, "
-            "servidores, serviços ou produtos fora dos espaços autorizados. Spam pode ser removido.\n\n"
-            "**04 · Compras**\n"
-            "Antes de pagar, leia **como funcionam as vendas**, confira produto, preço e condições. "
-            "O pagamento é conferido manualmente; comprovante não significa aprovação automática. "
-            "Não abra pedidos duplicados.\n\n"
-            "**05 · Golpes**\n"
-            "Tentativa de golpe, fraude, comprovante falso ou tentativa de enganar clientes/equipe "
-            "gera **banimento imediato**. Nunca compartilhe senhas ou dados bancários completos.\n\n"
-            "**06 · Suporte**\n"
-            "Se houver problema com compra, entrega ou acesso, abra um ticket no **Suporte Dedicado**. "
-            "A equipe busca responder em até **24 horas** e também oferece contato por WhatsApp.\n\n"
-            "**07 · Materiais**\n"
-            "Respeite as condições de cada produto e material gratuito. Não revenda ou redistribua "
-            "conteúdo contrariando as condições informadas.\n\n"
-            "**08 · Moderação**\n"
-            "As regras valem para todos, inclusive clientes. Cada compra ajuda a manter o projeto ativo, "
-            "mas não dá privilégios nem muda as regras. A equipe pode remover conteúdo e aplicar "
-            "advertência, restrição ou banimento conforme a gravidade.\n\n"
-            "**09 · Segurança nas vendas**\n"
-            "Mantenha a conversa no canal privado do pedido. Se algo parecer estranho, pare e fale com "
-            "o suporte antes de continuar.\n\n"
-            "*Ao permanecer no servidor, você concorda em seguir estas regras.*"
-        ),
-        color=discord.Color.from_rgb(43, 45, 49)
+    # Estética baseada no template DWEEB discord-server-rules-template.json:
+    # título, divisor, regras em bloco, divisor e aviso final; usa Components V2.
+    regras = (
+        "**01 · Respeito**\\n"
+        "Racismo, preconceito, assédio, ameaças e discriminação não serão tolerados. "
+        "Racismo e preconceito geram **banimento permanente**.\\n\\n"
+        "**02 · Conteúdo proibido**\\n"
+        "É proibido divulgar bets/apostas, pornografia, conteúdo sexual explícito/adulto, "
+        "golpes, links maliciosos ou conteúdo ilegal. A divulgação de conteúdo adulto, "
+        "racista ou preconceituoso gera **banimento permanente**.\\n\\n"
+        "**03 · Divulgação**\\n"
+        "O canal de divulgações é exclusivo para **beats**. Não divulgue lojas, grupos, "
+        "servidores, serviços ou produtos fora dos espaços autorizados. Spam pode ser removido.\\n\\n"
+        "**04 · Compras**\\n"
+        "Antes de pagar, leia **como funcionam as vendas**, confira produto, preço e condições. "
+        "O pagamento é conferido manualmente; comprovante não significa aprovação automática. "
+        "Não abra pedidos duplicados.\\n\\n"
+        "**05 · Golpes**\\n"
+        "Tentativa de golpe, fraude, comprovante falso ou tentativa de enganar clientes/equipe "
+        "gera **banimento imediato**. Nunca compartilhe senhas ou dados bancários completos.\\n\\n"
+        "**06 · Suporte**\\n"
+        "Se houver problema com compra, entrega ou acesso, abra um ticket no **Suporte Dedicado**. "
+        "A equipe busca responder em até **24 horas** e também oferece contato por WhatsApp.\\n\\n"
+        "**07 · Materiais**\\n"
+        "Respeite as condições de cada produto e material gratuito. Não revenda ou redistribua "
+        "conteúdo contrariando as condições informadas.\\n\\n"
+        "**08 · Moderação**\\n"
+        "As regras valem para todos, inclusive clientes. Cada compra ajuda a manter o projeto ativo, "
+        "mas não dá privilégios nem muda as regras. A equipe pode remover conteúdo e aplicar "
+        "advertência, restrição ou banimento conforme a gravidade.\\n\\n"
+        "**09 · Segurança nas vendas**\\n"
+        "Mantenha a conversa no canal privado do pedido. Se algo parecer estranho, pare e fale com "
+        "o suporte antes de continuar."
     )
-    if interaction.guild and interaction.guild.icon:
-        embed.set_thumbnail(url=interaction.guild.icon.url)
-    embed.set_footer(text="C.C ©  •  REGRAS DA COMUNIDADE")
+    view = discord.ui.LayoutView(timeout=None)
+    view.add_item(discord.ui.Container(
+        discord.ui.TextDisplay(content=(
+            "# 📜 REGRAS DA COMUNIDADE\\n"
+            "**Uma comunidade criativa, segura e transparente.**\\n"
+            "-# LEIA ANTES DE PARTICIPAR OU COMPRAR"
+        )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=regras),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+        discord.ui.TextDisplay(content=(
+            "> Ao permanecer no servidor, você concorda em seguir estas regras.\\n"
+            "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
+        )),
+        accent_color=5793266
+    ))
+    view.add_item(discord.ui.TextDisplay(
+        content="-# C.C ©  •  COMUNIDADE E PRODUÇÃO MUSICAL"
+    ))
 
     try:
-        await canal.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        await canal.send(view=view, allowed_mentions=discord.AllowedMentions.none())
         await interaction.response.send_message(
             f"✅ Nova mensagem de regras publicada em {canal.mention}. "
             "A mensagem antiga não foi alterada.", ephemeral=True
         )
-        log.info("Nova mensagem de regras publicada manualmente: canal=%s por=%s", canal.id, interaction.user.id)
+        log.info("Nova mensagem de regras Components V2 publicada: canal=%s por=%s", canal.id, interaction.user.id)
     except discord.HTTPException as exc:
         log.exception("Falha ao publicar nova mensagem de regras")
         if not interaction.response.is_done():
