@@ -3490,7 +3490,7 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
 
     try:
         await mensagem_alvo.edit(
-            content=None if novos_embeds else mensagem_alvo.content,
+            content=mensagem_alvo.content if mensagem_alvo.embeds else None,
             embeds=novos_embeds,
             allowed_mentions=discord.AllowedMentions.none()
         )
