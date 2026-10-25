@@ -112,43 +112,114 @@ def _upload_report(token, request_id, report):
     _api_request("PUT", path, token, payload)
 
 async def _diagnostico(guild):
-    vazios, com_mensagens, sem_acesso = [], 0, []
-    total = len(guild.text_channels)
-    for canal in guild.text_channels:
-        try:
-            encontrou = False
-            async for _ in canal.history(limit=1, oldest_first=False):
-                encontrou = True
-                break
-            if encontrou:
-                com_mensagens += 1
-            else:
-                categoria = canal.category.name if canal.category else "Sem categoria"
-                vazios.append(f"- #{canal.name} — categoria: {categoria} — ID: {canal.id}")
-        except Exception as exc:
-            categoria = canal.category.name if canal.category else "Sem categoria"
-            sem_acesso.append(
-                f"- #{canal.name} — categoria: {categoria} — ID: {canal.id} — {type(exc).__name__}"
-            )
-            log.warning("Ponte GitHub: não foi possível ler o canal %s: %s", canal.id, type(exc).__name__)
+    """Inventário somente de leitura de categorias, canais, threads e mensagens."""
+    from discord import CategoryChannel, TextChannel, VoiceChannel, StageChannel, ForumChannel
 
-    return "\n".join([
-        f"# Diagnóstico do servidor — {guild.name}",
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    lines = [
+        f"# Inventário completo do servidor — {guild.name}",
         f"- Servidor ID: {guild.id}",
-        f"- Data: {datetime.now().astimezone().isoformat(timespec='seconds')}",
-        f"- Canais de texto analisados: {total}",
-        f"- Com mensagens visíveis: {com_mensagens}",
-        f"- Sem mensagens visíveis: {len(vazios)}",
-        f"- Não verificáveis: {len(sem_acesso)}",
+        f"- Gerado em: {now}",
+        "- Escopo: todos os históricos acessíveis ao bot; conteúdo textual limitado a 180 caracteres por mensagem.",
         "",
-        "## Canais sem mensagens",
-        *(vazios or ["Nenhum canal vazio encontrado."]),
+        "## Categorias",
+    ]
+    categories = sorted(guild.categories, key=lambda x: (x.position, x.name.casefold()))
+    lines.append(f"Total: {len(categories)}")
+    for category in categories:
+        lines.append(f"- Categoria: {category.name} | ID: {category.id} | posição: {category.position}")
+
+    lines.extend(["", "## Canais e IDs", "Formato: tipo | nome | ID | categoria | posição"])
+    channels = sorted(guild.channels, key=lambda x: (getattr(x, "position", 0), x.name.casefold()))
+    lines.append(f"Total de canais/categorias: {len(channels)}")
+    for channel in channels:
+        if isinstance(channel, CategoryChannel):
+            kind = "CATEGORIA"
+        elif isinstance(channel, TextChannel):
+            kind = "TEXTO"
+        elif isinstance(channel, VoiceChannel):
+            kind = "VOZ"
+        elif isinstance(channel, StageChannel):
+            kind = "PALCO"
+        elif isinstance(channel, ForumChannel):
+            kind = "FÓRUM"
+        else:
+            kind = type(channel).__name__.upper()
+        category_name = getattr(getattr(channel, "category", None), "name", "—")
+        lines.append(
+            f"- {kind} | {channel.name} | ID: {channel.id} | categoria: {category_name} | posição: {getattr(channel, 'position', '—')}"
+        )
+
+    # Coleta canais textuais e threads disponíveis, sem duplicar IDs.
+    message_channels = {}
+    for channel in guild.text_channels:
+        message_channels[channel.id] = channel
+    for thread in getattr(guild, "threads", []):
+        message_channels[thread.id] = thread
+    for channel in guild.channels:
+        if isinstance(channel, ForumChannel):
+            try:
+                async for thread in channel.archived_threads(limit=None, oldest_first=True):
+                    message_channels[thread.id] = thread
+            except Exception as exc:
+                lines.append(f"- AVISO: não consegui listar threads arquivadas do fórum {channel.name} (ID {channel.id}): {type(exc).__name__}")
+            for thread in getattr(channel, "threads", []):
+                message_channels[thread.id] = thread
+
+    lines.extend(["", "## Threads", f"Total de threads encontradas: {sum(1 for c in message_channels.values() if getattr(c, 'parent', None) is not None and getattr(c, 'id', None) != getattr(c, 'parent_id', None))}"])
+    for channel in sorted(message_channels.values(), key=lambda x: (getattr(x, "name", "").casefold(), x.id)):
+        if getattr(channel, "parent", None) is not None:
+            lines.append(
+                f"- Thread: {channel.name} | ID: {channel.id} | canal pai: {channel.parent_id} | arquivada: {getattr(channel, 'archived', 'não informado')}"
+            )
+
+    lines.extend(["", "## Mensagens postadas", "Cada linha inclui canal, ID da mensagem, autor, data e conteúdo resumido."])
+    total_messages = 0
+    failed_channels = []
+    for channel in sorted(message_channels.values(), key=lambda x: (getattr(x, "name", "").casefold(), x.id)):
+        if not hasattr(channel, "history"):
+            continue
+        try:
+            async for message in channel.history(limit=None, oldest_first=True):
+                total_messages += 1
+                content = (message.content or "").replace("\\n", " ").replace("\\r", " ").strip()
+                if message.embeds:
+                    embed_titles = [e.title for e in message.embeds if e.title]
+                    if embed_titles:
+                        content = (content + " [EMBEDS: " + " / ".join(embed_titles) + "]").strip()
+                if message.attachments:
+                    content = (content + " [ANEXOS: " + ", ".join(a.filename for a in message.attachments) + "]").strip()
+                if message.components and not content:
+                    content = "[mensagem com componentes/botões]"
+                if not content:
+                    content = "[sem texto]"
+                content = content[:180].replace("|", "\\|")
+                lines.append(
+                    f"- Canal: {channel.name} (ID {channel.id}) | Mensagem ID: {message.id} | Autor: {message.author} (ID {message.author.id}) | Data UTC: {message.created_at.isoformat()} | Conteúdo: {content}"
+                )
+                # Impede relatório maior que o limite seguro da ponte/API.
+                if sum(len(line) + 1 for line in lines) > 1_700_000:
+                    lines.append("AVISO: relatório atingiu o limite de segurança de tamanho; inventário de mensagens interrompido aqui.")
+                    raise StopAsyncIteration
+        except StopAsyncIteration:
+            break
+        except Exception as exc:
+            failed_channels.append(f"{channel.name} (ID {channel.id}): {type(exc).__name__}")
+            log.warning("Diagnóstico: falha ao ler histórico do canal %s: %s", channel.id, type(exc).__name__)
+
+    lines.extend([
         "",
-        "## Canais não verificáveis",
-        *(sem_acesso or ["Todos os históricos puderam ser consultados."]),
+        "## Resumo",
+        f"- Categorias: {len(categories)}",
+        f"- Canais/categorias no inventário: {len(channels)}",
+        f"- Canais/threads com histórico consultado: {len(message_channels)}",
+        f"- Mensagens listadas: {total_messages}",
+        f"- Canais com falha de leitura: {len(failed_channels)}",
+        *(["", "### Falhas de leitura", *[f"- {item}" for item in failed_channels]] if failed_channels else []),
         "",
-        "> Auditoria somente de leitura: nenhum canal, nome, permissão ou mensagem foi alterado.",
+        "> Auditoria somente de leitura: nenhuma mensagem, canal, categoria, permissão ou configuração foi alterada.",
     ])
+    return "\\n".join(lines)
 
 async def _saude(bot, guild):
     lines = [
