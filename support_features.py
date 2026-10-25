@@ -100,19 +100,27 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
         return em
 
     async def garantir_painel_suporte(guild):
-        ch = next((c for c in guild.text_channels if "suporte" in c.name.casefold() and ("dedicado" in c.name.casefold() or c.name.casefold() == "suporte")), None)
+        # Atualiza exatamente a mensagem indicada pelo administrador; nunca cria duplicata.
+        support_channel_id = 1561513297155592253
+        support_message_id = 1563639374074216523
+        ch = guild.get_channel(support_channel_id)
         if ch is None:
-            log.warning("Canal de suporte dedicado não encontrado.")
-            return
-        msg = None
-        async for m in ch.history(limit=50):
-            if m.author.id == bot.user.id and m.embeds and "suporte" in (m.embeds[0].title or "").casefold():
-                msg = m
-                break
-        if msg:
+            try:
+                ch = await guild.fetch_channel(support_channel_id)
+            except discord.HTTPException:
+                log.warning("Canal do painel de suporte (%s) não encontrado.", support_channel_id)
+                return
+        try:
+            msg = await ch.fetch_message(support_message_id)
             await msg.edit(embed=criar_embed_suporte(), view=SupportPanelView())
-        else:
-            await ch.send(embed=criar_embed_suporte(), view=SupportPanelView())
+            log.info("Painel de suporte atualizado na mensagem %s.", support_message_id)
+        except discord.NotFound:
+            log.warning(
+                "Mensagem de suporte %s não encontrada no canal %s; nenhuma mensagem nova foi criada.",
+                support_message_id, support_channel_id
+            )
+        except (discord.Forbidden, discord.HTTPException):
+            log.exception("Não foi possível editar a mensagem de suporte %s.", support_message_id)
 
         # Varre os canais de texto e preenche apenas os realmente vazios.
         # Canais operacionais/privados ficam de fora para não expor pedidos ou tickets.
