@@ -175,6 +175,7 @@ async def _diagnostico(guild):
 
     lines.extend(["", "## Mensagens postadas", "Cada linha inclui canal, ID da mensagem, autor, data e conteúdo resumido."])
     total_messages = 0
+    report_chars = sum(len(line) + 1 for line in lines)
     failed_channels = []
     for channel in sorted(message_channels.values(), key=lambda x: (getattr(x, "name", "").casefold(), x.id)):
         if not hasattr(channel, "history"):
