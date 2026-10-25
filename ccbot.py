@@ -6350,11 +6350,7 @@ async def financiamentos(interaction: discord.Interaction):
                 style=discord.ButtonStyle.link,
                 url="https://nubank.com.br/cobrar/1127t0/6ade873d-e4ea-4abe-9e12-41cb9af6a1e2"
             )
-        ),
-        discord.ui.TextDisplay(content=(
-            "-# Toda ajuda é bem-vinda. Agradecemos pelo apoio!"
-        )),
-        accent_color=0x8B5CF6
+        )
     ))
 
     try:
