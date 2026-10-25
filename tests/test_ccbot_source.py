@@ -72,6 +72,10 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertNotIn("await obter_canal_cancelados(servidor_cc)", startup)
         self.assertNotIn("roles = await garantir_cargos(servidor)", startup)
         self.assertIn("A inicialização não cria/move canais", startup)
+        self.assertIn('if not settings.get("legacy_panels_restored", False):', startup)
+        self.assertIn('if not settings.get("beats_buttons_migrated", False):', startup)
+        self.assertNotIn("fetch_channel(SAMPLES_PANEL_CHANNEL_ID)", startup)
+        self.assertNotIn("fetch_channel(PACK_PANEL_CHANNEL_ID)", startup)
 
 
 if __name__ == "__main__":
