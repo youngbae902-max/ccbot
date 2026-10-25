@@ -4520,48 +4520,46 @@ def criar_embed_comprovante_info():
 
 
 class ArrumadorPainelView(discord.ui.LayoutView):
-    """Painel Arrumador em Components V2, sem embeds tradicionais."""
+    """Painel Arrumador em Components V2, sem embeds tradicionais nem imagens expiradas."""
     def __init__(self):
         super().__init__(timeout=None)
         mandar = MandarArrumadorButton()
         self.add_item(discord.ui.Container(
-            discord.ui.Section(
-                discord.ui.TextDisplay(
-                    content=(
-                        "## 🧩 ARRUMADOR DE PROJETOS\n"
-                        "-# FL STUDIO MOBILE · SERVIÇO PERSONALIZADO\n\n"
-                        "Organize e ajuste seu projeto conforme as mudanças que você precisa."
-                    )
-                ),
-                accessory=discord.ui.Thumbnail(
-                    media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
+            discord.ui.TextDisplay(
+                content=(
+                    "# 🧰 ARRUMADOR DE PROJETOS\n"
+                    "-# FL STUDIO MOBILE · ORGANIZAÇÃO PERSONALIZADA\n\n"
+                    "Seu projeto, organizado conforme as alterações que você precisa."
                 )
             ),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
             discord.ui.TextDisplay(
                 content=(
-                    "### 💳 INVESTIMENTO\n"
+                    "### SERVIÇO\n"
                     "## R$ 33,99\n"
-                    "-# Pix · confirmação manual\n\n"
-                    "### 🛠️ COMO SOLICITAR\n"
-                    "1. Toque em **MANDAR**.\n"
-                    "2. Descreva as alterações desejadas.\n"
-                    "3. Faça o Pix no pedido privado e envie o comprovante."
+                    "-# Pagamento via Pix · confirmação manual"
                 )
             ),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
             discord.ui.TextDisplay(
-                content="-# O serviço começa após a confirmação manual do pagamento."
+                content=(
+                    "### COMO SOLICITAR\n"
+                    "**01**  Toque em **MANDAR** e descreva o que precisa mudar.\n\n"
+                    "**02**  Abra seu pedido privado e faça o Pix.\n\n"
+                    "**03**  Envie o comprovante e aguarde a conferência do ADM.\n\n"
+                    "-# O envio do projeto para organização é liberado após a confirmação do pagamento."
+                )
             ),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
             discord.ui.ActionRow(mandar)
         ))
 
 def criar_embed_arrumador():
-    """Compatibilidade com os pontos existentes: agora retorna o painel Components V2."""
+    """Mantém a chamada antiga compatível, retornando o painel Components V2."""
     return ArrumadorPainelView()
 
 async def arrumador(interaction: discord.Interaction):
-    """Atualiza o painel do Arrumador existente; nunca cria uma mensagem duplicada."""
+    """Atualiza a mensagem original do Arrumador; nunca cria uma cópia."""
     if await deny_unauthorized(interaction):
         return
 
@@ -4573,34 +4571,44 @@ async def arrumador(interaction: discord.Interaction):
         if canal is None:
             canal = await bot.fetch_channel(canal_id)
         mensagem = await canal.fetch_message(mensagem_id)
+        if bot.user is None or mensagem.author.id != bot.user.id:
+            raise PermissionError("A mensagem configurada não pertence ao CC BOT.")
+
+        # Ao trocar para Components V2, limpa os campos legados.
+        # Não passar embed e embeds juntos: discord.py os considera argumentos conflitantes.
         await mensagem.edit(
             content=None,
-            embed=None,
             embeds=[],
             attachments=[],
             view=criar_embed_arrumador(),
             allowed_mentions=discord.AllowedMentions.none()
         )
         await interaction.followup.send(
-            f"✅ Painel do Arrumador atualizado em {canal.mention}. A mensagem existente foi editada.",
+            f"✅ Aba do Arrumador atualizada na mensagem existente em {canal.mention}. Nenhuma cópia foi criada.",
             ephemeral=True
         )
-        log.info("Painel do Arrumador atualizado pelo /painel: canal=%s mensagem=%s", canal_id, mensagem_id)
+        log.info("Painel do Arrumador atualizado: canal=%s mensagem=%s", canal_id, mensagem_id)
     except discord.NotFound:
         await interaction.followup.send(
-            "❌ Não encontrei a mensagem do Arrumador configurada. Nenhuma mensagem nova foi criada.",
+            "❌ Não encontrei a mensagem configurada do Arrumador. Não criei outra mensagem.",
             ephemeral=True
         )
     except discord.Forbidden:
         log.exception("Sem permissão para atualizar o painel do Arrumador.")
         await interaction.followup.send(
-            "❌ O bot não tem permissão para editar o painel do Arrumador.",
+            "❌ O bot não tem permissão para editar a mensagem do Arrumador.",
+            ephemeral=True
+        )
+    except PermissionError as exc:
+        log.error("Painel Arrumador protegido: %s", exc)
+        await interaction.followup.send(
+            "❌ A mensagem configurada não pertence ao CC BOT. Nenhuma mensagem foi alterada ou criada.",
             ephemeral=True
         )
     except discord.HTTPException as exc:
         log.exception("Falha ao atualizar o painel do Arrumador.")
         await interaction.followup.send(
-            f"❌ Não consegui atualizar o painel ({type(exc).__name__}). Confira os logs do bot.",
+            f"❌ Não consegui atualizar o painel ({type(exc).__name__}, código {getattr(exc, 'code', 'n/d')}). Confira os logs do bot.",
             ephemeral=True
         )
 
