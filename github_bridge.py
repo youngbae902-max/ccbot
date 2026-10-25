@@ -25,7 +25,7 @@ MAX_TASKS_PER_POLL = 5
 MAX_RESPONSE_BYTES = 2_000_000
 
 log = logging.getLogger("CCBOT.GITHUB")
-ALLOWED_ACTIONS = {"diagnostico", "saude"}
+ALLOWED_ACTIONS = {"diagnostico", "saude", "buscar_canal"}
 
 CHANNEL_CHECKS = [
     ("Pedidos", 1561513284191125625, ("view_channel", "send_messages", "embed_links", "attach_files")),
@@ -262,6 +262,61 @@ async def _saude(bot, guild):
     lines.extend(["", f"Alertas/falhas: {falhas}", "> Verificação somente de leitura; nenhuma configuração foi alterada."])
     return "\n".join(lines)
 
+async def _buscar_canal(bot, guild, channel_id):
+    """Consulta somente leitura um canal específico e suas mensagens recentes."""
+    if not isinstance(channel_id, int) or channel_id <= 0:
+        raise ValueError("channel_id precisa ser um ID numérico válido.")
+    channel = bot.get_channel(channel_id)
+    if channel is None:
+        channel = await bot.fetch_channel(channel_id)
+    channel_guild = getattr(channel, "guild", None)
+    if channel_guild is None or channel_guild.id != guild.id:
+        raise RuntimeError(f"O canal {channel_id} não pertence ao servidor configurado.")
+    category = getattr(getattr(channel, "category", None), "name", "—")
+    parent = getattr(channel, "parent", None)
+    lines = [
+        f"# Busca de canal — {getattr(channel, 'name', 'sem nome')}",
+        f"- Servidor: {guild.name} (ID {guild.id})",
+        f"- Canal ID: {channel.id}",
+        f"- Tipo: {type(channel).__name__}",
+        f"- Categoria: {category}",
+        f"- Tópico: {getattr(channel, 'topic', None) or '—'}",
+        f"- Canal pai/thread: {getattr(parent, 'name', '—')} (ID {getattr(parent, 'id', '—')})",
+        f"- Posição: {getattr(channel, 'position', '—')}",
+        f"- URL: {getattr(channel, 'jump_url', '—')}",
+        "",
+        "## Histórico recente",
+    ]
+    count = 0
+    if hasattr(channel, "history"):
+        async for message in channel.history(limit=1000, oldest_first=False):
+            count += 1
+            content = (message.content or "").replace("\\n", " ").replace("\\r", " ").strip()
+            embed_titles = [e.title for e in message.embeds if e.title]
+            if embed_titles:
+                content = (content + " [EMBEDS: " + " / ".join(embed_titles) + "]").strip()
+            if message.attachments:
+                content = (content + " [ANEXOS: " + ", ".join(a.filename for a in message.attachments) + "]").strip()
+            if message.components and not content:
+                content = "[mensagem com componentes/botões]"
+            if not content:
+                content = "[sem texto]"
+            content = content[:300].replace("|", "\\|")
+            lines.append(
+                f"- Mensagem ID: {message.id} | Autor: {message.author} (ID {message.author.id}) | "
+                f"Data UTC: {message.created_at.isoformat()} | Conteúdo: {content}"
+            )
+    else:
+        lines.append("Este tipo de canal não disponibiliza histórico textual.")
+    lines.extend([
+        "",
+        "## Resumo",
+        f"- Mensagens encontradas: {count}",
+        "- Limite consultado: 1000 mensagens mais recentes",
+        "> Consulta somente de leitura; nada foi alterado.",
+    ])
+    return "\\n".join(lines)
+
 async def process_request(bot, request, token):
     if not isinstance(request, dict):
         raise ValueError("Solicitação deve ser um objeto JSON.")
@@ -276,8 +331,10 @@ async def process_request(bot, request, token):
         raise RuntimeError(f"Servidor Discord {GUILD_ID} não está disponível para o bot.")
     if action == "diagnostico":
         body = await _diagnostico(guild)
-    else:
+    elif action == "saude":
         body = await _saude(bot, guild)
+    else:
+        body = await _buscar_canal(bot, guild, request.get("channel_id"))
     report = "\n".join([
         f"<!-- request_id: {request_id} -->",
         f"<!-- action: {action} -->",
