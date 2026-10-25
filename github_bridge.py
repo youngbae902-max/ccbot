@@ -19,7 +19,7 @@ INBOX_PATH = "tasks/inbox.json"
 GUILD_ID = 1561513043886743562
 GITHUB_TOKEN_FILE = Path("/sdcard/Download/CC/github_token.txt")
 REPORT_LOCAL_FILE = Path("/sdcard/Download/CC/Relatorio.txt")
-STATE_FILE = Path.home() / "ccbot-repo" / "config" / "github_bridge_state.json"
+STATE_FILE = Path(__file__).resolve().parent / "config" / "github_bridge_state.json"
 POLL_SECONDS = 30
 MAX_TASKS_PER_POLL = 5
 MAX_RESPONSE_BYTES = 2_000_000
@@ -213,7 +213,7 @@ async def process_request(bot, request, token):
     # Salva também no armazenamento do Android para o sincronizador local enviar ao GitHub.
     def _save_local_report():
         REPORT_LOCAL_FILE.parent.mkdir(parents=True, exist_ok=True)
-        REPORT_LOCAL_FILE.write_text(report + "\\n", encoding="utf-8")
+        REPORT_LOCAL_FILE.write_text(report + "\n", encoding="utf-8")
     await asyncio.to_thread(_save_local_report)
     await asyncio.to_thread(_upload_report, token, request_id, report)
     return request_id
@@ -233,7 +233,21 @@ async def run(bot):
             requests = await asyncio.to_thread(_read_inbox, token)
             state = _load_state()
             processed = set(state["processed"])
-            pending = [r for r in requests if isinstance(r, dict) and r.get("id") not in processed]
+            pending = []
+            pending_ids = set()
+            for request in requests:
+                if not isinstance(request, dict):
+                    log.warning("Solicitação inválida ignorada: cada item precisa ser um objeto JSON.")
+                    continue
+                request_id = request.get("id")
+                if not isinstance(request_id, str):
+                    log.warning("Solicitação sem ID textual ignorada.")
+                    continue
+                if request_id in processed or request_id in pending_ids:
+                    continue
+                pending.append(request)
+                pending_ids.add(request_id)
+
             for request in pending[:MAX_TASKS_PER_POLL]:
                 request_id = request.get("id", "invalid")
                 try:
