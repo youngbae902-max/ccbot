@@ -6617,6 +6617,20 @@ async def atualizar_paineis(interaction: discord.Interaction):
         return " ".join(partes).casefold()
 
     def detectar(texto, mensagem):
+        # Nunca tratar pedidos de pagamento/comprovantes como painéis, mesmo se os
+        # detalhes do comprador mencionarem um produto ou serviço do servidor.
+        for embed in mensagem.embeds:
+            titulo = (embed.title or "").casefold()
+            descricao = (embed.description or "").casefold()
+            campos = " ".join((campo.name or "").casefold() for campo in embed.fields)
+            if (
+                "pagamento pendente" in titulo
+                or "pagamento pendente" in descricao
+                or "comprovante(s) recebido(s)" in campos
+                or "referência técnica:" in (embed.footer.text or "").casefold()
+            ):
+                return None
+
         # Use IDs de componentes ou títulos exatos: texto de pedidos/comprovantes
         # pode mencionar produtos e nunca deve ser confundido com um painel.
         if "ccbot:pack:v2:basico" in texto:
