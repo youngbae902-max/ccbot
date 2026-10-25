@@ -1,4 +1,5 @@
 import re
+import asyncio
 import discord
 
 # Tema visual padrão dos embeds de suporte.
@@ -71,7 +72,17 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
                 except discord.HTTPException:
                     log.exception("Não foi possível renomear o ticket encerrado %s.", ch.id)
 
-            await interaction.response.send_message("🔒 Atendimento encerrado.")
+            await interaction.response.send_message("🔒 Atendimento encerrado. Este canal será apagado em 3 segundos.")
+            await asyncio.sleep(3)
+            try:
+                await ch.delete(reason=f"Ticket encerrado por {interaction.user} ({interaction.user.id})")
+                log.info("Ticket %s apagado após encerramento por %s (%s).", ch.id, interaction.user, interaction.user.id)
+            except discord.NotFound:
+                log.info("Ticket %s já havia sido apagado.", ch.id)
+            except discord.Forbidden:
+                log.exception("Sem permissão para apagar o ticket %s após encerramento.", ch.id)
+            except discord.HTTPException:
+                log.exception("Falha ao apagar o ticket %s após encerramento.", ch.id)
 
     class SupportPanelView(discord.ui.View):
         def __init__(self):
