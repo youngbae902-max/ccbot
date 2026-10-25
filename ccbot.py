@@ -5871,26 +5871,10 @@ async def on_ready():
             save_json(DATA_FILE, settings)
             log.info("Limpeza única de #%s concluída: %s mensagens apagadas.", canal_limpeza.name, apagadas)
 
-        # Os painéis/regras/divulgações existentes não são publicados ou recriados no startup.
+        # A inicialização não cria/move canais, reescreve permissões nem cria/colori cargos.
+        # Os canais de pagamento são preparados sob demanda no fluxo de pagamento.
+        # A hierarquia do servidor só pode ser alterada por ação explícita do administrador.
         servidor_cc = bot.get_guild(1561513043886743562)
-        try:
-            await obter_canal_confirmacao(servidor_cc)
-            await obter_canal_cancelados(servidor_cc)
-        except Exception:
-            log.exception("Falha ao mover pedidos/cancelamentos para ANDAMENTO.")
-
-        try:
-            servidor = bot.get_guild(1561513043886743562)
-            roles = await garantir_cargos(servidor)
-            fundador = roles.get("fundador")
-            administrador = servidor.get_member(ADMIN_ID) if servidor else None
-            if fundador and administrador and fundador not in administrador.roles:
-                await administrador.add_roles(fundador, reason="Cargo Fundador da comunidade")
-        except Exception:
-            log.exception("Falha ao configurar cargos na inicialização.")
-
-        # IMPORTANTE: a hierarquia nunca é alterada automaticamente ao iniciar o bot.
-        # A organização continua disponível apenas pelo comando/painel manual do administrador.
 
         # Atualiza somente a mensagem de suporte configurada pelo administrador.
         # A função busca a mensagem pelo ID e nunca cria uma duplicata.
