@@ -6084,7 +6084,7 @@ async def on_app_command_error(interaction, error):
     if is_admin(interaction):
         await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
-@bot.tree.command(name="criar-sites", description="Publicar os três sites da comunidade neste canal")
+@bot.tree.command(name="criar-sites", description="Publicar o painel de sites neste canal")
 async def criar_sites(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
@@ -6098,44 +6098,50 @@ async def criar_sites(interaction: discord.Interaction):
         )
         return
 
-    # Baseado no template DWEEB discord-social-links-template.json:
-    # apresentação curta, separador e botões de acesso aos três sites.
+    # Redesign inspirado nos templates DWEEB de diretório e links sociais:
+    # cada serviço tem sua própria seção e botão de acesso.
     view = discord.ui.LayoutView(timeout=None)
     view.add_item(discord.ui.Container(
         discord.ui.TextDisplay(content=(
-            "# 🌐 SITES DA COMUNIDADE\n"
-            "**Ferramentas e conteúdos para fortalecer sua produção musical.**"
+            "# 🌐 CENTRAL DE SITES\n"
+            "-# TRÊS DESTINOS • CADA UM COM SUA FUNÇÃO\n\n"
+            "Acesse as plataformas da comunidade C.C. pelos atalhos abaixo."
         )),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-        discord.ui.TextDisplay(content=(
-            "### 🎛️ PACKy\n"
-            "Explore packs e conteúdos para sua produção musical."
-        )),
-        discord.ui.TextDisplay(content=(
-            "### 🔎 Garimpo\n"
-            "Descubra novidades e conteúdos disponíveis no Garimpo."
-        )),
-        discord.ui.TextDisplay(content=(
-            "### 🛍️ Loja CC\n"
-            "Confira os produtos e opções disponíveis na loja oficial da comunidade."
-        )),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-        discord.ui.ActionRow(
-            discord.ui.Button(
-                label="Abrir PACKy",
-                emoji="🎛️",
+        discord.ui.Section(
+            discord.ui.TextDisplay(content=(
+                "### 🎚️ PACKy\n"
+                "Packs e conteúdos para ampliar suas possibilidades na produção musical."
+            )),
+            accessory=discord.ui.Button(
+                label="Explorar",
+                emoji="↗️",
                 style=discord.ButtonStyle.link,
                 url="https://packy.lovable.app"
-            ),
-            discord.ui.Button(
-                label="Abrir Garimpo",
-                emoji="🔎",
+            )
+        ),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+        discord.ui.Section(
+            discord.ui.TextDisplay(content=(
+                "### 🔍 Garimpo\n"
+                "Encontre oportunidades e descubra itens para garimpar."
+            )),
+            accessory=discord.ui.Button(
+                label="Acessar",
+                emoji="↗️",
                 style=discord.ButtonStyle.link,
                 url="https://garimoh.lovable.app/perfil"
-            ),
-            discord.ui.Button(
-                label="Abrir Loja CC",
-                emoji="🛍️",
+            )
+        ),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+        discord.ui.Section(
+            discord.ui.TextDisplay(content=(
+                "### 🛒 Loja CC\n"
+                "Confira os produtos e serviços disponíveis na loja da comunidade."
+            )),
+            accessory=discord.ui.Button(
+                label="Visitar",
+                emoji="↗️",
                 style=discord.ButtonStyle.link,
                 url="https://ccloja.erbysite.com/"
             )
@@ -6148,7 +6154,7 @@ async def criar_sites(interaction: discord.Interaction):
             allowed_mentions=discord.AllowedMentions.none()
         )
         await interaction.response.send_message(
-            "✅ Painel **Sites** publicado neste canal. Nenhuma mensagem existente foi alterada.",
+            "✅ Novo painel **Sites** publicado neste canal. Nenhuma mensagem existente foi alterada.",
             ephemeral=True
         )
         log.info("Painel Sites publicado: canal=%s por=%s", interaction.channel.id, interaction.user.id)
