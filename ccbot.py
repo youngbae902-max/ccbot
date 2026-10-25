@@ -4401,7 +4401,7 @@ class AbrirAreasTrabalhoButton(discord.ui.Button):
         )
 
 class TramparConoscoView(discord.ui.LayoutView):
-    """Painel Components V2 adaptado dos templates JSON do DWEEB."""
+    """Painel Components V2 com os textos adaptados ao estilo do template DWEEB."""
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(
@@ -4409,44 +4409,48 @@ class TramparConoscoView(discord.ui.LayoutView):
                 discord.ui.TextDisplay(
                     content=(
                         "# <:tag:1561787923865665667> TRAMPAR CONOSCO\n"
-                        "**Seu talento tem espaço no C.C ©.**\n"
-                        "-# PAINEL ATUALIZADO"
+                        "Encontre seu espaço no C.C ©. **Conheça as áreas, mostre seu talento e transforme suas ideias em projetos.**"
                     )
                 ),
                 discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-                discord.ui.TextDisplay(
-                    content=(
-                        "**🧩 ÁREAS DE TRABALHO**\n"
-                        "🤖 **Bots para Discord** — Python, automações e projetos com ou sem IA.\n"
-                        "🎨 **Design** — banners, artes e identidade visual.\n"
-                        "🛠️ **Organização / Staff** — canais, suporte e moderação.\n"
-                        "🎬 **Edição de vídeo** — área planejada para o futuro."
-                    )
-                ),
-                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
                 discord.ui.Section(
                     discord.ui.TextDisplay(
                         content=(
-                            "**🎁 O QUE VOCÊ GANHA**\n"
-                            "Um espaço no servidor para divulgar seu trabalho e seus projetos."
+                            "**🧩 Encontre sua área**\n"
+                            "De bots e automações a design e organização, escolha o que combina com você. "
+                            "Também estamos planejando abrir espaço para edição de vídeo."
                         )
                     ),
                     accessory=discord.ui.Thumbnail(
                         media="https://dweeb.faizo.net/media/defaults/dweeb-default-thumbnail.jpg"
                     )
                 ),
-                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
                 discord.ui.Section(
                     discord.ui.TextDisplay(
                         content=(
-                            "**⏳ INSCRIÇÕES FECHADAS**\n"
-                            "As inscrições oficiais ainda não abriram. Você pode indicar sua área de interesse."
+                            "**💼 Quer fazer parte?**\n"
+                            "Use o botão ao lado para indicar a área em que atua ou gostaria de contribuir. "
+                            "Sua resposta ajuda a conhecer seu interesse."
                         )
                     ),
                     accessory=AbrirAreasTrabalhoButton()
                 ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
                 discord.ui.TextDisplay(
-                    content="-# C.C © • Oportunidades e projetos"
+                    content=(
+                        "**Áreas disponíveis**\n"
+                        "🤖 **Bots para Discord** — Python, automações e projetos com ou sem IA.\n"
+                        "🎨 **Design** — banners, artes e identidade visual.\n"
+                        "🛠️ **Organização / Staff** — canais, suporte e moderação.\n"
+                        "🎬 **Edição de vídeo** — planejada para o futuro."
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+                discord.ui.TextDisplay(
+                    content=(
+                        "-# ⏳ **Inscrições oficiais ainda fechadas:** indicar seu interesse não significa entrada imediata.\n"
+                        "-# C.C © • Oportunidades e projetos"
+                    )
                 ),
                 accent_color=5793266
             )
