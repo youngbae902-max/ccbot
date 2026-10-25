@@ -6617,6 +6617,10 @@ async def atualizar_paineis(interaction: discord.Interaction):
         return " ".join(partes).casefold()
 
     def detectar(texto, mensagem):
+        # Recupera o painel conhecido mesmo se ele foi reduzido a texto puro e perdeu os botões.
+        if mensagem.id == PACK_PANEL_MESSAGE_ID:
+            return "Pack Personalizado", PackPersonalizadoView, True
+
         # Nunca tratar pedidos de pagamento/comprovantes como painéis, mesmo se os
         # detalhes do comprador mencionarem um produto ou serviço do servidor.
         for embed in mensagem.embeds:
@@ -6657,8 +6661,9 @@ async def atualizar_paineis(interaction: discord.Interaction):
             async for mensagem in canal.history(limit=200):
                 if mensagem.id in vistos or not bot.user or mensagem.author.id != bot.user.id:
                     continue
-                # Só considera mensagens que já tenham componentes interativos; evita alterar pedidos e conversas.
-                if not mensagem.components:
+                # Mensagens sem componentes normalmente são ignoradas, exceto o ID fixo
+                # do painel de Pack, que precisa ser recuperado se perdeu o layout/botão.
+                if not mensagem.components and mensagem.id != PACK_PANEL_MESSAGE_ID:
                     continue
                 tipo_detectado = detectar(texto_mensagem(mensagem), mensagem)
                 if not tipo_detectado:
