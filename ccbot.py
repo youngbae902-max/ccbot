@@ -6024,15 +6024,16 @@ async def enviar_comprovante_pix(interaction: discord.Interaction, arquivo: disc
             color=discord.Color.gold(),
             timestamp=discord.utils.utcnow()
         )
-        # Mantém o embed de conferência separado do arquivo do comprovante.
-        await canal_admin.send(embed=aviso)
-        await canal_admin.send(
-            content="📎 **Comprovante deste pedido:**",
-            file=discord.File(io.BytesIO(dados), filename=nome[:180])
+        nome_anexo = nome[:180]
+        if extensao in {".png", ".jpg", ".jpeg", ".webp"}:
+            aviso.set_image(url=f"attachment://{nome_anexo}")
+        mensagem_comprovante = await canal_admin.send(
+            embed=aviso,
+            file=discord.File(io.BytesIO(dados), filename=nome_anexo)
         )
         pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
         pedido["receipt_filename"] = nome
-        pedido["receipt_message_id"] = str(interaction.id)
+        pedido["receipt_message_id"] = str(mensagem_comprovante.id)
         save_json(PIX_ORDERS_FILE, pix_orders)
         await interaction.followup.send(
             "✅ Comprovante enviado para conferência. Ele não foi publicado no chat.",
@@ -6066,7 +6067,11 @@ async def receber_comprovante_pix(message: discord.Message):
         nome = Path(anexo.filename).name
         tipo = (anexo.content_type or "").lower()
         extensao = Path(nome).suffix.lower()
-        if tipo.startswith("image/") or tipo == "application/pdf" or extensao in {".png", ".jpg", ".jpeg", ".webp", ".pdf"}:
+        formato_valido = (
+            extensao in {".png", ".jpg", ".jpeg", ".webp", ".pdf"}
+            or tipo in {"image/png", "image/jpeg", "image/webp", "application/pdf"}
+        )
+        if formato_valido and anexo.size <= 10 * 1024 * 1024:
             try:
                 dados = await anexo.read(use_cached=True)
                 if dados and len(dados) <= 10 * 1024 * 1024:
@@ -6103,14 +6108,15 @@ async def receber_comprovante_pix(message: discord.Message):
         timestamp=discord.utils.utcnow()
     )
     try:
-        # Publica primeiro os dados do pedido e, em uma mensagem separada, os arquivos.
-        await canal_admin.send(embed=aviso)
-        await canal_admin.send(
-            content="📎 **Comprovante(s) deste pedido:**",
+        primeiro_anexo = arquivos_validos[0].filename
+        if Path(primeiro_anexo).suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+            aviso.set_image(url=f"attachment://{primeiro_anexo}")
+        mensagem_comprovante = await canal_admin.send(
+            embed=aviso,
             files=arquivos_validos
         )
         pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
-        pedido["receipt_message_id"] = str(message.id)
+        pedido["receipt_message_id"] = str(mensagem_comprovante.id)
         save_json(PIX_ORDERS_FILE, pix_orders)
         await message.reply("✅ Comprovante encaminhado para **Confirmar pagamentos**. Aguarde a conferência manual.", mention_author=False)
     except Exception:
