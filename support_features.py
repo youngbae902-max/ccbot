@@ -103,15 +103,15 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
         # Atualiza exatamente a mensagem indicada pelo administrador; nunca cria duplicata.
         support_channel_id = 1561513297155592253
         support_message_id = 1563639374074216523
-        ch = guild.get_channel(support_channel_id)
+        ch = guild.get_channel(int(support_channel_id))
         if ch is None:
             try:
-                ch = await guild.fetch_channel(support_channel_id)
+                ch = await guild.fetch_channel(int(support_channel_id))
             except discord.HTTPException:
                 log.warning("Canal do painel de suporte (%s) não encontrado.", support_channel_id)
                 return
         try:
-            msg = await ch.fetch_message(support_message_id)
+            msg = await ch.fetch_message(int(support_message_id))
             await msg.edit(embed=criar_embed_suporte(), view=SupportPanelView())
             log.info("Painel de suporte atualizado na mensagem %s.", support_message_id)
         except discord.NotFound:
