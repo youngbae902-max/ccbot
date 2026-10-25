@@ -6084,6 +6084,87 @@ async def on_app_command_error(interaction, error):
     if is_admin(interaction):
         await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
+@bot.tree.command(name="criar-sobre-nos", description="Publicar o painel Sobre Nós neste canal")
+async def criar_sobre_nos(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador pode publicar este painel.", ephemeral=True
+        )
+        return
+
+    if interaction.guild is None or not isinstance(interaction.channel, discord.abc.Messageable):
+        await interaction.response.send_message(
+            "Use este comando em um canal do servidor.", ephemeral=True
+        )
+        return
+
+    # Inspirado no DWEEB discord-welcome-message.json:
+    # cabeçalho, conteúdo de boas-vindas, divisor, links em botões e rodapé.
+    view = discord.ui.LayoutView(timeout=None)
+    view.add_item(discord.ui.Container(
+        discord.ui.TextDisplay(content=(
+            "# 👥 SOBRE NÓS\n"
+            "**Bem-vindo(a) à comunidade C.C.**\n"
+            "-# UM ESPAÇO PARA CRIAR, APRENDER E EVOLUIR NO FUNK"
+        )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=(
+            "Percebemos a falta de união na comunidade e a falta de recursos técnicos "
+            "para quem quer criar, aprender e evoluir. Por isso, criamos este servidor "
+            "como uma porta de apoio para a cena do funk.\n\n"
+            "Aqui você encontra **venda de beats, ensinamentos, beats e packs gratuitos, "
+            "campeonatos, eventos, serviços e muito mais**. Também contamos com parcerias "
+            "com sites de Drum Kits para trazer ainda mais recursos aos produtores.\n\n"
+            "-# Tudo foi pensado para ser simples e intuitivo. Esperamos que o servidor "
+            "ajude você a criar, aprender, compartilhar e evoluir dentro do funk."
+        )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=(
+            "### 🔗 Acompanhe a comunidade\n"
+            "**Grupo no WhatsApp** — converse com a comunidade, divulgue seus trabalhos, "
+            "conheça o projeto e acompanhe oportunidades.\n"
+            "**Instagram** — confira anúncios, promoções, cupons e ofertas exclusivas."
+        )),
+        discord.ui.ActionRow(
+            discord.ui.Button(
+                label="Entrar no grupo",
+                emoji="💬",
+                style=discord.ButtonStyle.link,
+                url="https://chat.whatsapp.com/JQ8hP8vys4QG4DB54wSi5E?s=cl&p=a&mlu=4&ilr=4"
+            ),
+            discord.ui.Button(
+                label="Seguir no Instagram",
+                emoji="📸",
+                style=discord.ButtonStyle.link,
+                url="https://www.instagram.com/ccloja.ig?dlrf=NGNmejZ6MWYyOHFx"
+            )
+        ),
+        accent_color=5793266
+    ))
+    view.add_item(discord.ui.TextDisplay(
+        content="-# C.C ©  •  COMUNIDADE E PRODUÇÃO MUSICAL"
+    ))
+
+    try:
+        await interaction.channel.send(
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none()
+        )
+        await interaction.response.send_message(
+            "✅ Painel **Sobre Nós** publicado neste canal. Nenhuma mensagem existente foi alterada.",
+            ephemeral=True
+        )
+        log.info("Painel Sobre Nós publicado: canal=%s por=%s", interaction.channel.id, interaction.user.id)
+    except discord.HTTPException as exc:
+        log.exception("Falha ao publicar o painel Sobre Nós")
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                f"❌ Não consegui publicar o painel ({type(exc).__name__}). "
+                "Confira as permissões do bot e a versão do discord.py.",
+                ephemeral=True
+            )
+
+
 @bot.tree.command(name="criar-regras", description="Publicar uma nova mensagem de regras sem alterar a existente")
 @app_commands.describe(canal="Canal onde a nova mensagem de regras será publicada")
 async def criar_regras(interaction: discord.Interaction, canal: discord.TextChannel):
