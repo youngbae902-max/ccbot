@@ -14,4 +14,4 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile bot source
-        run: python -m py_compile ccbot.py github_bridge.py
+        run: python -m compileall -q .
