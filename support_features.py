@@ -1,6 +1,17 @@
 import re
 import discord
 
+# Tema visual padrão dos embeds de suporte.
+_EmbedOriginal = discord.Embed
+
+def criar_embed_estetico(*args, **kwargs):
+    embed = _EmbedOriginal(*args, **kwargs)
+    if embed.color is None:
+        embed.color = discord.Color.from_rgb(43, 45, 49)
+    if not embed.footer.text:
+        embed.set_footer(text="C.C ©  •  Comunidade e Produção Musical")
+    return embed
+
 SUPPORT_INSTAGRAM_URL = ""
 
 def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
@@ -56,7 +67,7 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
                 ow[admin] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, manage_messages=True)
             name = re.sub(r"[^a-z0-9-]", "", interaction.user.name.casefold().replace(" ", "-"))[:35] or "usuario"
             ticket = await guild.create_text_channel(f"ticket-{name}-{str(interaction.user.id)[-4:]}", category=cat, overwrites=ow, topic=f"ticket_owner_id={interaction.user.id}")
-            em = discord.Embed(
+            em = criar_embed_estetico(
                 title="🎫 𝗔𝗧𝗘𝗡𝗗𝗜𝗠𝗘𝗡𝗧𝗢 𝗔𝗕𝗘𝗥𝗧𝗢",
                 description=f"Olá, {interaction.user.mention}. Conte aqui o que aconteceu.\n\n**Atendimento humano**\nA equipe busca responder em até **24 horas**. O bot organiza o canal; uma pessoa vai atender você.\n\nNão envie senhas nem dados bancários completos. Quando resolver, use **Encerrar atendimento**.",
                 color=discord.Color.from_rgb(18, 18, 22)
@@ -65,7 +76,7 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
             await interaction.response.send_message(f"Seu ticket foi aberto: {ticket.mention}", ephemeral=True)
 
     def criar_embed_suporte():
-        em = discord.Embed(
+        em = criar_embed_estetico(
             title="🎧 𝗦𝗨𝗣𝗢𝗥𝗧𝗘 𝗗𝗘𝗗𝗜𝗖𝗔𝗗𝗢",
             description=f"**Precisou de ajuda? Vamos resolver com você.**\n-# ATENDIMENTO HUMANO • C.C ©\n\nAbra um ticket privado para falar com a administração. Respondemos em até **24 horas**. O atendimento é feito por pessoas, não por respostas automáticas.\n\n**📲 CONTATO DIRETO**\nWhatsApp: [falar com o C.C ©](https://wa.me/{whatsapp_number})",
             color=discord.Color.from_rgb(18, 18, 22)
@@ -146,7 +157,7 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
             except discord.HTTPException:
                 log.warning("Canal de regras não encontrado.")
                 return
-        em = discord.Embed(
+        em = criar_embed_estetico(
             title="📜 𝗥𝗘𝗚𝗥𝗔𝗦 𝗗𝗢 𝗖.𝗖 ©",
             description=(
                 "**Uma comunidade criativa, segura e transparente.**\n-# LEIA ANTES DE PARTICIPAR OU COMPRAR\n\n"
