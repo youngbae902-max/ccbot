@@ -6084,6 +6084,84 @@ async def on_app_command_error(interaction, error):
     if is_admin(interaction):
         await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
+@bot.tree.command(name="criar-sites", description="Publicar os três sites da comunidade neste canal")
+async def criar_sites(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador pode publicar este painel.", ephemeral=True
+        )
+        return
+
+    if interaction.guild is None or not isinstance(interaction.channel, discord.abc.Messageable):
+        await interaction.response.send_message(
+            "Use este comando em um canal do servidor.", ephemeral=True
+        )
+        return
+
+    # Baseado no template DWEEB discord-social-links-template.json:
+    # apresentação curta, separador e botões de acesso aos três sites.
+    view = discord.ui.LayoutView(timeout=None)
+    view.add_item(discord.ui.Container(
+        discord.ui.TextDisplay(content=(
+            "# 🌐 SITES DA COMUNIDADE\n"
+            "**Ferramentas e conteúdos para fortalecer sua produção musical.**"
+        )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=(
+            "### 🎛️ PACKy\n"
+            "Explore packs e conteúdos para sua produção musical."
+        )),
+        discord.ui.TextDisplay(content=(
+            "### 🔎 Garimpo\n"
+            "Descubra novidades e conteúdos disponíveis no Garimpo."
+        )),
+        discord.ui.TextDisplay(content=(
+            "### 🛍️ Loja CC\n"
+            "Confira os produtos e opções disponíveis na loja oficial da comunidade."
+        )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.ActionRow(
+            discord.ui.Button(
+                label="Abrir PACKy",
+                emoji="🎛️",
+                style=discord.ButtonStyle.link,
+                url="https://packy.lovable.app"
+            ),
+            discord.ui.Button(
+                label="Abrir Garimpo",
+                emoji="🔎",
+                style=discord.ButtonStyle.link,
+                url="https://garimoh.lovable.app/perfil"
+            ),
+            discord.ui.Button(
+                label="Abrir Loja CC",
+                emoji="🛍️",
+                style=discord.ButtonStyle.link,
+                url="https://ccloja.erbysite.com/"
+            )
+        )
+    ))
+
+    try:
+        await interaction.channel.send(
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none()
+        )
+        await interaction.response.send_message(
+            "✅ Painel **Sites** publicado neste canal. Nenhuma mensagem existente foi alterada.",
+            ephemeral=True
+        )
+        log.info("Painel Sites publicado: canal=%s por=%s", interaction.channel.id, interaction.user.id)
+    except discord.HTTPException as exc:
+        log.exception("Falha ao publicar o painel Sites")
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                f"❌ Não consegui publicar o painel ({type(exc).__name__}). "
+                "Confira as permissões do bot e a versão do discord.py.",
+                ephemeral=True
+            )
+
+
 @bot.tree.command(name="criar-sobre-nos", description="Publicar o painel Sobre Nós neste canal")
 async def criar_sobre_nos(interaction: discord.Interaction):
     if not is_admin(interaction):
