@@ -57,6 +57,15 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertNotIn("subprocess.", bridge)
         self.assertIn("GITHUB_TOKEN_FILE", bridge)
 
+    def test_startup_does_not_reconfigure_payment_channels_or_roles(self):
+        start = self.source.index("@bot.event\nasync def on_ready():")
+        end = self.source.index('@bot.tree.command(name="comprovante"', start)
+        startup = self.source[start:end]
+        self.assertNotIn("await obter_canal_confirmacao(servidor_cc)", startup)
+        self.assertNotIn("await obter_canal_cancelados(servidor_cc)", startup)
+        self.assertNotIn("roles = await garantir_cargos(servidor)", startup)
+        self.assertIn("A inicialização não cria/move canais", startup)
+
 
 if __name__ == "__main__":
     unittest.main()
