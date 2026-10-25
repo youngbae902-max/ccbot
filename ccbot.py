@@ -6141,10 +6141,6 @@ async def criar_sobre_nos(interaction: discord.Interaction):
         ),
         accent_color=5793266
     ))
-    view.add_item(discord.ui.TextDisplay(
-        content="-# C.C ©  •  COMUNIDADE E PRODUÇÃO MUSICAL"
-    ))
-
     try:
         await interaction.channel.send(
             view=view,
