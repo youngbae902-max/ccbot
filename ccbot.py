@@ -1173,8 +1173,17 @@ class PackPersonalizadoView(discord.ui.LayoutView):
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
                 "## 📦 PACK PERSONALIZADO\n"
-                "### 🏷️ R$ 50,00\n\n"
-                "Monte um pack com a sua identidade sonora. Escolha os adicionais e personalize o conteúdo."
+                "### 🏷️ Pack sob medida — R$ 50,00\n\n"
+                "Um pack criado a partir da sua ideia, estilo e identidade sonora.\n"
+                "Responda às perguntas e escolha somente os adicionais que quiser.\n\n"
+                "**O que está incluído**\n"
+                "• Nome, estilo musical e descrição do projeto\n"
+                "• Cerca de 3 horas de trabalho + conhecimento aplicado\n\n"
+                "**Adicionais opcionais**\n"
+                "🗂️ Organização das pastas · + R$ 10\n"
+                "🎛️ Samples personalizadas · + R$ 10\n"
+                "🎚️ Samples de outros packs · + R$ 20\n\n"
+                "O total é calculado conforme os extras selecionados. Toque abaixo para começar."
             )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
             discord.ui.TextDisplay(content=(
@@ -4485,6 +4494,31 @@ class MandarArrumadorButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(ArrumadorModal())
 
+class ComprovanteInfoView(discord.ui.View):
+    """View sem botões para o painel informativo de comprovantes."""
+    def __init__(self):
+        super().__init__(timeout=None)
+
+
+def criar_embed_comprovante_info():
+    embed = criar_embed_estetico(
+        title="🧾 COMO ENVIAR O COMPROVANTE",
+        description=(
+            "Envie o comprovante dentro do **canal privado do seu pedido**.\n\n"
+            "### 📎 PASSO A PASSO\n"
+            "1. Abra o pedido em andamento.\n"
+            "2. Use **/comprovante** e selecione a imagem ou o PDF.\n"
+            "3. Aguarde a conferência manual do administrador.\n\n"
+            "### ⚠️ IMPORTANTE\n"
+            "Enviar o arquivo não confirma o pagamento. O pedido só é liberado após a verificação do Pix.\n"
+            "Formatos aceitos: PNG, JPG, WEBP ou PDF · até 10 MB."
+        ),
+        color=discord.Color.from_rgb(40, 40, 40)
+    )
+    embed.set_footer(text="CC BOT • Pagamentos conferidos manualmente")
+    return embed
+
+
 class ArrumadorPainelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -4494,10 +4528,14 @@ def criar_embed_arrumador():
     embed = criar_embed_estetico(
         title="🧰 ARRUMADOR DE ARQUIVOS",
         description=(
-            "Organize seu projeto do FL Studio Mobile do jeito que você precisa.\n\n"
-            "Valor do serviço: **R$ 33,99**. O envio do projeto é liberado após a confirmação manual do Pix.\n\n"
-            "📦 **Como começar**\n"
-            "Clique em **MANDAR**, descreva as mudanças e faça o Pix no canal privado."
+            "Seu projeto do FL Studio Mobile, organizado conforme o que você precisa.\n\n"
+            "### 💰 VALOR DO SERVIÇO\n"
+            "**R$ 33,99** · pagamento conferido manualmente.\n\n"
+            "### 📦 COMO SOLICITAR\n"
+            "1. Toque em **MANDAR**.\n"
+            "2. Explique quais mudanças você quer no projeto.\n"
+            "3. Faça o Pix no pedido privado e envie o comprovante.\n\n"
+            "O serviço é liberado após a confirmação do pagamento."
         ),
         color=discord.Color.red()
     )
@@ -6597,6 +6635,7 @@ async def atualizar_paineis(interaction: discord.Interaction):
     ignorados = 0
     falhas = 0
     vistos = set()
+    comprovante_panel_atualizado = False
     status_pack = "❌ Não foi possível restaurar o painel."
 
     # Edita a mensagem original e informa o erro real; não cria cópia.
@@ -6635,7 +6674,7 @@ async def atualizar_paineis(interaction: discord.Interaction):
             partes.append(str(msg.components))
         return " ".join(partes).casefold()
 
-    def detectar(texto, mensagem):
+    def detectar(texto, mensagem, canal):
         # Recupera o painel conhecido mesmo se ele foi reduzido a texto puro e perdeu os botões.
         if mensagem.id == PACK_PANEL_MESSAGE_ID:
             return "Pack Personalizado", PackPersonalizadoView, True
@@ -6653,6 +6692,12 @@ async def atualizar_paineis(interaction: discord.Interaction):
                 or "referência técnica:" in (embed.footer.text or "").casefold()
             ):
                 return None
+
+        # Atualiza uma mensagem informativa em canal dedicado a comprovantes.
+        # Os embeds de pagamentos pendentes são excluídos acima.
+        if "comprovante" in getattr(canal, "name", "").casefold():
+            if mensagem.content or mensagem.embeds or mensagem.components:
+                return "Comprovante", ComprovanteInfoView, False
 
         # Use IDs de componentes ou títulos exatos: texto de pedidos/comprovantes
         # pode mencionar produtos e nunca deve ser confundido com um painel.
@@ -6682,9 +6727,12 @@ async def atualizar_paineis(interaction: discord.Interaction):
                     continue
                 # Mensagens sem componentes normalmente são ignoradas, exceto o ID fixo
                 # do painel de Pack, que precisa ser recuperado se perdeu o layout/botão.
-                if not mensagem.components and mensagem.id != PACK_PANEL_MESSAGE_ID:
+                canal_com_comprovante = "comprovante" in getattr(canal, "name", "").casefold()
+                if not mensagem.components and mensagem.id != PACK_PANEL_MESSAGE_ID and not canal_com_comprovante:
                     continue
-                tipo_detectado = detectar(texto_mensagem(mensagem), mensagem)
+                if canal_com_comprovante and comprovante_panel_atualizado:
+                    continue
+                tipo_detectado = detectar(texto_mensagem(mensagem), mensagem, canal)
                 if not tipo_detectado:
                     ignorados += 1
                     continue
@@ -6695,8 +6743,15 @@ async def atualizar_paineis(interaction: discord.Interaction):
                         # Components V2 contém o layout completo do painel.
                         await mensagem.edit(content=None, embeds=[], attachments=[], view=nova_view)
                     elif nome == "Arrumador":
-                        # Restaura o embed padrão apenas quando o título confirma que é o painel.
                         await mensagem.edit(content=None, embed=criar_embed_arrumador(), attachments=[], view=nova_view)
+                    elif nome == "Comprovante":
+                        await mensagem.edit(
+                            content=None,
+                            embed=criar_embed_comprovante_info(),
+                            attachments=[],
+                            view=nova_view
+                        )
+                        comprovante_panel_atualizado = True
                     else:
                         await mensagem.edit(view=nova_view)
                     vistos.add(mensagem.id)
