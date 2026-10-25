@@ -3382,7 +3382,7 @@ PAINEL_GRUPOS = {
     "bot": {
         "titulo": "Central do bot",
         "descricao": "Tudo que o bot envia, administra ou usa para comunicar-se: boas-vindas, avisos, limpeza de mensagens e funcionamento.",
-        "categorias": ["boas_vindas", "trabalhos_on", "limpar_pv", "manutencao", "canal_avisos"],
+        "categorias": ["boas_vindas", "trabalhos_on", "limpar_pv", "manutencao", "canal_avisos", "regras"],
     },
     "personalizacao": {
         "titulo": "Personalização",
@@ -3408,6 +3408,7 @@ OPCOES_CATEGORIAS_PAINEL = [
     discord.SelectOption(label="Verificar funcionamento", description="Conferir se o bot está online e respondendo", emoji="🛠️", value="manutencao"),
     discord.SelectOption(label="Limpar mensagens privadas", description="Apagar somente mensagens do bot na sua DM", emoji="🧹", value="limpar_pv"),
     discord.SelectOption(label="Canal de avisos do bot", description="Definir onde o bot envia erros e avisos técnicos", emoji="📨", value="canal_avisos"),
+    discord.SelectOption(label="Regras", description="Melhorar a aparência da mensagem de regras existente", emoji="📜", value="regras"),
     discord.SelectOption(label="Adicionar emojis", description="Enviar ZIP ou imagens para personalizar o servidor", emoji="😀", value="emojis"),
     discord.SelectOption(label="Adicionar ícones", description="Importar ZIPs ou imagens para publicar", emoji="🖼️", value="icones"),
     discord.SelectOption(label="Backups", description="Salvar cópia no Termux ou enviar por mensagem privada", emoji="💾", value="ferramentas"),
@@ -3418,6 +3419,94 @@ OPCOES_CATEGORIAS_PAINEL = [
     discord.SelectOption(label="Consultar hierarquia", description="Enviar relatório de canais, cargos e permissões", emoji="🧭", value="analisar_hierarquia"),
     discord.SelectOption(label="Organizar hierarquia", description="Reordenar canais após confirmação", emoji="🗂️", value="organizar_hierarquia"),
 ]
+
+async def atualizar_embed_regras(interaction: discord.Interaction):
+    """Restiliza a mensagem de regras existente sem recriá-la nem apagar seu conteúdo."""
+    message_id = 1563670149150547999
+    guild = interaction.guild
+    if guild is None:
+        await interaction.response.send_message("Abra o painel dentro do servidor.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    canais = list(guild.text_channels)
+    for thread in getattr(guild, "threads", []):
+        if thread not in canais:
+            canais.append(thread)
+
+    mensagem_alvo = None
+    canal_alvo = None
+    for canal in canais:
+        try:
+            mensagem_alvo = await canal.fetch_message(message_id)
+            canal_alvo = canal
+            break
+        except discord.NotFound:
+            continue
+        except discord.Forbidden:
+            continue
+        except discord.HTTPException:
+            log.warning("Não foi possível verificar mensagens no canal %s ao localizar o painel de regras.", canal.id)
+            continue
+
+    if mensagem_alvo is None:
+        await interaction.followup.send(
+            "Não encontrei a mensagem de regras com o ID configurado. Nenhuma mensagem foi criada. "
+            "Confira se o bot consegue ler o canal e se esse ID é da mensagem correta.",
+            ephemeral=True
+        )
+        return
+
+    novos_embeds = []
+    for original in mensagem_alvo.embeds:
+        embed = original.copy()
+        embed.color = discord.Color.from_rgb(43, 45, 49)
+        if not embed.title:
+            embed.title = "📜 REGRAS DA COMUNIDADE"
+        if not embed.description and not embed.fields:
+            embed.description = "Leia as regras abaixo e siga as orientações para manter a comunidade organizada."
+        if not embed.footer.text:
+            embed.set_footer(text="C.C ©  •  REGRAS DA COMUNIDADE")
+        if not embed.thumbnail.url and not embed.image.url and guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        novos_embeds.append(embed)
+
+    if not novos_embeds:
+        conteudo = (mensagem_alvo.content or "").strip()
+        if not conteudo:
+            await interaction.followup.send(
+                "A mensagem não tem embed nem texto para estilizar. Não alterei nada.",
+                ephemeral=True
+            )
+            return
+        embed = criar_embed_estetico(
+            title="📜 REGRAS DA COMUNIDADE",
+            description=conteudo,
+            color=discord.Color.from_rgb(43, 45, 49)
+        )
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        novos_embeds = [embed]
+
+    try:
+        await mensagem_alvo.edit(
+            content=None if novos_embeds else mensagem_alvo.content,
+            embeds=novos_embeds,
+            allowed_mentions=discord.AllowedMentions.none()
+        )
+        await interaction.followup.send(
+            f"✅ Aparência da mensagem de regras atualizada em {canal_alvo.mention}. "
+            "Editei a mensagem existente e preservei o texto, os campos e as imagens que já estavam no embed.",
+            ephemeral=True
+        )
+        log.info("Embed de regras atualizado pelo /painel: canal=%s mensagem=%s", canal_alvo.id, message_id)
+    except discord.HTTPException as exc:
+        log.exception("Falha ao atualizar embed de regras")
+        await interaction.followup.send(
+            f"❌ Não consegui atualizar o embed de regras ({type(exc).__name__}). Confira os logs do bot.",
+            ephemeral=True
+        )
+
 
 class PainelGrupoSelect(discord.ui.Select):
     def __init__(self):
@@ -3487,6 +3576,8 @@ class CategoriaPainelSelect(discord.ui.Select):
                 ),
                 view=PainelBoasVindasView()
             )
+        elif categoria == "regras":
+            await atualizar_embed_regras(interaction)
         elif categoria == "parcerias":
             await atualizar_painel_parcerias(interaction)
         elif categoria == "trampar_conosco":
