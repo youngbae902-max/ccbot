@@ -4526,32 +4526,66 @@ class ArrumadorPainelView(discord.ui.View):
 
 def criar_embed_arrumador():
     embed = criar_embed_estetico(
-        title="🧰 ARRUMADOR DE ARQUIVOS",
+        title="🎛️﹒ARRUMADOR DE PROJETOS",
         description=(
-            "Seu projeto do FL Studio Mobile, organizado conforme o que você precisa.\n\n"
-            "### 💰 VALOR DO SERVIÇO\n"
-            "**R$ 33,99** · pagamento conferido manualmente.\n\n"
-            "### 📦 COMO SOLICITAR\n"
-            "1. Toque em **MANDAR**.\n"
-            "2. Explique quais mudanças você quer no projeto.\n"
-            "3. Faça o Pix no pedido privado e envie o comprovante.\n\n"
-            "O serviço é liberado após a confirmação do pagamento."
+            "Seu projeto no **FL Studio Mobile**, organizado conforme suas necessidades.\n\n"
+            "## 💰﹒VALOR DO SERVIÇO\n"
+            "**R$ 33,99** · Pagamento via Pix com confirmação manual.\n\n"
+            "## 📋﹒COMO SOLICITAR\n"
+            "**01** · Toque em **MANDAR**.\n"
+            "**02** · Explique quais mudanças você quer no projeto.\n"
+            "**03** · Faça o Pix no pedido privado e envie o comprovante.\n\n"
+            "## 🔒﹒LIBERAÇÃO\n"
+            "O serviço será iniciado após a confirmação do pagamento pela administração."
         ),
-        color=discord.Color.red()
+        color=discord.Color.from_rgb(43, 45, 49)
     )
     embed.set_thumbnail(
         url="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
     )
-    embed.set_footer(text="CC BOT • Arrumador de Projetos")
+    embed.set_footer(text="C.C ©  •  Arrumador de Projetos")
     return embed
 
 async def arrumador(interaction: discord.Interaction):
+    """Atualiza o painel do Arrumador existente; nunca cria uma mensagem duplicada."""
     if await deny_unauthorized(interaction):
         return
-    await interaction.response.send_message(
-        embed=criar_embed_arrumador(),
-        view=ArrumadorPainelView()
-    )
+
+    canal_id = 1561513289438199878
+    mensagem_id = 1563997360432873624
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        canal = bot.get_channel(canal_id)
+        if canal is None:
+            canal = await bot.fetch_channel(canal_id)
+        mensagem = await canal.fetch_message(mensagem_id)
+        await mensagem.edit(
+            embed=criar_embed_arrumador(),
+            view=ArrumadorPainelView(),
+            allowed_mentions=discord.AllowedMentions.none()
+        )
+        await interaction.followup.send(
+            f"✅ Painel do Arrumador atualizado em {canal.mention}. A mensagem existente foi editada.",
+            ephemeral=True
+        )
+        log.info("Painel do Arrumador atualizado pelo /painel: canal=%s mensagem=%s", canal_id, mensagem_id)
+    except discord.NotFound:
+        await interaction.followup.send(
+            "❌ Não encontrei a mensagem do Arrumador configurada. Nenhuma mensagem nova foi criada.",
+            ephemeral=True
+        )
+    except discord.Forbidden:
+        log.exception("Sem permissão para atualizar o painel do Arrumador.")
+        await interaction.followup.send(
+            "❌ O bot não tem permissão para editar o painel do Arrumador.",
+            ephemeral=True
+        )
+    except discord.HTTPException as exc:
+        log.exception("Falha ao atualizar o painel do Arrumador.")
+        await interaction.followup.send(
+            f"❌ Não consegui atualizar o painel ({type(exc).__name__}). Confira os logs do bot.",
+            ephemeral=True
+        )
 
 PROMO_CHANNELS = {
     "Loja CC": 1561513281049595958,
