@@ -61,6 +61,13 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertIn("anexo.size <= 10 * 1024 * 1024", self.source)
         self.assertNotIn('title="🧾 COMPROVANTE RECEBIDO"', self.source)
 
+    def test_payment_actions_defer_and_archive_cancelled_receipts(self):
+        self.assertIn("PROCESSING_PIX_ORDERS = set()", self.source)
+        self.assertIn("await interaction.response.defer(ephemeral=True, thinking=True)", self.source)
+        self.assertIn("files=arquivos_cancelados", self.source)
+        self.assertIn("o pedido continua pendente", self.source)
+        self.assertIn("await interaction.message.delete(", self.source)
+
     def test_github_bridge_has_allowlist_and_no_shell_execution(self):
         bridge = (ROOT / "github_bridge.py").read_text(encoding="utf-8")
         self.assertIn('ALLOWED_ACTIONS = {"diagnostico", "saude"}', bridge)
