@@ -264,8 +264,9 @@ async def _saude(bot, guild):
 
 async def _buscar_canal(bot, guild, channel_id):
     """Consulta somente leitura um canal específico e suas mensagens recentes."""
-    if not isinstance(channel_id, int) or channel_id <= 0:
+    if not isinstance(channel_id, (str, int)) or not re.fullmatch(r"[0-9]{15,25}", str(channel_id)):
         raise ValueError("channel_id precisa ser um ID numérico válido.")
+    channel_id = int(channel_id)
     channel = bot.get_channel(channel_id)
     if channel is None:
         channel = await bot.fetch_channel(channel_id)
