@@ -6539,6 +6539,86 @@ async def atualizar_paineis(interaction: discord.Interaction):
     )
 
 
+@bot.tree.command(name="parcerias", description="Criar ou atualizar a aba de Parcerias automaticamente")
+async def comando_parcerias(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador autorizado pode gerenciar a aba de Parcerias.", ephemeral=True
+        )
+        return
+    if interaction.guild is None or interaction.guild.id != 1561513043886743562:
+        await interaction.response.send_message(
+            "Use este comando dentro do servidor oficial do CC BOT.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        canal = bot.get_channel(PARTNERSHIPS_CHANNEL_ID)
+        if canal is None:
+            canal = await bot.fetch_channel(PARTNERSHIPS_CHANNEL_ID)
+        if not isinstance(canal, discord.TextChannel):
+            await interaction.edit_original_response(
+                content="❌ O canal configurado para Parcerias não é um canal de texto."
+            )
+            return
+
+        registros = settings.setdefault("community_panels", {})
+        registro = registros.get("Parcerias", {})
+        mensagem = None
+        mensagem_id = registro.get("message_id") if isinstance(registro, dict) else None
+        if not mensagem_id:
+            mensagem_id = 1562596483688300545
+
+        # Primeiro tenta os IDs já conhecidos.
+        try:
+            mensagem = await canal.fetch_message(int(mensagem_id))
+            if mensagem.author.id != bot.user.id:
+                mensagem = None
+        except (discord.NotFound, discord.HTTPException, ValueError, TypeError):
+            mensagem = None
+
+        # Se o ID antigo estiver desatualizado, procura a aba existente antes de criar outra.
+        if mensagem is None:
+            async for candidata in canal.history(limit=200):
+                if candidata.author.id != bot.user.id:
+                    continue
+                texto = " ".join([
+                    candidata.content or "",
+                    *[(e.title or "") + " " + (e.description or "") for e in candidata.embeds],
+                    str([c.to_dict() for c in candidata.components])
+                ]).casefold()
+                if "conecte com o c.c" in texto or "apresentar meu grupo" in texto or "parcerias • colaboração" in texto:
+                    mensagem = candidata
+                    break
+
+        if mensagem is None:
+            mensagem = await canal.send(view=ParceriasView(), allowed_mentions=discord.AllowedMentions.none())
+            resultado = "✅ Aba de Parcerias criada no canal configurado."
+        else:
+            await mensagem.edit(
+                content=None,
+                embeds=[],
+                attachments=[],
+                view=ParceriasView(),
+                allowed_mentions=discord.AllowedMentions.none()
+            )
+            resultado = "✅ Aba de Parcerias atualizada na mensagem existente. Nenhuma cópia foi criada."
+
+        registros["Parcerias"] = {"message_id": mensagem.id}
+        save_json(DATA_FILE, settings)
+        await interaction.edit_original_response(
+            content=f"{resultado}\nCanal: {canal.mention}\nID da mensagem salvo automaticamente."
+        )
+        log.info("Aba Parcerias processada: canal=%s mensagem=%s por=%s", canal.id, mensagem.id, interaction.user.id)
+    except Exception as exc:
+        log.exception("Falha ao criar/atualizar aba de Parcerias")
+        detalhe = f" (HTTP {exc.status}, código {exc.code})" if isinstance(exc, discord.HTTPException) else ""
+        await interaction.edit_original_response(
+            content=f"❌ Não consegui preparar a aba de Parcerias ({type(exc).__name__}{detalhe}). Confira os logs."
+        )
+
+
 @bot.tree.command(name="diagnostico", description="Analisar os canais do servidor e enviar um relatório")
 async def diagnostico(interaction: discord.Interaction):
     if not is_admin(interaction):
