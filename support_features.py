@@ -32,12 +32,46 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
             if interaction.user.id != owner_id and not is_admin(interaction) and not interaction.user.guild_permissions.administrator:
                 await interaction.response.send_message("Só quem abriu o ticket ou a administração pode encerrar.", ephemeral=True)
                 return
-            await interaction.response.send_message("🔒 Atendimento encerrado.")
-            owner = interaction.guild.get_member(owner_id) if interaction.guild else None
+            guild = interaction.guild
+            owner = guild.get_member(owner_id) if guild and owner_id else None
+            if guild and owner_id and owner is None:
+                try:
+                    owner = await guild.fetch_member(owner_id)
+                except discord.NotFound:
+                    owner = None
+                except discord.HTTPException:
+                    log.exception("Não foi possível localizar o responsável pelo ticket %s.", ch.id)
+                    await interaction.response.send_message(
+                        "Não consegui verificar o responsável pelo ticket. Tente novamente.",
+                        ephemeral=True
+                    )
+                    return
+
             if owner:
-                await ch.set_permissions(owner, send_messages=False)
+                try:
+                    await ch.set_permissions(owner, send_messages=False)
+                except discord.Forbidden:
+                    log.exception("Sem permissão para bloquear o ticket %s.", ch.id)
+                    await interaction.response.send_message(
+                        "Não consegui bloquear o canal. Confira as permissões do bot.",
+                        ephemeral=True
+                    )
+                    return
+                except discord.HTTPException:
+                    log.exception("Falha ao bloquear o ticket %s.", ch.id)
+                    await interaction.response.send_message(
+                        "O Discord não permitiu bloquear o canal. Tente novamente.",
+                        ephemeral=True
+                    )
+                    return
+
             if not ch.name.startswith("fechado-"):
-                await ch.edit(name=("fechado-" + ch.name)[:100])
+                try:
+                    await ch.edit(name=("fechado-" + ch.name)[:100])
+                except discord.HTTPException:
+                    log.exception("Não foi possível renomear o ticket encerrado %s.", ch.id)
+
+            await interaction.response.send_message("🔒 Atendimento encerrado.")
 
     class SupportPanelView(discord.ui.View):
         def __init__(self):

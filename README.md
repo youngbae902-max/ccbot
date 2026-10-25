@@ -21,6 +21,8 @@ python -m pip install -r requirements.txt
 
 O código espera o token em `/sdcard/Download/CC/token.txt`. Crie esse arquivo localmente e mantenha-o fora do repositório. Nunca publique o token em commits, mensagens ou logs.
 
+O arquivo versionado `config/config.json` é apenas um modelo. Na primeira inicialização desta versão, as configurações existentes são migradas para `config/runtime_settings.json`, que é ignorado pelo Git; o arquivo versionado volta ao modelo padrão para evitar que vendas e ajustes locais bloqueiem `git pull`. Arquivos JSON inválidos são preservados em um backup antes de serem recriados.
+
 Para iniciar manualmente:
 
 ```bash
@@ -48,7 +50,7 @@ O estado de solicitações já processadas fica localmente em `config/github_bri
 ## Testes
 
 ```bash
-python -m py_compile ccbot.py
+python -m compileall -q .
 python -m unittest discover -s tests -v
 ```
 

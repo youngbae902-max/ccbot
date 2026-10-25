@@ -55,9 +55,10 @@ def criar_embed_estetico(*args, **kwargs):
     return embed
 
 
-BASE = Path.home() / "ccbot-repo"
+BASE = Path(__file__).resolve().parent
 CONFIG = BASE / "config"
-DATA_FILE = CONFIG / "config.json"
+DATA_FILE = CONFIG / "runtime_settings.json"
+LEGACY_DATA_FILE = CONFIG / "config.json"
 MODELS_FILE = CONFIG / "modelos.json"
 DJS_FILE = CONFIG / "djs.json"
 TOKEN_FILE = Path("/sdcard/Download/CC/token.txt")
@@ -102,21 +103,75 @@ log = logging.getLogger("CCBOT")
 
 def load_json(path, default):
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        save_json(path, default)
+        return default
+    except OSError:
+        log.exception("Não foi possível ler o arquivo %s.", path)
+        raise
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        backup = path.with_name(
+            f"{path.name}.corrupt-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        try:
+            path.replace(backup)
+        except OSError as backup_error:
+            log.exception(
+                "JSON inválido em %s e não foi possível preservar o original.",
+                path
+            )
+            raise RuntimeError(
+                f"Não foi possível preservar o JSON inválido: {path}"
+            ) from backup_error
+        log.error(
+            "JSON inválido em %s; original preservado em %s.",
+            path,
+            backup,
+            exc_info=(type(exc), exc, exc.__traceback__)
+        )
         save_json(path, default)
         return default
 
 def save_json(path, data):
-    path.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8"
-    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    payload = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    try:
+        temporary.write_text(payload, encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            log.warning("Não foi possível limpar o arquivo temporário %s.", temporary)
 
-settings = load_json(DATA_FILE, {
-    "notice_channel": DEFAULT_NOTICE_CHANNEL,
-    "sales_count": 0
-})
+def load_runtime_settings():
+    """Migra configurações antigas para um arquivo local ignorado pelo Git."""
+    legacy_defaults = {"notice_channel": DEFAULT_NOTICE_CHANNEL}
+    legacy = load_json(LEGACY_DATA_FILE, legacy_defaults)
+    runtime = load_json(DATA_FILE, {})
+    if not isinstance(legacy, dict):
+        raise RuntimeError(
+            f"{LEGACY_DATA_FILE} precisa conter um objeto JSON; dados preservados."
+        )
+    if not isinstance(runtime, dict):
+        raise RuntimeError(
+            f"{DATA_FILE} precisa conter um objeto JSON; dados preservados."
+        )
+
+    merged = {**legacy, **runtime}
+    save_json(DATA_FILE, merged)
+
+    # O arquivo legado é versionado; mantém nele somente o modelo do repositório
+    # para que o bot não deixe o Git sujo a cada venda ou alteração de configuração.
+    save_json(LEGACY_DATA_FILE, legacy_defaults)
+    return merged
+
+settings = load_runtime_settings()
 
 models = load_json(MODELS_FILE, {
     "gerador-sample": "",
@@ -1608,6 +1663,9 @@ class CopiarCodigoPixView(discord.ui.View):
             ephemeral=True
         )
 
+PROCESSING_PIX_ORDERS = set()
+
+
 class ConfirmarPagamentoView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -1638,95 +1696,184 @@ class ConfirmarPagamentoView(discord.ui.View):
                 f"Este pedido já foi processado: {pedido.get('status')}.", ephemeral=True
             )
             return
-        pedido["status"] = "pago_confirmado_manualmente" if aprovado else "cancelado_manualmente"
-        pedido["processed_at"] = datetime.now().isoformat(timespec="seconds")
-        pedido["processed_by"] = str(interaction.user.id)
-        save_json(PIX_ORDERS_FILE, pix_orders)
-
-        comprador = None
-        guild = interaction.guild
-        if guild:
-            comprador = guild.get_member(int(pedido.get("discord_id", 0)))
-        if comprador is None:
-            try:
-                comprador = await bot.fetch_user(int(pedido.get("discord_id", 0)))
-            except discord.HTTPException:
-                comprador = None
-        if comprador:
-            if aprovado and pedido.get("fulfillment_type") == "pack":
-                mensagem = (
-                    f"Seu pagamento de {formatar_reais(pedido.get('amount', 0))} para {pedido.get('product', 'seu pedido')} foi confirmado. "
-                    "Seu pedido personalizado foi aprovado e entrou na fila de produção; o administrador enviará o resultado quando estiver pronto."
-                )
-            elif aprovado:
-                mensagem = (
-                    f"Seu pagamento de {formatar_reais(pedido.get('amount', 0))} para {pedido.get('product', 'sua compra')} foi confirmado. "
-                    "O administrador está finalizando a liberação do pedido."
-                )
-            else:
-                mensagem = (
-                    f"Seu pedido {pedido.get('product', 'de compra')} foi cancelado. Nenhum produto foi liberado. "
-                    "Se você já pagou, entre em contato com a administração."
-                )
-            try:
-                await comprador.send(mensagem)
-            except discord.HTTPException:
-                log.warning("Não foi possível enviar o resultado do pedido %s ao PV do usuário %s", txid, pedido.get("discord_id"))
-
-        ticket_id = pedido.get("ticket_channel_id")
-        if guild and ticket_id:
-            ticket = guild.get_channel(int(ticket_id)) or guild.get_thread(int(ticket_id))
-            if ticket is None:
-                try:
-                    ticket = await bot.fetch_channel(int(ticket_id))
-                except discord.HTTPException:
-                    ticket = None
-            if ticket is not None:
-                try:
-                    if aprovado and isinstance(ticket, discord.Thread) and comprador:
-                        # Avisa no tópico e agenda a exclusão sem atrasar a resposta do botão do Discord.
-                        await ticket.send(
-                            f"{comprador.mention} **Tudo feito! Olha a sua DM para receber seu produto.**"
-                        )
-
-                        async def apagar_topico_depois_de_um_minuto(topico, pedido_id):
-                            await asyncio.sleep(60)
-                            try:
-                                await topico.delete(
-                                    reason=f"Tópico do pedido {pedido_id} encerrado após 1 minuto"
-                                )
-                            except discord.HTTPException:
-                                log.exception("Falha ao apagar o tópico do pedido %s após 1 minuto", pedido_id)
-
-                        asyncio.create_task(apagar_topico_depois_de_um_minuto(ticket, txid))
-                    else:
-                        # Pedidos cancelados e cobranças que não são tópicos de beat continuam sendo apagados.
-                        await ticket.delete(
-                            reason=f"Pedido {txid} processado: {'pago' if aprovado else 'cancelado'}"
-                        )
-                except discord.HTTPException:
-                    log.exception("Falha ao avisar/apagar o tópico/canal do pedido %s", txid)
-
-        if interaction.message and interaction.message.embeds:
-            embed = interaction.message.embeds[0]
-            embed.color = discord.Color.green() if aprovado else discord.Color.red()
-            embed.description = (embed.description or "") + (
-                "\n\nSTATUS FINAL: PAGAMENTO CONFIRMADO MANUALMENTE"
-                if aprovado else "\n\nSTATUS FINAL: PEDIDO CANCELADO / NEGADO"
-            )
-            embed.set_footer(text=f"Identificador: {txid} • Processado por {interaction.user.id}")
-            if aprovado:
-                # A fila deve mostrar somente pedidos pendentes; pedidos aprovados saem dela.
-                await interaction.response.delete_message()
-            else:
-                # Guarda o registro no canal de cancelados antes de remover da fila pendente.
-                canal_cancelados = await obter_canal_cancelados(interaction.guild)
-                await canal_cancelados.send(embed=embed)
-                await interaction.response.delete_message()
-        else:
+        if txid in PROCESSING_PIX_ORDERS:
             await interaction.response.send_message(
-                f"Pedido {txid}: {'confirmado' if aprovado else 'cancelado'}.", ephemeral=True
+                "Este pedido já está sendo processado. Aguarde um instante.",
+                ephemeral=True
             )
+            return
+
+        PROCESSING_PIX_ORDERS.add(txid)
+        arquivos_cancelados = []
+        embed_final = None
+        try:
+            # Reconhece o clique antes de fazer chamadas de rede ou copiar anexos.
+            await interaction.response.defer(ephemeral=True, thinking=True)
+
+            if interaction.message and interaction.message.embeds:
+                embed_final = interaction.message.embeds[0]
+                embed_final.color = discord.Color.green() if aprovado else discord.Color.red()
+                embed_final.description = (embed_final.description or "") + (
+                    "\n\nSTATUS FINAL: PAGAMENTO CONFIRMADO MANUALMENTE"
+                    if aprovado else "\n\nSTATUS FINAL: PEDIDO CANCELADO / NEGADO"
+                )
+                embed_final.set_footer(text=f"Identificador: {txid} • Processado por {interaction.user.id}")
+
+            # Primeiro arquiva o pedido cancelado e seus comprovantes. Se isso falhar,
+            # o pedido continua pendente e pode ser processado novamente.
+            if not aprovado:
+                try:
+                    if interaction.guild is None or embed_final is None:
+                        raise RuntimeError("Não foi possível acessar o embed original do pedido.")
+                    canal_cancelados = await obter_canal_cancelados(interaction.guild)
+                    for anexo in interaction.message.attachments:
+                        arquivos_cancelados.append(await anexo.to_file())
+                    if arquivos_cancelados:
+                        await canal_cancelados.send(
+                            embed=embed_final,
+                            files=arquivos_cancelados,
+                            allowed_mentions=discord.AllowedMentions.none()
+                        )
+                    else:
+                        await canal_cancelados.send(
+                            embed=embed_final,
+                            allowed_mentions=discord.AllowedMentions.none()
+                        )
+                except Exception:
+                    log.exception("Falha ao arquivar o pedido cancelado %s; mantendo-o pendente.", txid)
+                    await interaction.edit_original_response(
+                        content="❌ Não consegui mover o pedido para Cancelados. Ele continua pendente; tente novamente.",
+                        view=None
+                    )
+                    return
+                finally:
+                    for arquivo_cancelado in arquivos_cancelados:
+                        try:
+                            arquivo_cancelado.close()
+                        except Exception:
+                            log.exception("Falha ao liberar arquivo de comprovante arquivado.")
+
+            status_anterior = pedido.get("status")
+            processado_anterior = pedido.get("processed_at")
+            autor_anterior = pedido.get("processed_by")
+            pedido["status"] = "pago_confirmado_manualmente" if aprovado else "cancelado_manualmente"
+            pedido["processed_at"] = datetime.now().isoformat(timespec="seconds")
+            pedido["processed_by"] = str(interaction.user.id)
+            try:
+                save_json(PIX_ORDERS_FILE, pix_orders)
+            except Exception:
+                pedido["status"] = status_anterior
+                if processado_anterior is None:
+                    pedido.pop("processed_at", None)
+                else:
+                    pedido["processed_at"] = processado_anterior
+                if autor_anterior is None:
+                    pedido.pop("processed_by", None)
+                else:
+                    pedido["processed_by"] = autor_anterior
+                raise
+
+            comprador = None
+            guild = interaction.guild
+            if guild:
+                comprador = guild.get_member(int(pedido.get("discord_id", 0)))
+            if comprador is None:
+                try:
+                    comprador = await bot.fetch_user(int(pedido.get("discord_id", 0)))
+                except discord.HTTPException:
+                    comprador = None
+
+            if comprador:
+                if aprovado and pedido.get("fulfillment_type") == "pack":
+                    mensagem = (
+                        f"Seu pagamento de {formatar_reais(pedido.get('amount', 0))} para {pedido.get('product', 'seu pedido')} foi confirmado. "
+                        "Seu pedido personalizado foi aprovado e entrou na fila de produção; o administrador enviará o resultado quando estiver pronto."
+                    )
+                elif aprovado:
+                    mensagem = (
+                        f"Seu pagamento de {formatar_reais(pedido.get('amount', 0))} para {pedido.get('product', 'sua compra')} foi confirmado. "
+                        "O administrador está finalizando a liberação do pedido."
+                    )
+                else:
+                    mensagem = (
+                        f"Seu pedido {pedido.get('product', 'de compra')} foi cancelado. Nenhum produto foi liberado. "
+                        "Se você já pagou, entre em contato com a administração."
+                    )
+                try:
+                    await comprador.send(mensagem)
+                except discord.HTTPException:
+                    log.warning(
+                        "Não foi possível enviar o resultado do pedido %s ao PV do usuário %s",
+                        txid, pedido.get("discord_id")
+                    )
+
+            ticket_id = pedido.get("ticket_channel_id")
+            if guild and ticket_id:
+                ticket = guild.get_channel(int(ticket_id)) or guild.get_thread(int(ticket_id))
+                if ticket is None:
+                    try:
+                        ticket = await bot.fetch_channel(int(ticket_id))
+                    except discord.HTTPException:
+                        ticket = None
+                if ticket is not None:
+                    try:
+                        if aprovado and isinstance(ticket, discord.Thread) and comprador:
+                            await ticket.send(
+                                f"{comprador.mention} **Tudo feito! Olha a sua DM para receber seu produto.**"
+                            )
+
+                            async def apagar_topico_depois_de_um_minuto(topico, pedido_id):
+                                await asyncio.sleep(60)
+                                try:
+                                    await topico.delete(
+                                        reason=f"Tópico do pedido {pedido_id} encerrado após 1 minuto"
+                                    )
+                                except discord.HTTPException:
+                                    log.exception("Falha ao apagar o tópico do pedido %s após 1 minuto", pedido_id)
+
+                            asyncio.create_task(apagar_topico_depois_de_um_minuto(ticket, txid))
+                        else:
+                            await ticket.delete(
+                                reason=f"Pedido {txid} processado: {'pago' if aprovado else 'cancelado'}"
+                            )
+                    except discord.HTTPException:
+                        log.exception("Falha ao avisar/apagar o tópico/canal do pedido %s", txid)
+
+            if interaction.message:
+                try:
+                    await interaction.message.delete(
+                        reason=f"Pedido {txid} processado: {'pago' if aprovado else 'cancelado'}"
+                    )
+                except discord.HTTPException:
+                    log.exception("Não foi possível remover o pedido processado %s da fila.", txid)
+                    if embed_final is not None:
+                        try:
+                            await interaction.message.edit(embed=embed_final, view=None)
+                        except discord.HTTPException:
+                            log.exception("Não foi possível marcar o pedido %s como finalizado.", txid)
+
+            await interaction.edit_original_response(
+                content=(
+                    f"✅ Pagamento de {formatar_reais(pedido.get('amount', 0))} confirmado e removido da fila."
+                    if aprovado
+                    else "🗂️ Pedido cancelado, arquivado com seus anexos e removido da fila pendente."
+                ),
+                view=None
+            )
+        except Exception:
+            log.exception("Falha ao finalizar o pedido Pix %s.", txid)
+            mensagem_erro = (
+                "❌ Ocorreu uma falha ao concluir a operação. Confira o estado do pedido antes de tentar novamente."
+            )
+            try:
+                if interaction.response.is_done():
+                    await interaction.edit_original_response(content=mensagem_erro, view=None)
+                else:
+                    await interaction.response.send_message(mensagem_erro, ephemeral=True)
+            except discord.HTTPException:
+                log.exception("Não foi possível informar a falha no pedido %s.", txid)
+        finally:
+            PROCESSING_PIX_ORDERS.discard(txid)
 
     @discord.ui.button(label="Confirmar pagamento", emoji="✅", style=discord.ButtonStyle.success, custom_id="ccbot:pagamento:confirmar")
     async def confirmar(self, interaction, button):
@@ -4879,25 +5026,46 @@ async def contar_mensagens_do_canal():
 
     settings["sales_count"] = total
     save_json(DATA_FILE, settings)
+    bot._sales_history_counted = True
     log.info("Contagem recalculada: %s mensagens atuais no canal de vendas", total)
+
+def ajustar_contador_vendas_por_exclusao(quantidade):
+    if quantidade <= 0 or not getattr(bot, "_sales_history_counted", False):
+        return
+    atual = max(0, int(settings.get("sales_count", 0)))
+    novo = max(0, atual - quantidade)
+    if novo == atual:
+        return
+    settings["sales_count"] = novo
+    save_json(DATA_FILE, settings)
+    log.info(
+        "Contador de vendas ajustado após exclusão: %s -> %s (mensagens removidas=%s)",
+        atual, novo, quantidade
+    )
 
 @bot.event
 async def on_raw_message_delete(payload: discord.RawMessageDeleteEvent):
     if payload.channel_id != SALES_SOURCE_CHANNEL_ID:
         return
     try:
-        await contar_mensagens_do_canal()
+        if getattr(bot, "_sales_history_counted", False):
+            ajustar_contador_vendas_por_exclusao(1)
+        else:
+            await contar_mensagens_do_canal()
     except Exception:
-        log.exception("Falha ao recalcular vendas após exclusão de mensagem")
+        log.exception("Falha ao ajustar vendas após exclusão de mensagem")
 
 @bot.event
 async def on_raw_bulk_message_delete(payload: discord.RawBulkMessageDeleteEvent):
     if payload.channel_id != SALES_SOURCE_CHANNEL_ID:
         return
     try:
-        await contar_mensagens_do_canal()
+        if getattr(bot, "_sales_history_counted", False):
+            ajustar_contador_vendas_por_exclusao(len(payload.message_ids))
+        else:
+            await contar_mensagens_do_canal()
     except Exception:
-        log.exception("Falha ao recalcular vendas após exclusão em massa")
+        log.exception("Falha ao ajustar vendas após exclusão em massa")
 
 @tasks.loop(seconds=10)
 async def atualizar_contador_vendas():
@@ -5761,9 +5929,8 @@ async def on_ready():
             # Mantém os comandos ativos apenas no servidor de destino.
             bot.tree.clear_commands(guild=guild)
             bot.tree.copy_global_to(guild=guild)
-            bot.tree.clear_commands(guild=None)
-            # Não sincronize a árvore global vazia: o Discord protege o comando
-            # Entry Point das Activities contra exclusão em atualizações em lote.
+            # Sincronizamos somente a árvore do servidor. Manter a árvore global em memória
+            # permite tentar novamente após uma falha sem perder os comandos locais.
             try:
                 synced = await bot.tree.sync(guild=guild)
                 bot._commands_synced_this_process = True
@@ -5779,7 +5946,7 @@ async def on_ready():
         # A configuração de painéis gratuitos deve ser acionada manualmente.
 
         # Limpeza única do histórico antigo de Confirmar pagamentos, solicitada pelo administrador.
-        if not settings.get("payment_admin_history_cleared", False):
+        if settings.get("payment_admin_history_cleared") is False:
             servidor_limpeza = bot.get_guild(1561513043886743562)
             if servidor_limpeza is None:
                 raise RuntimeError("Servidor não encontrado para limpar o histórico de pagamentos.")
@@ -5795,26 +5962,10 @@ async def on_ready():
             save_json(DATA_FILE, settings)
             log.info("Limpeza única de #%s concluída: %s mensagens apagadas.", canal_limpeza.name, apagadas)
 
-        # Os painéis/regras/divulgações existentes não são publicados ou recriados no startup.
+        # A inicialização não cria/move canais, reescreve permissões nem cria/colori cargos.
+        # Os canais de pagamento são preparados sob demanda no fluxo de pagamento.
+        # A hierarquia do servidor só pode ser alterada por ação explícita do administrador.
         servidor_cc = bot.get_guild(1561513043886743562)
-        try:
-            await obter_canal_confirmacao(servidor_cc)
-            await obter_canal_cancelados(servidor_cc)
-        except Exception:
-            log.exception("Falha ao mover pedidos/cancelamentos para ANDAMENTO.")
-
-        try:
-            servidor = bot.get_guild(1561513043886743562)
-            roles = await garantir_cargos(servidor)
-            fundador = roles.get("fundador")
-            administrador = servidor.get_member(ADMIN_ID) if servidor else None
-            if fundador and administrador and fundador not in administrador.roles:
-                await administrador.add_roles(fundador, reason="Cargo Fundador da comunidade")
-        except Exception:
-            log.exception("Falha ao configurar cargos na inicialização.")
-
-        # IMPORTANTE: a hierarquia nunca é alterada automaticamente ao iniciar o bot.
-        # A organização continua disponível apenas pelo comando/painel manual do administrador.
 
         # Atualiza somente a mensagem de suporte configurada pelo administrador.
         # A função busca a mensagem pelo ID e nunca cria uma duplicata.
@@ -5826,15 +5977,17 @@ async def on_ready():
             except Exception:
                 log.exception("Não foi possível atualizar a mensagem existente do painel de suporte.")
 
-        # Repara mensagens existentes antes das tarefas secundárias de inicialização.
-        if not getattr(bot, "_panels_restored_this_process", False):
+        # Migra painéis legados uma única vez; os callbacks persistentes são registrados em setup_hook.
+        if not settings.get("legacy_panels_restored", False):
             await restaurar_paineis_existentes()
-            bot._panels_restored_this_process = True
+            settings["legacy_panels_restored"] = True
+            save_json(DATA_FILE, settings)
 
-        # Corrige publicações antigas de beats cujos botões não tinham IDs persistentes.
-        if not getattr(bot, "_beats_migrated_this_process", False):
+        # Migra botões de beats antigos uma única vez. Novos beats já nascem com IDs persistentes.
+        if not settings.get("beats_buttons_migrated", False):
             await restaurar_botoes_beats_existentes()
-            bot._beats_migrated_this_process = True
+            settings["beats_buttons_migrated"] = True
+            save_json(DATA_FILE, settings)
 
         # Ponte GitHub: recebe tarefas aprovadas no repositório e publica relatórios.
         tarefa_ponte = getattr(bot, "_github_bridge_task", None)
@@ -5853,27 +6006,61 @@ async def on_ready():
 
         # O sistema de ícones agora importa ZIPs manualmente; não existe monitoramento de pastas.
 
-        # Atualiza a mensagem do painel já publicada, sem criar outra.
-        try:
-            samples_channel = await bot.fetch_channel(SAMPLES_PANEL_CHANNEL_ID)
-            samples_message = await samples_channel.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
-            await samples_message.edit(view=GeradorSamplesView())
-            log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
-        except Exception:
-            log.exception("Não foi possível atualizar o painel /samples existente.")
-
-        # Atualiza o painel de Pack Personalizado já publicado, sem criar outro.
-        try:
-            pack_channel = await bot.fetch_channel(PACK_PANEL_CHANNEL_ID)
-            pack_message = await pack_channel.fetch_message(PACK_PANEL_MESSAGE_ID)
-            await pack_message.edit(view=PackPersonalizadoView())
-            log.info("Painel Pack Personalizado existente atualizado: canal=%s mensagem=%s", PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID)
-        except Exception:
-            log.exception("Não foi possível atualizar o painel Pack Personalizado existente.")
 
     except Exception as exc:
         log.exception("Falha ao iniciar ou sincronizar comandos")
         await notify_admin(f"Falha ao iniciar o CC BOT: {exc}")
+
+async def anexar_comprovantes_ao_pedido(pedido, canal_admin, arquivos, nomes_arquivos):
+    """Anexa arquivos à mensagem administrativa original, preservando os botões de aprovação."""
+    if not arquivos or len(arquivos) != len(nomes_arquivos):
+        raise ValueError("Lista de comprovantes vazia ou inconsistente.")
+
+    mensagem_id = pedido.get("admin_message_id")
+    if not mensagem_id:
+        raise RuntimeError("O pedido não possui ID da mensagem administrativa original.")
+    mensagem_admin = await canal_admin.fetch_message(int(mensagem_id))
+    if not mensagem_admin.embeds:
+        raise RuntimeError("A mensagem administrativa do pedido não contém o embed esperado.")
+    if len(mensagem_admin.attachments) + len(arquivos) > 10:
+        raise ValueError("O pedido já atingiu o limite de 10 anexos no Discord.")
+
+    embed = mensagem_admin.embeds[0]
+    nome_campo = "📎 Comprovante(s) recebido(s)"
+    linhas = "\n".join("• " + str(nome).replace(chr(96), "'") for nome in nomes_arquivos)
+    indice = next(
+        (i for i, campo in enumerate(embed.fields) if campo.name.casefold() == nome_campo.casefold()),
+        None
+    )
+    if indice is None:
+        embed.add_field(name=nome_campo, value=linhas[:1024], inline=False)
+    else:
+        valor_atual = embed.fields[indice].value
+        embed.set_field_at(
+            indice,
+            name=nome_campo,
+            value=(valor_atual + "\n" + linhas)[:1024],
+            inline=False
+        )
+
+    imagem = next(
+        (nome for nome in nomes_arquivos if Path(nome).suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}),
+        None
+    )
+    if imagem:
+        embed.set_image(url=f"attachment://{imagem}")
+
+    await mensagem_admin.edit(
+        embed=embed,
+        attachments=[*mensagem_admin.attachments, *arquivos],
+        view=ConfirmarPagamentoView()
+    )
+    pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
+    pedido["receipt_filename"] = ", ".join(nomes_arquivos)[:1000]
+    pedido["receipt_message_id"] = str(mensagem_admin.id)
+    save_json(PIX_ORDERS_FILE, pix_orders)
+    return mensagem_admin
+
 
 @bot.tree.command(name="comprovante", description="Enviar o arquivo do comprovante Pix sem publicar no chat")
 @app_commands.describe(arquivo="Imagem ou PDF do comprovante (até 10 MB)")
@@ -5932,28 +6119,13 @@ async def enviar_comprovante_pix(interaction: discord.Interaction, arquivo: disc
         if canal_admin is None:
             canal_admin = await obter_canal_confirmacao(interaction.guild)
 
-        aviso = criar_embed_estetico(
-            title="🧾 COMPROVANTE RECEBIDO",
-            description=(
-                f"**Pedido:** {pedido.get('txid')}\n"
-                f"**Produto:** {pedido.get('product')}\n"
-                f"**Valor esperado:** {formatar_reais(pedido.get('amount', 0))}\n"
-                f"**Cliente:** {interaction.user.mention} (ID {interaction.user.id})\n"
-                f"**Pedido original:** <#{interaction.channel_id}>\n\n"
-                "Confira o recebimento na conta antes de aprovar. O arquivo não confirma o pagamento automaticamente."
-            ),
-            color=discord.Color.gold(),
-            timestamp=discord.utils.utcnow()
+        nome_anexo = nome[:180]
+        await anexar_comprovantes_ao_pedido(
+            pedido,
+            canal_admin,
+            [discord.File(io.BytesIO(dados), filename=nome_anexo)],
+            [nome_anexo]
         )
-        # Mantém o embed de conferência separado do arquivo do comprovante.
-        await canal_admin.send(embed=aviso)
-        await canal_admin.send(
-            content="📎 **Comprovante deste pedido:**",
-            file=discord.File(io.BytesIO(dados), filename=nome[:180])
-        )
-        pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
-        pedido["receipt_filename"] = nome
-        pedido["receipt_message_id"] = str(interaction.id)
         save_json(PIX_ORDERS_FILE, pix_orders)
         await interaction.followup.send(
             "✅ Comprovante enviado para conferência. Ele não foi publicado no chat.",
@@ -5987,7 +6159,11 @@ async def receber_comprovante_pix(message: discord.Message):
         nome = Path(anexo.filename).name
         tipo = (anexo.content_type or "").lower()
         extensao = Path(nome).suffix.lower()
-        if tipo.startswith("image/") or tipo == "application/pdf" or extensao in {".png", ".jpg", ".jpeg", ".webp", ".pdf"}:
+        formato_valido = (
+            extensao in {".png", ".jpg", ".jpeg", ".webp", ".pdf"}
+            or tipo in {"image/png", "image/jpeg", "image/webp", "application/pdf"}
+        )
+        if formato_valido and anexo.size <= 10 * 1024 * 1024:
             try:
                 dados = await anexo.read(use_cached=True)
                 if dados and len(dados) <= 10 * 1024 * 1024:
@@ -6010,28 +6186,14 @@ async def receber_comprovante_pix(message: discord.Message):
         except Exception:
             log.exception("Não consegui localizar o canal de comprovantes do pedido %s", pedido.get("txid"))
             return
-    aviso = criar_embed_estetico(
-        title="🧾 COMPROVANTE RECEBIDO",
-        description=(
-            f"**Pedido:** {pedido.get('txid')}\n"
-            f"**Produto:** {pedido.get('product')}\n"
-            f"**Valor esperado:** {formatar_reais(pedido.get('amount', 0))}\n"
-            f"**Cliente:** {message.author.mention} (ID {message.author.id})\n"
-            f"**Pedido original:** <#{message.channel.id}>\n\n"
-            "Confira o recebimento na conta antes de aprovar. O anexo não confirma o pagamento automaticamente."
-        ),
-        color=discord.Color.gold(),
-        timestamp=discord.utils.utcnow()
-    )
     try:
-        # Publica primeiro os dados do pedido e, em uma mensagem separada, os arquivos.
-        await canal_admin.send(embed=aviso)
-        await canal_admin.send(
-            content="📎 **Comprovante(s) deste pedido:**",
-            files=arquivos_validos
+        nomes_arquivos = [arquivo.filename for arquivo in arquivos_validos]
+        await anexar_comprovantes_ao_pedido(
+            pedido,
+            canal_admin,
+            arquivos_validos,
+            nomes_arquivos
         )
-        pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
-        pedido["receipt_message_id"] = str(message.id)
         save_json(PIX_ORDERS_FILE, pix_orders)
         await message.reply("✅ Comprovante encaminhado para **Confirmar pagamentos**. Aguarde a conferência manual.", mention_author=False)
     except Exception:

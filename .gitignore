@@ -7,3 +7,18 @@ ccbot_data/
 Backups/
 
 github_token.txt
+
+# Runtime state written by the bot (keep Git pulls clean).
+config/runtime_settings.json
+config/modelos.json
+config/djs.json
+config/beats.json
+config/github_bridge_state.json
+config/ccbot.log
+config/ccbot-process.lock
+config/.*.tmp
+config/*.corrupt-*
+config/pix_pedidos.json
+pix_pedidos.json
+evopay_pending.json
+uploads/emojis/

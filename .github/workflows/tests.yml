@@ -2,7 +2,7 @@ name: CC BOT checks
 
 on:
   push:
-    branches: ["master", "feat/**"]
+    branches: ["master", "feat/**", "maintenance/**"]
   pull_request:
     branches: ["master"]
 
@@ -19,6 +19,6 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Compile source
-        run: python -m py_compile ccbot.py
+        run: python -m compileall -q .
       - name: Run static tests
         run: python -m unittest discover -s tests -v
