@@ -4401,14 +4401,14 @@ class AbrirAreasTrabalhoButton(discord.ui.Button):
         )
 
 class TramparConoscoView(discord.ui.LayoutView):
-    """Painel Components V2 para oportunidades de trabalho."""
+    """Painel Components V2 adaptado dos templates JSON do DWEEB."""
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(
             discord.ui.Container(
                 discord.ui.TextDisplay(
                     content=(
-                        "## <:tag:1561787923865665667> TRAMPAR CONOSCO\n"
+                        "# <:tag:1561787923865665667> TRAMPAR CONOSCO\n"
                         "**Seu talento tem espaço no C.C ©.**\n"
                         "-# PAINEL ATUALIZADO"
                     )
@@ -4416,22 +4416,18 @@ class TramparConoscoView(discord.ui.LayoutView):
                 discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
                 discord.ui.TextDisplay(
                     content=(
-                        "### 🧩 ÁREAS DE TRABALHO\n"
-                        "🤖 **Bots para Discord**\n"
-                        "Python, automações e projetos com ou sem IA.\n\n"
-                        "🎨 **Design**\n"
-                        "Banners, artes e identidade visual.\n\n"
-                        "🛠️ **Organização / Staff**\n"
-                        "Organização de canais, suporte e moderação.\n\n"
-                        "🎬 **Edição de vídeo**\n"
-                        "Área planejada para o futuro."
+                        "**🧩 ÁREAS DE TRABALHO**\n"
+                        "🤖 **Bots para Discord** — Python, automações e projetos com ou sem IA.\n"
+                        "🎨 **Design** — banners, artes e identidade visual.\n"
+                        "🛠️ **Organização / Staff** — canais, suporte e moderação.\n"
+                        "🎬 **Edição de vídeo** — área planejada para o futuro."
                     )
                 ),
-                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
                 discord.ui.Section(
                     discord.ui.TextDisplay(
                         content=(
-                            "### 🎁 O QUE VOCÊ GANHA\n"
+                            "**🎁 O QUE VOCÊ GANHA**\n"
                             "Um espaço no servidor para divulgar seu trabalho e seus projetos."
                         )
                     ),
@@ -4440,14 +4436,18 @@ class TramparConoscoView(discord.ui.LayoutView):
                     )
                 ),
                 discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-                discord.ui.TextDisplay(
-                    content=(
-                        "### ⏳ INSCRIÇÕES\n"
-                        "As inscrições oficiais ainda estão fechadas. Você pode indicar sua área de interesse pelo botão abaixo.\n"
-                        "-# C.C © • Oportunidades e projetos"
-                    )
+                discord.ui.Section(
+                    discord.ui.TextDisplay(
+                        content=(
+                            "**⏳ INSCRIÇÕES FECHADAS**\n"
+                            "As inscrições oficiais ainda não abriram. Você pode indicar sua área de interesse."
+                        )
+                    ),
+                    accessory=AbrirAreasTrabalhoButton()
                 ),
-                discord.ui.ActionRow(AbrirAreasTrabalhoButton()),
+                discord.ui.TextDisplay(
+                    content="-# C.C © • Oportunidades e projetos"
+                ),
                 accent_color=5793266
             )
         )
