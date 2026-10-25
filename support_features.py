@@ -77,14 +77,29 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
 
     def criar_embed_suporte():
         em = criar_embed_estetico(
-            title="🎧 𝗦𝗨𝗣𝗢𝗥𝗧𝗘 𝗗𝗘𝗗𝗜𝗖𝗔𝗗𝗢",
-            description=f"**Precisou de ajuda? Vamos resolver com você.**\n-# ATENDIMENTO HUMANO • C.C ©\n\nAbra um ticket privado para falar com a administração. Respondemos em até **24 horas**. O atendimento é feito por pessoas, não por respostas automáticas.\n\n**📲 CONTATO DIRETO**\nWhatsApp: [falar com o C.C ©](https://wa.me/{whatsapp_number})",
-            color=discord.Color.from_rgb(18, 18, 22)
+            title="🛟  SUPORTE C.C ©",
+            description=(
+                "## Precisa de ajuda?
+"
+                "Abra um atendimento privado e explique o que aconteceu. "
+                "A administração continuará a conversa diretamente com você.
+
+"
+                "-# ATENDIMENTO HUMANO • RESPOSTA EM ATÉ 24H"
+            ),
+            color=discord.Color.from_rgb(35, 37, 42)
         )
-        if SUPPORT_INSTAGRAM_URL:
-            em.add_field(name="📸 INSTAGRAM", value=f"[Acessar perfil oficial]({SUPPORT_INSTAGRAM_URL})", inline=False)
-        em.add_field(name="✦ COMO FUNCIONA", value="Toque em **Chamar ADM**, descreva seu problema e aguarde no ticket. Você e a administração terão acesso ao canal.", inline=False)
-        em.set_footer(text="C.C © • Suporte privado")
+        em.add_field(
+            name="🎫  Atendimento privado",
+            value="Use **Abrir ticket** para falar com a administração sem expor seu problema no chat público.",
+            inline=False
+        )
+        em.add_field(
+            name="📱  Contato alternativo",
+            value=f"[Conversar pelo WhatsApp](https://wa.me/{whatsapp_number})",
+            inline=False
+        )
+        em.set_footer(text="C.C ©  •  SUPORTE E ATENDIMENTO")
         return em
 
     async def garantir_painel_suporte(guild):
