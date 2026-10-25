@@ -55,9 +55,10 @@ def criar_embed_estetico(*args, **kwargs):
     return embed
 
 
-BASE = Path.home() / "ccbot-repo"
+BASE = Path(__file__).resolve().parent
 CONFIG = BASE / "config"
-DATA_FILE = CONFIG / "config.json"
+DATA_FILE = CONFIG / "runtime_settings.json"
+LEGACY_DATA_FILE = CONFIG / "config.json"
 MODELS_FILE = CONFIG / "modelos.json"
 DJS_FILE = CONFIG / "djs.json"
 TOKEN_FILE = Path("/sdcard/Download/CC/token.txt")
@@ -102,21 +103,75 @@ log = logging.getLogger("CCBOT")
 
 def load_json(path, default):
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        save_json(path, default)
+        return default
+    except OSError:
+        log.exception("Não foi possível ler o arquivo %s.", path)
+        raise
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        backup = path.with_name(
+            f"{path.name}.corrupt-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        try:
+            path.replace(backup)
+        except OSError as backup_error:
+            log.exception(
+                "JSON inválido em %s e não foi possível preservar o original.",
+                path
+            )
+            raise RuntimeError(
+                f"Não foi possível preservar o JSON inválido: {path}"
+            ) from backup_error
+        log.error(
+            "JSON inválido em %s; original preservado em %s.",
+            path,
+            backup,
+            exc_info=(type(exc), exc, exc.__traceback__)
+        )
         save_json(path, default)
         return default
 
 def save_json(path, data):
-    path.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8"
-    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    payload = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    try:
+        temporary.write_text(payload, encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            log.warning("Não foi possível limpar o arquivo temporário %s.", temporary)
 
-settings = load_json(DATA_FILE, {
-    "notice_channel": DEFAULT_NOTICE_CHANNEL,
-    "sales_count": 0
-})
+def load_runtime_settings():
+    """Migra configurações antigas para um arquivo local ignorado pelo Git."""
+    legacy_defaults = {"notice_channel": DEFAULT_NOTICE_CHANNEL}
+    legacy = load_json(LEGACY_DATA_FILE, legacy_defaults)
+    runtime = load_json(DATA_FILE, {})
+    if not isinstance(legacy, dict):
+        raise RuntimeError(
+            f"{LEGACY_DATA_FILE} precisa conter um objeto JSON; dados preservados."
+        )
+    if not isinstance(runtime, dict):
+        raise RuntimeError(
+            f"{DATA_FILE} precisa conter um objeto JSON; dados preservados."
+        )
+
+    merged = {**legacy, **runtime}
+    save_json(DATA_FILE, merged)
+
+    # O arquivo legado é versionado; mantém nele somente o modelo do repositório
+    # para que o bot não deixe o Git sujo a cada venda ou alteração de configuração.
+    save_json(LEGACY_DATA_FILE, legacy_defaults)
+    return merged
+
+settings = load_runtime_settings()
 
 models = load_json(MODELS_FILE, {
     "gerador-sample": "",
@@ -4879,25 +4934,46 @@ async def contar_mensagens_do_canal():
 
     settings["sales_count"] = total
     save_json(DATA_FILE, settings)
+    bot._sales_history_counted = True
     log.info("Contagem recalculada: %s mensagens atuais no canal de vendas", total)
+
+def ajustar_contador_vendas_por_exclusao(quantidade):
+    if quantidade <= 0 or not getattr(bot, "_sales_history_counted", False):
+        return
+    atual = max(0, int(settings.get("sales_count", 0)))
+    novo = max(0, atual - quantidade)
+    if novo == atual:
+        return
+    settings["sales_count"] = novo
+    save_json(DATA_FILE, settings)
+    log.info(
+        "Contador de vendas ajustado após exclusão: %s -> %s (mensagens removidas=%s)",
+        atual, novo, quantidade
+    )
 
 @bot.event
 async def on_raw_message_delete(payload: discord.RawMessageDeleteEvent):
     if payload.channel_id != SALES_SOURCE_CHANNEL_ID:
         return
     try:
-        await contar_mensagens_do_canal()
+        if getattr(bot, "_sales_history_counted", False):
+            ajustar_contador_vendas_por_exclusao(1)
+        else:
+            await contar_mensagens_do_canal()
     except Exception:
-        log.exception("Falha ao recalcular vendas após exclusão de mensagem")
+        log.exception("Falha ao ajustar vendas após exclusão de mensagem")
 
 @bot.event
 async def on_raw_bulk_message_delete(payload: discord.RawBulkMessageDeleteEvent):
     if payload.channel_id != SALES_SOURCE_CHANNEL_ID:
         return
     try:
-        await contar_mensagens_do_canal()
+        if getattr(bot, "_sales_history_counted", False):
+            ajustar_contador_vendas_por_exclusao(len(payload.message_ids))
+        else:
+            await contar_mensagens_do_canal()
     except Exception:
-        log.exception("Falha ao recalcular vendas após exclusão em massa")
+        log.exception("Falha ao ajustar vendas após exclusão em massa")
 
 @tasks.loop(seconds=10)
 async def atualizar_contador_vendas():
@@ -5779,7 +5855,7 @@ async def on_ready():
         # A configuração de painéis gratuitos deve ser acionada manualmente.
 
         # Limpeza única do histórico antigo de Confirmar pagamentos, solicitada pelo administrador.
-        if not settings.get("payment_admin_history_cleared", False):
+        if settings.get("payment_admin_history_cleared") is False:
             servidor_limpeza = bot.get_guild(1561513043886743562)
             if servidor_limpeza is None:
                 raise RuntimeError("Servidor não encontrado para limpar o histórico de pagamentos.")
@@ -5853,23 +5929,42 @@ async def on_ready():
 
         # O sistema de ícones agora importa ZIPs manualmente; não existe monitoramento de pastas.
 
-        # Atualiza a mensagem do painel já publicada, sem criar outra.
-        try:
-            samples_channel = await bot.fetch_channel(SAMPLES_PANEL_CHANNEL_ID)
-            samples_message = await samples_channel.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
-            await samples_message.edit(view=GeradorSamplesView())
-            log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
-        except Exception:
-            log.exception("Não foi possível atualizar o painel /samples existente.")
+        # Verifica esses painéis uma vez por processo, não em toda reconexão do Gateway.
+        if not getattr(bot, "_fixed_panels_checked_this_process", False):
+            try:
+                samples_channel = await bot.fetch_channel(SAMPLES_PANEL_CHANNEL_ID)
+                samples_message = await samples_channel.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
+                await samples_message.edit(view=GeradorSamplesView())
+                log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
+            except discord.NotFound:
+                log.warning(
+                    "Painel /samples não encontrado; nenhuma mensagem nova foi criada (canal=%s, mensagem=%s).",
+                    SAMPLES_PANEL_CHANNEL_ID, SAMPLES_PANEL_MESSAGE_ID
+                )
+            except discord.Forbidden:
+                log.warning("Sem permissão para atualizar o painel /samples existente.")
+            except discord.HTTPException:
+                log.exception("Falha HTTP ao atualizar o painel /samples existente.")
 
-        # Atualiza o painel de Pack Personalizado já publicado, sem criar outro.
-        try:
-            pack_channel = await bot.fetch_channel(PACK_PANEL_CHANNEL_ID)
-            pack_message = await pack_channel.fetch_message(PACK_PANEL_MESSAGE_ID)
-            await pack_message.edit(view=PackPersonalizadoView())
-            log.info("Painel Pack Personalizado existente atualizado: canal=%s mensagem=%s", PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID)
-        except Exception:
-            log.exception("Não foi possível atualizar o painel Pack Personalizado existente.")
+            try:
+                pack_channel = await bot.fetch_channel(PACK_PANEL_CHANNEL_ID)
+                pack_message = await pack_channel.fetch_message(PACK_PANEL_MESSAGE_ID)
+                await pack_message.edit(view=PackPersonalizadoView())
+                log.info(
+                    "Painel Pack Personalizado existente atualizado: canal=%s mensagem=%s",
+                    PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID
+                )
+            except discord.NotFound:
+                log.warning(
+                    "Painel Pack Personalizado não encontrado; nenhuma mensagem nova foi criada (canal=%s, mensagem=%s).",
+                    PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID
+                )
+            except discord.Forbidden:
+                log.warning("Sem permissão para atualizar o painel Pack Personalizado existente.")
+            except discord.HTTPException:
+                log.exception("Falha HTTP ao atualizar o painel Pack Personalizado existente.")
+            finally:
+                bot._fixed_panels_checked_this_process = True
 
     except Exception as exc:
         log.exception("Falha ao iniciar ou sincronizar comandos")
