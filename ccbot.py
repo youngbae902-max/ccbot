@@ -6372,11 +6372,11 @@ async def criar_regras(interaction: discord.Interaction, canal: discord.TextChan
 ])
 async def atualizar_painel(
     interaction: discord.Interaction,
-    canal: discord.TextChannel,
+    canal: discord.TextChannel | discord.Thread,
     mensagem_id: str,
     tipo: app_commands.Choice[str]
 ):
-    """Atualiza a mensagem indicada; nunca publica uma mensagem duplicada."""
+    """Atualiza mensagens em canais de texto e threads; nunca duplica a mensagem."""
     if not is_admin(interaction):
         await interaction.response.send_message(
             "Apenas o administrador autorizado pode atualizar painéis.", ephemeral=True
