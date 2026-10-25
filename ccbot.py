@@ -6139,7 +6139,6 @@ async def criar_sobre_nos(interaction: discord.Interaction):
                 url="https://www.instagram.com/ccloja.ig?dlrf=NGNmejZ6MWYyOHFx"
             )
         ),
-        accent_color=5793266
     ))
     try:
         await interaction.channel.send(
