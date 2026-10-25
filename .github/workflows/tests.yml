@@ -2,7 +2,7 @@ name: CC BOT checks
 
 on:
   push:
-    branches: ["master", "feat/**"]
+    branches: ["master", "feat/**", "maintenance/**"]
   pull_request:
     branches: ["master"]
 
