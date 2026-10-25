@@ -36,6 +36,8 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertIn("def load_runtime_settings():", self.source)
         ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("config/runtime_settings.json", ignore)
+        self.assertIn("config/pix_pedidos.json", ignore)
+        self.assertIn("uploads/emojis/", ignore)
 
     def test_json_writes_are_atomic_and_corrupt_files_are_preserved(self):
         self.assertIn("path.replace(backup)", self.source)
