@@ -6461,27 +6461,28 @@ async def atualizar_paineis(interaction: discord.Interaction):
     vistos = set()
 
     def texto_mensagem(msg):
+        # Serializa componentes por dicionário quando possível; isso também captura
+        # TextDisplay/Section de Components V2 que não expõem todos os campos como atributos.
         partes = [msg.content or ""]
         for emb in msg.embeds:
             partes.extend([emb.title or "", emb.description or ""])
             if emb.footer:
                 partes.append(emb.footer.text or "")
-        def ler_componentes(componentes):
-            for componente in componentes or []:
-                for atributo in ("content", "label", "custom_id"):
-                    valor = getattr(componente, atributo, None)
-                    if valor:
-                        partes.append(str(valor))
-                filhos = getattr(componente, "children", None)
-                if filhos:
-                    ler_componentes(filhos)
-        ler_componentes(msg.components)
+        try:
+            partes.append(json.dumps(
+                [componente.to_dict() for componente in msg.components],
+                ensure_ascii=False,
+                default=str
+            ))
+        except Exception:
+            partes.append(str(msg.components))
         return " ".join(partes).casefold()
 
     def detectar(texto):
-        if "ccbot:pack:v2:basico" in texto or "pack personalizado" in texto:
+        # Identificadores dos botões são mais seguros que nomes genéricos de produtos.
+        if "ccbot:pack:v2:basico" in texto:
             return "Pack Personalizado", PackPersonalizadoView, True
-        if "gerador de samples" in texto or "ccbot:samples" in texto:
+        if "gerador de samples" in texto and ("painel atualizado" in texto or "ccbot" in texto):
             return "Gerador de Samples", GeradorSamplesView, True
         if "trampar conosco" in texto or "central de oportunidades" in texto:
             return "Trampar Conosco", TramparConoscoView, True
@@ -6532,7 +6533,8 @@ async def atualizar_paineis(interaction: discord.Interaction):
             f"Painéis atualizados: **{atualizados}**\n"
             f"Mensagens ignoradas: **{ignorados}**\n"
             f"Falhas ou canais sem acesso: **{falhas}**\n\n"
-            "Não criei mensagens novas. A busca verificou até 200 mensagens recentes por canal."
+            "Não criei mensagens novas. A busca verificou até 200 mensagens recentes por canal. "
+            "Se algum painel ficou de fora, ainda não existe um modelo automático seguro para ele."
         )
     )
 
