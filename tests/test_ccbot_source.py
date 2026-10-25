@@ -54,7 +54,7 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertNotIn("await canal_admin.send(embed=aviso)", self.source)
         self.assertIn("embed=aviso,\n            file=discord.File(io.BytesIO(dados)", self.source)
         self.assertIn("embed=aviso,\n            files=arquivos_validos", self.source)
-        self.assertIn("pedido[\\"receipt_message_id\\"] = str(mensagem_comprovante.id)", self.source)
+        self.assertIn('pedido["receipt_message_id"] = str(mensagem_comprovante.id)', self.source)
         self.assertIn("anexo.size <= 10 * 1024 * 1024", self.source)
 
     def test_github_bridge_has_allowlist_and_no_shell_execution(self):
