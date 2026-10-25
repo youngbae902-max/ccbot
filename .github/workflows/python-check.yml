@@ -1,7 +1,7 @@
 name: Python syntax check
 on:
   push:
-    branches: [master]
+    branches: [master, "maintenance/**"]
   pull_request:
     branches: [master]
   workflow_dispatch:
