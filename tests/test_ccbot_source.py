@@ -50,12 +50,14 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertIn("ajustar_contador_vendas_por_exclusao", self.source)
         self.assertIn("len(payload.message_ids)", self.source)
 
-    def test_receipt_files_are_attached_to_the_admin_embed(self):
-        self.assertNotIn("await canal_admin.send(embed=aviso)", self.source)
-        self.assertIn("embed=aviso,\n            file=discord.File(io.BytesIO(dados)", self.source)
-        self.assertIn("embed=aviso,\n            files=arquivos_validos", self.source)
-        self.assertIn('pedido["receipt_message_id"] = str(mensagem_comprovante.id)', self.source)
+    def test_receipt_files_are_attached_to_the_original_approval_message(self):
+        self.assertIn("async def anexar_comprovantes_ao_pedido", self.source)
+        self.assertIn("await mensagem_admin.edit(", self.source)
+        self.assertIn("attachments=[*mensagem_admin.attachments, *arquivos]", self.source)
+        self.assertIn("view=ConfirmarPagamentoView()", self.source)
+        self.assertIn('pedido["receipt_message_id"] = str(mensagem_admin.id)', self.source)
         self.assertIn("anexo.size <= 10 * 1024 * 1024", self.source)
+        self.assertNotIn('title="🧾 COMPROVANTE RECEBIDO"', self.source)
 
     def test_github_bridge_has_allowlist_and_no_shell_execution(self):
         bridge = (ROOT / "github_bridge.py").read_text(encoding="utf-8")
