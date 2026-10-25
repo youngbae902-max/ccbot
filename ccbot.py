@@ -5886,15 +5886,17 @@ async def on_ready():
             except Exception:
                 log.exception("Não foi possível atualizar a mensagem existente do painel de suporte.")
 
-        # Repara mensagens existentes antes das tarefas secundárias de inicialização.
-        if not getattr(bot, "_panels_restored_this_process", False):
+        # Migra painéis legados uma única vez; os callbacks persistentes são registrados em setup_hook.
+        if not settings.get("legacy_panels_restored", False):
             await restaurar_paineis_existentes()
-            bot._panels_restored_this_process = True
+            settings["legacy_panels_restored"] = True
+            save_json(DATA_FILE, settings)
 
-        # Corrige publicações antigas de beats cujos botões não tinham IDs persistentes.
-        if not getattr(bot, "_beats_migrated_this_process", False):
+        # Migra botões de beats antigos uma única vez. Novos beats já nascem com IDs persistentes.
+        if not settings.get("beats_buttons_migrated", False):
             await restaurar_botoes_beats_existentes()
-            bot._beats_migrated_this_process = True
+            settings["beats_buttons_migrated"] = True
+            save_json(DATA_FILE, settings)
 
         # Ponte GitHub: recebe tarefas aprovadas no repositório e publica relatórios.
         tarefa_ponte = getattr(bot, "_github_bridge_task", None)
@@ -5913,42 +5915,6 @@ async def on_ready():
 
         # O sistema de ícones agora importa ZIPs manualmente; não existe monitoramento de pastas.
 
-        # Verifica esses painéis uma vez por processo, não em toda reconexão do Gateway.
-        if not getattr(bot, "_fixed_panels_checked_this_process", False):
-            try:
-                samples_channel = await bot.fetch_channel(SAMPLES_PANEL_CHANNEL_ID)
-                samples_message = await samples_channel.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
-                await samples_message.edit(view=GeradorSamplesView())
-                log.info("Painel /samples existente atualizado com o botão Gerar Samples.")
-            except discord.NotFound:
-                log.warning(
-                    "Painel /samples não encontrado; nenhuma mensagem nova foi criada (canal=%s, mensagem=%s).",
-                    SAMPLES_PANEL_CHANNEL_ID, SAMPLES_PANEL_MESSAGE_ID
-                )
-            except discord.Forbidden:
-                log.warning("Sem permissão para atualizar o painel /samples existente.")
-            except discord.HTTPException:
-                log.exception("Falha HTTP ao atualizar o painel /samples existente.")
-
-            try:
-                pack_channel = await bot.fetch_channel(PACK_PANEL_CHANNEL_ID)
-                pack_message = await pack_channel.fetch_message(PACK_PANEL_MESSAGE_ID)
-                await pack_message.edit(view=PackPersonalizadoView())
-                log.info(
-                    "Painel Pack Personalizado existente atualizado: canal=%s mensagem=%s",
-                    PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID
-                )
-            except discord.NotFound:
-                log.warning(
-                    "Painel Pack Personalizado não encontrado; nenhuma mensagem nova foi criada (canal=%s, mensagem=%s).",
-                    PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID
-                )
-            except discord.Forbidden:
-                log.warning("Sem permissão para atualizar o painel Pack Personalizado existente.")
-            except discord.HTTPException:
-                log.exception("Falha HTTP ao atualizar o painel Pack Personalizado existente.")
-            finally:
-                bot._fixed_panels_checked_this_process = True
 
     except Exception as exc:
         log.exception("Falha ao iniciar ou sincronizar comandos")
