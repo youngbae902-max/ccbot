@@ -4454,53 +4454,79 @@ class TramparConoscoView(discord.ui.LayoutView):
         )
 
 class ParceriasView(discord.ui.LayoutView):
-    """Painel de parcerias em Components V2, inspirado nos templates DWEEB."""
+    """Painel de parcerias com composição própria inspirada em vários templates DWEEB."""
     def __init__(self):
         super().__init__(timeout=None)
         botao_parceria = discord.ui.Button(
-            label="Conversar sobre parceria",
+            label="Apresentar meu grupo",
             style=discord.ButtonStyle.link,
             url=link_whatsapp(
-                "Olá! Quero fechar uma parceria com o servidor C.C ©. "
-                "Já tenho os requisitos mínimos e gostaria de conversar."
+                "Olá! Quero apresentar meu grupo para uma parceria com o C.C ©. "
+                "Ele tem pelo menos 30 membros. Gostaria de alinhar os detalhes."
             ),
             emoji="🤝"
         )
+
+        # Abertura em destaque + chamada lateral, inspirada no layout de anúncio e product card.
         self.add_item(
             discord.ui.Container(
                 discord.ui.TextDisplay(
                     content=(
-                        "# 🤝 PARCERIAS\n"
-                        "## Conecte seu projeto ao C.C ©\n"
-                        "Divulgue seu grupo, projeto ou negócio e construa uma parceria com a nossa comunidade."
+                        "# 🤝 CONECTE COM O C.C ©\n"
+                        "### Sua comunidade pode crescer junto da nossa.\n"
+                        "Buscamos grupos e projetos que tenham interesse em construir uma parceria real."
                     )
                 ),
-                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-                discord.ui.TextDisplay(
-                    content=(
-                        "### REQUISITOS\n"
-                        "**Grupo de WhatsApp**\n"
-                        "Sua comunidade precisa ter, no mínimo, **30 membros**.\n\n"
-                        "**Acesso administrativo**\n"
-                        "O responsável pelo C.C © precisa ser adicionado como administrador do grupo."
-                    )
-                ),
-                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
                 discord.ui.Section(
                     discord.ui.TextDisplay(
                         content=(
-                            "### COMO FUNCIONA\n"
-                            "Com o acesso necessário, organizamos as divulgações e alinhamos os detalhes diretamente. "
-                            "O parceiro também poderá receber uma área própria no servidor para divulgar produtos, serviços e projetos."
+                            "**Quer propor uma parceria?**\n"
+                            "Apresente seu grupo diretamente à administração para conversarmos sobre divulgação e colaboração."
                         )
                     ),
                     accessory=botao_parceria
                 ),
+                accent_color=5793266
+            )
+        )
+
+        # Bloco independente em formato de guia, seguindo a hierarquia do template de diretório.
+        self.add_item(discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large))
+        self.add_item(
+            discord.ui.TextDisplay(
+                content=(
+                    "## COMO A PARCERIA FUNCIONA\n"
+                    "**01 · Apresentação** — envie o link e explique do que se trata o grupo.\n"
+                    "**02 · Conferência** — a administração verifica os requisitos mínimos.\n"
+                    "**03 · Alinhamento** — combinamos a divulgação e os próximos passos."
+                )
+            )
+        )
+
+        # Critérios e benefícios ficam em uma área separada, em vez de repetir a estrutura do cabeçalho.
+        self.add_item(
+            discord.ui.Container(
+                discord.ui.TextDisplay(
+                    content=(
+                        "### 📋 REQUISITOS\n"
+                        "- O grupo de WhatsApp precisa ter **30 membros ou mais**.\n"
+                        "- O responsável pelo C.C © deve receber **permissão de administrador** no grupo."
+                    )
+                ),
                 discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
                 discord.ui.TextDisplay(
-                    content="-# C.C ©  /  PARCERIAS • DIVULGAÇÃO • COMUNIDADE"
+                    content=(
+                        "### ✦ O QUE A PARCERIA PODE INCLUIR\n"
+                        "Divulgação entre comunidades e, quando combinado, uma área no servidor para apresentar projetos, produtos ou serviços."
+                    )
                 ),
-                accent_color=5793266
+                accent_color=1752220
+            )
+        )
+        self.add_item(
+            discord.ui.TextDisplay(
+                content="-# C.C ©  /  PARCERIAS • COLABORAÇÃO • COMUNIDADE"
             )
         )
 
