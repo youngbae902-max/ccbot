@@ -1776,7 +1776,20 @@ class ConfirmarPagamentoView(discord.ui.View):
             else:
                 # Guarda o registro no canal de cancelados antes de remover da fila pendente.
                 canal_cancelados = await obter_canal_cancelados(interaction.guild)
-                await canal_cancelados.send(embed=embed)
+                arquivos_cancelados = []
+                try:
+                    if interaction.message.attachments:
+                        for anexo in interaction.message.attachments:
+                            arquivos_cancelados.append(await anexo.to_file())
+                        await canal_cancelados.send(embed=embed, files=arquivos_cancelados)
+                    else:
+                        await canal_cancelados.send(embed=embed)
+                finally:
+                    for arquivo_cancelado in arquivos_cancelados:
+                        try:
+                            arquivo_cancelado.close()
+                        except Exception:
+                            log.exception("Falha ao liberar arquivo de comprovante arquivado.")
                 await interaction.response.delete_message()
         else:
             await interaction.response.send_message(
