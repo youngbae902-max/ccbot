@@ -100,72 +100,33 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
         return em
 
     async def garantir_painel_suporte(guild):
-        # Atualiza exatamente a mensagem indicada pelo administrador; nunca cria duplicata.
+        # Edita apenas a mensagem existente informada pelo administrador.
+        # Esta função não publica mensagens em outros canais nem cria duplicatas.
+        if guild is None:
+            log.warning("Servidor indisponível; painel de suporte não atualizado.")
+            return
+
         support_channel_id = 1561513297155592253
         support_message_id = 1563639374074216523
-        ch = guild.get_channel(int(support_channel_id))
-        if ch is None:
-            try:
-                ch = await guild.fetch_channel(int(support_channel_id))
-            except discord.HTTPException:
-                log.warning("Canal do painel de suporte (%s) não encontrado.", support_channel_id)
-                return
+
         try:
-            msg = await ch.fetch_message(int(support_message_id))
+            ch = guild.get_channel(support_channel_id)
+            if ch is None:
+                ch = await guild.fetch_channel(support_channel_id)
+            msg = await ch.fetch_message(support_message_id)
             await msg.edit(embed=criar_embed_suporte(), view=SupportPanelView())
             log.info("Painel de suporte atualizado na mensagem %s.", support_message_id)
         except discord.NotFound:
             log.warning(
-                "Mensagem de suporte %s não encontrada no canal %s; nenhuma mensagem nova foi criada.",
-                support_message_id, support_channel_id
+                "Canal/mensagem de suporte não encontrado(a): canal=%s mensagem=%s. "
+                "Nenhuma mensagem nova foi criada.",
+                support_channel_id, support_message_id
             )
         except (discord.Forbidden, discord.HTTPException):
-            log.exception("Não foi possível editar a mensagem de suporte %s.", support_message_id)
-
-        # Varre os canais de texto e preenche apenas os realmente vazios.
-        # Canais operacionais/privados ficam de fora para não expor pedidos ou tickets.
-        ignorar = (
-            "andamento", "pedido", "cancelamento", "pagamento", "ticket",
-            "suporte • tickets", "confirmar", "pix", "logs", "registro"
-        )
-
-        def mensagem_inicial_para(canal):
-            nome = canal.name.casefold().replace("-", " ").replace("_", " ")
-            if any(p in nome for p in ("regra",)):
-                return "# 📜 REGRAS DO C.C ©\nLeia as regras fixadas neste canal antes de participar do servidor."
-            if any(p in nome for p in ("divulg", "promov")):
-                return "# 🎧 DIVULGAÇÕES DE BEATS\nUse este espaço exclusivamente para divulgar beats, previews e links diretamente relacionados às suas produções."
-            if "suporte" in nome:
-                return "# 🎫 SUPORTE DEDICADO\nPrecisa de ajuda? Abra um atendimento privado pelo painel de suporte. A equipe busca responder em até **24 horas**."
-            if any(p in nome for p in ("pack", "sample", "acapella", "projeto", "grátis", "gratis")):
-                return f"# 📦 {canal.name.upper()}\nConfira o painel e siga as instruções publicadas aqui para acessar os materiais."
-            if any(p in nome for p in ("beat", "loja", "venda", "mercado")):
-                return f"# 🎧 {canal.name.upper()}\nConfira as informações e os painéis deste canal antes de fazer um pedido ou compra."
-            if any(p in nome for p in ("parceria", "trampar", "trabalhe")):
-                return f"# 🤝 {canal.name.upper()}\nConfira as informações deste canal para conhecer os requisitos e as formas de participar."
-            if any(p in nome for p in ("info", "informação", "informacao", "aviso", "comece")):
-                return f"# ℹ️ {canal.name.upper()}\nLeia as orientações deste canal para encontrar as informações importantes do servidor."
-            if any(p in nome for p in ("comunidade", "chat", "geral", "conversa")):
-                return f"# 💬 {canal.name.upper()}\nEspaço da comunidade. Mantenha o respeito e siga as regras do C.C ©."
-            return f"# {canal.name.upper()}\nUse este canal conforme sua finalidade e siga as regras do servidor."
-
-        preenchidos = 0
-        for canal in guild.text_channels:
-            if canal.id == ch.id or any(p in canal.name.casefold() for p in ignorar):
-                continue
-            if canal.category and any(p in canal.category.name.casefold() for p in ignorar):
-                continue
-            try:
-                async for _ in canal.history(limit=1):
-                    break
-                else:
-                    await canal.send(mensagem_inicial_para(canal))
-                    preenchidos += 1
-                    log.info("Mensagem inicial enviada ao canal vazio #%s (%s).", canal.name, canal.id)
-            except (discord.Forbidden, discord.HTTPException):
-                log.warning("Não foi possível verificar/preencher #%s; confira as permissões.", canal.name)
-        log.info("Verificação de canais concluída: %s canal(is) vazio(s) preenchido(s).", preenchidos)
-
+            log.exception(
+                "Não foi possível editar o painel de suporte existente: mensagem=%s",
+                support_message_id
+            )
 
     async def garantir_regras(guild):
         if guild is None:
