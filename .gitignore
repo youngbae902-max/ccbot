@@ -18,3 +18,7 @@ config/ccbot.log
 config/ccbot-process.lock
 config/.*.tmp
 config/*.corrupt-*
+config/pix_pedidos.json
+pix_pedidos.json
+evopay_pending.json
+uploads/emojis/
