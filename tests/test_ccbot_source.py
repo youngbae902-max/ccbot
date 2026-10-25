@@ -65,7 +65,7 @@ class CCBotSourceTests(unittest.TestCase):
         self.assertIn("PROCESSING_PIX_ORDERS = set()", self.source)
         self.assertIn("await interaction.response.defer(ephemeral=True, thinking=True)", self.source)
         self.assertIn("files=arquivos_cancelados", self.source)
-        self.assertIn("o pedido continua pendente", self.source)
+        self.assertIn("Ele continua pendente", self.source)
         self.assertIn("await interaction.message.delete(", self.source)
 
     def test_github_bridge_has_allowlist_and_no_shell_execution(self):
