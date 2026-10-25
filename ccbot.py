@@ -815,7 +815,7 @@ class PackAdicionaisView(discord.ui.LayoutView):
         enviar.callback = self.enviar
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
-                "## <:tag:1561787923865665667> PACK PERSONALIZADO — R$ 50,00\n"
+                "## 🏷️ PACK PERSONALIZADO — R$ 50,00\n"
                 "Ideal para quem quer um pack montado a partir de uma ideia específica.\n"
                 "O valor inclui cerca de 3 horas de trabalho (R$ 30) + conhecimento aplicado (R$ 20).\n\n"
                 "**O que fazer agora:** marque os adicionais que quiser e toque em **Enviar pedido**. "
@@ -1110,15 +1110,15 @@ class PackPersonalizadoView(discord.ui.LayoutView):
         super().__init__(timeout=None)
         basico = discord.ui.Button(
             label="Montar meu pack",
-            emoji="<:tag:1561787923865665667>",
+            emoji="🏷️",
             style=discord.ButtonStyle.primary,
             custom_id="ccbot:pack:v2:basico"
         )
         basico.callback = self.abrir_basico
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
-                "## <:box:1561761831587160140> PACK PERSONALIZADO\n"
-                "### <:tag:1561787923865665667> R$ 50,00\n\n"
+                "## 📦 PACK PERSONALIZADO\n"
+                "### 🏷️ R$ 50,00\n\n"
                 "Monte um pack com a sua identidade sonora. Escolha os adicionais e personalize o conteúdo."
             )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
@@ -3808,7 +3808,7 @@ class GeradorSamplesView(discord.ui.LayoutView):
                 discord.ui.Section(
                     discord.ui.TextDisplay(
                         content=(
-                            "### <:box:1561761831587160140>  GERADOR DE SAMPLES\n"
+                            "### 📦  GERADOR DE SAMPLES\n"
                             "**Tenha acesso a novas possibilidades para suas produções!**\n"
                             "-# Novo Gerador de Samples da atualidade\n"
                         )
@@ -4654,7 +4654,7 @@ class ParceriasView(discord.ui.LayoutView):
 
 def criar_embed_trampar_conosco() -> discord.Embed:
     embed = criar_embed_estetico(
-        title="<:tag:1561787923865665667> TRAMPAR CONOSCO",
+        title="🏷️ TRAMPAR CONOSCO",
         description=(
             "**Seu talento tem espaço no C.C ©.**\n"
             "-# PAINEL ATUALIZADO\n\n"
@@ -4663,7 +4663,7 @@ def criar_embed_trampar_conosco() -> discord.Embed:
         color=discord.Color.from_rgb(0, 0, 0)
     )
     embed.add_field(
-        name="<:box:1561761831587160140> ÁREAS",
+        name="📦 ÁREAS",
         value=(
             "🤖 **Bots para Discord** — Python, com ou sem IA\n"
             "🎨 **Design** — banners, artes e identidade visual\n"
@@ -5614,7 +5614,7 @@ FREE_PROJECTS_GUILD_ID = 1561513043886743562
 FREE_PROJECTS = {
     "packs": {
         "channel_id": 1561513293934362705,
-        "title": "<:box:1561761831587160140> 𝗣𝗔𝗖𝗞𝗦 𝗚𝗥𝗔́𝗧𝗜𝗦",
+        "title": "📦 𝗣𝗔𝗖𝗞𝗦 𝗚𝗥𝗔́𝗧𝗜𝗦",
         "description": "Uma área para descobrir packs gratuitos e encontrar materiais que podem acrescentar novas ideias à sua produção. Abra seu espaço privado pelo botão abaixo e confira as orientações de acesso.",
         "custom_id": "cc:free-projects:packs",
         "button_label": "Ver packs",
