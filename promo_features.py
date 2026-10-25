@@ -1,5 +1,16 @@
 import discord
 
+# Tema visual padrão dos embeds promocionais.
+_EmbedOriginal = discord.Embed
+
+def criar_embed_estetico(*args, **kwargs):
+    embed = _EmbedOriginal(*args, **kwargs)
+    if embed.color is None:
+        embed.color = discord.Color.from_rgb(43, 45, 49)
+    if not embed.footer.text:
+        embed.set_footer(text="C.C ©  •  Comunidade e Produção Musical")
+    return embed
+
 
 def configure_promos(bot, channels, urls, settings, data_file, save_json, log):
     class PromoLinksView(discord.ui.View):
@@ -15,7 +26,7 @@ def configure_promos(bot, channels, urls, settings, data_file, save_json, log):
             "Garimpo": ("🧭 𝗚𝗔𝗥𝗜𝗠𝗣𝗢", "DESCOBERTAS, OPORTUNIDADES E NOVIDADES", "Acesse o Garimpo para encontrar novidades e acompanhar os conteúdos reunidos por lá.", "✦ ENTRE PARA GARIMPAR", "Abra o perfil oficial e explore o que está disponível no momento."),
         }
         titulo, linha, texto, campo, detalhe = estilos[nome]
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             title=titulo,
             description=f"**{linha}**\n-# ACESSO OFICIAL • C.C ©\n\n{texto}",
             color=discord.Color.from_rgb(14, 14, 18)
