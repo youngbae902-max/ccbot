@@ -6598,6 +6598,19 @@ async def atualizar_paineis(interaction: discord.Interaction):
     falhas = 0
     vistos = set()
 
+    # Tenta restaurar diretamente o painel conhecido, sem depender da varredura
+    # de histórico nem da identificação dos componentes antigos.
+    try:
+        canal_pack = bot.get_channel(PACK_PANEL_CHANNEL_ID) or await bot.fetch_channel(PACK_PANEL_CHANNEL_ID)
+        mensagem_pack = await canal_pack.fetch_message(PACK_PANEL_MESSAGE_ID)
+        await mensagem_pack.edit(content=None, embeds=[], attachments=[], view=PackPersonalizadoView())
+        vistos.add(mensagem_pack.id)
+        atualizados += 1
+        log.info("Pack Personalizado restaurado diretamente: canal=%s mensagem=%s", canal_pack.id, mensagem_pack.id)
+    except Exception as exc:
+        falhas += 1
+        log.exception("Falha na restauração direta do Pack Personalizado (canal=%s mensagem=%s)", PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID)
+
     def texto_mensagem(msg):
         # Serializa componentes por dicionário quando possível; isso também captura
         # TextDisplay/Section de Components V2 que não expõem todos os campos como atributos.
@@ -6698,7 +6711,8 @@ async def atualizar_paineis(interaction: discord.Interaction):
             f"Painéis atualizados: **{atualizados}**\n"
             f"Mensagens ignoradas: **{ignorados}**\n"
             f"Falhas ou canais sem acesso: **{falhas}**\n\n"
-            "Não criei mensagens novas. A busca verificou até 200 mensagens recentes por canal. "
+            "A tentativa direta no Pack Personalizado também foi registrada nos logs. Não criei mensagens novas. "
+            "A busca verificou até 200 mensagens recentes por canal. "
             "Se algum painel ficou de fora, ainda não existe um modelo automático seguro para ele."
         )
     )
