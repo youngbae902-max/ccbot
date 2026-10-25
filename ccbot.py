@@ -6547,8 +6547,13 @@ async def atualizar_painel(
         fabrica, components_v2 = tipos[tipo.value]
         nova_view = fabrica()
         if components_v2:
+            # Components V2 é o próprio painel; o Discord não permite misturá-lo com embeds.
             await mensagem.edit(content=None, embeds=[], attachments=[], view=nova_view)
+        elif tipo.value == "arrumador":
+            # O Arrumador usa embed tradicional + botão. Restaurar ambos na mensagem existente.
+            await mensagem.edit(content=None, embed=criar_embed_arrumador(), attachments=[], view=nova_view)
         else:
+            # Outros painéis tradicionais mantêm seu embed/conteúdo; só atualizamos os botões.
             await mensagem.edit(view=nova_view)
 
         await interaction.edit_original_response(
@@ -6611,8 +6616,9 @@ async def atualizar_paineis(interaction: discord.Interaction):
             partes.append(str(msg.components))
         return " ".join(partes).casefold()
 
-    def detectar(texto):
-        # Identificadores dos botões são mais seguros que nomes genéricos de produtos.
+    def detectar(texto, mensagem):
+        # Use IDs de componentes ou títulos exatos: texto de pedidos/comprovantes
+        # pode mencionar produtos e nunca deve ser confundido com um painel.
         if "ccbot:pack:v2:basico" in texto:
             return "Pack Personalizado", PackPersonalizadoView, True
         if "gerador de samples" in texto and ("painel atualizado" in texto or "ccbot" in texto):
@@ -6621,9 +6627,11 @@ async def atualizar_paineis(interaction: discord.Interaction):
             return "Trampar Conosco", TramparConoscoView, True
         if "conecte com o c.c" in texto or "apresentar meu grupo" in texto:
             return "Parcerias", ParceriasView, True
-        if "arrumador de arquivos" in texto or "arrumador de projetos" in texto:
+
+        titulos = {(embed.title or "").strip().casefold() for embed in mensagem.embeds}
+        if titulos.intersection({"🧰 arrumador de arquivos", "🧰 arrumador de projetos"}):
             return "Arrumador", ArrumadorPainelView, False
-        if "acapellas de mcs famosos" in texto or "busca de acapellas" in texto:
+        if titulos.intersection({"🎤 acapellas de mcs famosos", "busca de acapellas"}):
             return "Acapellas", AcapellasActivityView, False
         return None
 
@@ -6637,7 +6645,7 @@ async def atualizar_paineis(interaction: discord.Interaction):
                 # Só considera mensagens que já tenham componentes interativos; evita alterar pedidos e conversas.
                 if not mensagem.components:
                     continue
-                tipo_detectado = detectar(texto_mensagem(mensagem))
+                tipo_detectado = detectar(texto_mensagem(mensagem), mensagem)
                 if not tipo_detectado:
                     ignorados += 1
                     continue
@@ -6645,7 +6653,11 @@ async def atualizar_paineis(interaction: discord.Interaction):
                 try:
                     nova_view = fabrica()
                     if components_v2:
+                        # Components V2 contém o layout completo do painel.
                         await mensagem.edit(content=None, embeds=[], attachments=[], view=nova_view)
+                    elif nome == "Arrumador":
+                        # Restaura o embed padrão apenas quando o título confirma que é o painel.
+                        await mensagem.edit(content=None, embed=criar_embed_arrumador(), attachments=[], view=nova_view)
                     else:
                         await mensagem.edit(view=nova_view)
                     vistos.add(mensagem.id)
