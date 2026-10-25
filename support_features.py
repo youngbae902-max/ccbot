@@ -43,7 +43,7 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
         def __init__(self):
             super().__init__(timeout=None)
 
-        @discord.ui.button(label="Chamar ADM", emoji="🎫", style=discord.ButtonStyle.primary, custom_id="ccbot:support:open")
+        @discord.ui.button(label="Abrir ticket", emoji="🎫", style=discord.ButtonStyle.primary, custom_id="ccbot:support:open")
         async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
             guild = interaction.guild
             if guild is None:
@@ -79,12 +79,9 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
         em = criar_embed_estetico(
             title="🛟  SUPORTE C.C ©",
             description=(
-                "## Precisa de ajuda?
-"
+                "## Precisa de ajuda?\n"
                 "Abra um atendimento privado e explique o que aconteceu. "
-                "A administração continuará a conversa diretamente com você.
-
-"
+                "A administração continuará a conversa diretamente com você.\n\n"
                 "-# ATENDIMENTO HUMANO • RESPOSTA EM ATÉ 24H"
             ),
             color=discord.Color.from_rgb(35, 37, 42)
