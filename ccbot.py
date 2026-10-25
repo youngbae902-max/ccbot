@@ -5816,6 +5816,16 @@ async def on_ready():
         # IMPORTANTE: a hierarquia nunca é alterada automaticamente ao iniciar o bot.
         # A organização continua disponível apenas pelo comando/painel manual do administrador.
 
+        # Atualiza somente a mensagem de suporte configurada pelo administrador.
+        # A função busca a mensagem pelo ID e nunca cria uma duplicata.
+        if not getattr(bot, "_support_panel_updated_this_process", False):
+            try:
+                await garantir_painel_suporte(servidor_cc)
+                bot._support_panel_updated_this_process = True
+                log.info("Verificação do painel de suporte concluída.")
+            except Exception:
+                log.exception("Não foi possível atualizar a mensagem existente do painel de suporte.")
+
         # Repara mensagens existentes antes das tarefas secundárias de inicialização.
         if not getattr(bot, "_panels_restored_this_process", False):
             await restaurar_paineis_existentes()
