@@ -3363,7 +3363,7 @@ PAINEL_GRUPOS = {
     "publicacoes": {
         "titulo": "Publicações e produtos",
         "descricao": "Painéis publicados no servidor e cadastros usados por eles.",
-        "categorias": ["publicar", "djs", "trampar_conosco"],
+        "categorias": ["publicar", "djs", "parcerias", "trampar_conosco"],
     },
     "bot": {
         "titulo": "Central do bot",
@@ -3398,6 +3398,7 @@ OPCOES_CATEGORIAS_PAINEL = [
     discord.SelectOption(label="Adicionar ícones", description="Importar ZIPs ou imagens para publicar", emoji="🖼️", value="icones"),
     discord.SelectOption(label="Backups", description="Salvar cópia no Termux ou enviar por mensagem privada", emoji="💾", value="ferramentas"),
     discord.SelectOption(label="Painéis e produtos", description="Samples, acapellas, arrumador, beats e packs", emoji="📋", value="publicar"),
+    discord.SelectOption(label="Parcerias", description="Atualizar o painel de parcerias existente", emoji="🤝", value="parcerias"),
     discord.SelectOption(label="Trampar Conosco", description="Atualizar o painel de trabalhos no canal existente", emoji="🧑‍💻", value="trampar_conosco"),
     discord.SelectOption(label="Permissões dos canais", description="Revisar acesso sem alterar a Comunidade", emoji="🔒", value="permissoes_categorias"),
     discord.SelectOption(label="Consultar hierarquia", description="Enviar relatório de canais, cargos e permissões", emoji="🧭", value="analisar_hierarquia"),
@@ -3472,6 +3473,8 @@ class CategoriaPainelSelect(discord.ui.Select):
                 ),
                 view=PainelBoasVindasView()
             )
+        elif categoria == "parcerias":
+            await atualizar_painel_parcerias(interaction)
         elif categoria == "trampar_conosco":
             await atualizar_painel_trampar(interaction)
         elif categoria == "publicar":
@@ -4534,6 +4537,68 @@ def criar_embed_trampar_conosco() -> discord.Embed:
     )
     embed.set_footer(text="C.C © • Escolha uma área no botão abaixo")
     return embed
+
+async def atualizar_painel_parcerias(interaction: discord.Interaction):
+    """Atualiza exclusivamente a mensagem de Parcerias identificada pelo administrador."""
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode usar esta função.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        canal = bot.get_channel(PARTNERSHIPS_CHANNEL_ID)
+        if canal is None:
+            canal = await bot.fetch_channel(PARTNERSHIPS_CHANNEL_ID)
+        if not isinstance(canal, discord.TextChannel):
+            await interaction.edit_original_response(
+                content="❌ O canal de Parcerias não foi encontrado ou não é um canal de texto.",
+                embed=None, view=None
+            )
+            return
+
+        # Atualiza a mensagem existente informada pelo administrador; nunca cria duplicatas.
+        mensagem_id = 1562596483688300545
+        registros = settings.setdefault("community_panels", {})
+        registro = registros.get("Parcerias", {})
+        if isinstance(registro, dict) and registro.get("message_id"):
+            mensagem_id = int(registro["message_id"])
+
+        try:
+            mensagem = await canal.fetch_message(mensagem_id)
+        except (discord.NotFound, discord.HTTPException, ValueError, TypeError):
+            await interaction.edit_original_response(
+                content=f"❌ Não encontrei a mensagem de Parcerias {mensagem_id} no canal <#{PARTNERSHIPS_CHANNEL_ID}>. Nenhuma mensagem nova foi criada.",
+                embed=None, view=None
+            )
+            return
+
+        await mensagem.edit(
+            content=None,
+            embeds=[],
+            attachments=[],
+            view=ParceriasView()
+        )
+        registros["Parcerias"] = {"message_id": mensagem.id}
+        save_json(DATA_FILE, settings)
+        await interaction.edit_original_response(
+            content=f"✅ Painel **Parcerias atualizado** em <#{PARTNERSHIPS_CHANNEL_ID}>. Mensagem existente reutilizada; nenhuma duplicata criada.",
+            embed=None,
+            view=None
+        )
+        log.info("Painel Parcerias atualizado pelo /painel (%s), mensagem %s", interaction.user.id, mensagem.id)
+    except Exception as exc:
+        log.exception("Falha ao atualizar o painel Parcerias pelo /painel")
+        detalhe = f" (HTTP {exc.status}, código {exc.code})" if isinstance(exc, discord.HTTPException) else ""
+        if isinstance(exc, discord.HTTPException) and getattr(exc, "text", None):
+            log.error("Resposta HTTP do Discord ao atualizar painel de Parcerias: %s", exc.text[:1000])
+        try:
+            await interaction.edit_original_response(
+                content=f"❌ Não consegui atualizar o painel ({type(exc).__name__}{detalhe}). Confira os logs do bot.",
+                embeds=[],
+                view=None
+            )
+        except discord.HTTPException:
+            log.exception("Também falhou ao enviar o diagnóstico da atualização de Parcerias")
+
 
 async def atualizar_painel_trampar(interaction: discord.Interaction):
     """Atualiza somente o painel Trampar Conosco, sem tocar em outros canais/painéis."""
