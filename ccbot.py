@@ -6316,6 +6316,95 @@ async def on_app_command_error(interaction, error):
     if is_admin(interaction):
         await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
+@bot.tree.command(name="financiamentos", description="Publicar o painel de apoio à comunidade neste canal")
+async def financiamentos(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador pode publicar este painel.", ephemeral=True
+        )
+        return
+
+    if interaction.guild is None or not isinstance(interaction.channel, discord.abc.Messageable):
+        await interaction.response.send_message(
+            "Use este comando em um canal do servidor.", ephemeral=True
+        )
+        return
+
+    view = discord.ui.LayoutView(timeout=None)
+    view.add_item(discord.ui.Container(
+        discord.ui.TextDisplay(content=(
+            "# 🤝 FINANCIAMENTO DA C.C.
+"
+            "**A comunidade continua de pé quando todo mundo fortalece.**
+"
+            "-# APOIO VOLUNTÁRIO · TRANSPARÊNCIA · COMUNIDADE"
+        )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=(
+            "Manter a C.C. ativa exige tempo, dedicação e recursos. Este espaço existe para quem "
+            "quer ajudar o projeto a continuar funcionando, evoluindo e oferecendo oportunidades "
+            "para a comunidade.
+
+"
+            "Sua contribuição ajuda a sustentar esse trabalho e a manter o projeto em movimento. "
+            "**Qualquer valor é bem-vindo — contribua apenas se puder.**"
+        )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=(
+            "## 💜 COMO VOCÊ PODE AJUDAR
+
+"
+            "1. Abra o link oficial de contribuição pelo Nubank.
+"
+            "2. Escolha o valor que faz sentido para você.
+"
+            "3. Confirme os dados antes de concluir.
+
+"
+            "O apoio é voluntário e não é uma compra. Não há obrigação de contribuir nem benefício "
+            "garantido em troca. Participar, compartilhar e fortalecer a comunidade também faz diferença."
+        )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.Section(
+            discord.ui.TextDisplay(content=(
+                "**Quer ajudar a manter a C.C. ativa?**
+"
+                "Acesse o link e contribua se estiver ao seu alcance."
+            )),
+            accessory=discord.ui.Button(
+                label="Apoiar a comunidade",
+                emoji="💜",
+                style=discord.ButtonStyle.link,
+                url="https://nubank.com.br/cobrar/1127t0/6ade873d-e4ea-4abe-9e12-41cb9af6a1e2"
+            )
+        ),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+        discord.ui.TextDisplay(content=(
+            "-# Obrigado por fazer parte da C.C. — com apoio ou simplesmente estando aqui."
+        )),
+        accent_color=0x8B5CF6
+    ))
+
+    try:
+        await interaction.channel.send(
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none()
+        )
+        await interaction.response.send_message(
+            "✅ Painel de **Financiamentos** publicado neste canal. Nenhuma mensagem existente foi alterada.",
+            ephemeral=True
+        )
+        log.info("Painel Financiamentos publicado: canal=%s por=%s", interaction.channel.id, interaction.user.id)
+    except discord.HTTPException as exc:
+        log.exception("Falha ao publicar o painel Financiamentos")
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                f"❌ Não consegui publicar o painel ({type(exc).__name__}). "
+                "Confira as permissões do bot e a versão do discord.py.",
+                ephemeral=True
+            )
+
+
 @bot.tree.command(name="criar-sites", description="Publicar o painel de sites neste canal")
 async def criar_sites(interaction: discord.Interaction):
     if not is_admin(interaction):
