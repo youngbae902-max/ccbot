@@ -4622,6 +4622,9 @@ async def publicar_paineis_comunidade():
                 canal = await bot.fetch_channel(canal_id)
             registro = registros.get(nome, {})
             mensagem_id = registro.get("message_id") if isinstance(registro, dict) else None
+            # ID confirmado pelo usuário: reutilizar o painel de parcerias exato.
+            if not mensagem_id and nome == "Parcerias":
+                mensagem_id = 1562596483688300545
             mensagem = None
             if mensagem_id:
                 try:
