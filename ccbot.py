@@ -6098,50 +6098,69 @@ async def criar_sites(interaction: discord.Interaction):
         )
         return
 
-    # Redesign inspirado nos templates DWEEB de diretório e links sociais:
-    # cada serviço tem sua própria seção e botão de acesso.
+    # Reformulação baseada nos templates DWEEB de diretório e cartões de produto:
+    # texto editorial mais completo, respiro entre áreas e identidade própria para cada site.
     view = discord.ui.LayoutView(timeout=None)
     view.add_item(discord.ui.Container(
         discord.ui.TextDisplay(content=(
-            "# 🌐 CENTRAL DE SITES\n"
-            "-# TRÊS DESTINOS • CADA UM COM SUA FUNÇÃO\n\n"
-            "Acesse as plataformas da comunidade C.C. pelos atalhos abaixo."
+            "# 🖥️ PORTAL C.C.\n"
+            "**Projetos, ferramentas e recursos da comunidade em um só lugar.**\n\n"
+            "Esta página reúne os sites ligados à C.C. Cada projeto tem uma proposta diferente: "
+            "explorar materiais para produção musical, encontrar oportunidades ou conhecer os "
+            "produtos e serviços desenvolvidos pela comunidade. Escolha o destino que combina "
+            "com o que você procura e entre diretamente pela plataforma."
         )),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=(
+            "## 🎚️ PACKy — PRODUÇÃO MUSICAL\n\n"
+            "Um espaço voltado para quem está construindo seu próprio som. Explore packs e "
+            "conteúdos pensados para acompanhar o processo de criação, descobrir novas referências "
+            "e ampliar as possibilidades dentro do seu projeto musical."
+        )),
         discord.ui.Section(
             discord.ui.TextDisplay(content=(
-                "### 🎚️ PACKy\n"
-                "Packs e conteúdos para ampliar suas possibilidades na produção musical."
+                "**Entre na PACKy** para conhecer os materiais disponíveis e encontrar recursos "
+                "que façam sentido para a sua produção."
             )),
             accessory=discord.ui.Button(
-                label="Explorar",
-                emoji="↗️",
+                label="Conhecer a PACKy",
+                emoji="🎧",
                 style=discord.ButtonStyle.link,
                 url="https://packy.lovable.app"
             )
         ),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=(
+            "## 🧭 GARIMPO — DESCOBERTAS E OPORTUNIDADES\n\n"
+            "O Garimpo é o ponto de partida para quem gosta de pesquisar, comparar e encontrar "
+            "coisas que merecem atenção. Acesse o perfil da plataforma para conferir o projeto "
+            "e explorar as oportunidades reunidas por lá."
+        )),
         discord.ui.Section(
             discord.ui.TextDisplay(content=(
-                "### 🔍 Garimpo\n"
-                "Encontre oportunidades e descubra itens para garimpar."
+                "**Acesse o Garimpo** e veja o que pode valer a pena descobrir."
             )),
             accessory=discord.ui.Button(
-                label="Acessar",
-                emoji="↗️",
+                label="Explorar o Garimpo",
+                emoji="🔎",
                 style=discord.ButtonStyle.link,
                 url="https://garimoh.lovable.app/perfil"
             )
         ),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=(
+            "## 🛍️ LOJA CC — PRODUTOS E SERVIÇOS\n\n"
+            "A loja reúne opções disponibilizadas pela comunidade C.C. É o lugar para conhecer "
+            "o que está à venda, consultar os serviços oferecidos e encontrar algo que atenda "
+            "ao que você precisa, sem precisar procurar as informações em vários canais."
+        )),
         discord.ui.Section(
             discord.ui.TextDisplay(content=(
-                "### 🛒 Loja CC\n"
-                "Confira os produtos e serviços disponíveis na loja da comunidade."
+                "**Visite a Loja CC** para conferir o catálogo e os detalhes de cada opção."
             )),
             accessory=discord.ui.Button(
-                label="Visitar",
-                emoji="↗️",
+                label="Ver a loja",
+                emoji="🛒",
                 style=discord.ButtonStyle.link,
                 url="https://ccloja.erbysite.com/"
             )
@@ -6154,7 +6173,7 @@ async def criar_sites(interaction: discord.Interaction):
             allowed_mentions=discord.AllowedMentions.none()
         )
         await interaction.response.send_message(
-            "✅ Novo painel **Sites** publicado neste canal. Nenhuma mensagem existente foi alterada.",
+            "✅ Nova versão do painel **Sites** publicada neste canal. Nenhuma mensagem existente foi alterada.",
             ephemeral=True
         )
         log.info("Painel Sites publicado: canal=%s por=%s", interaction.channel.id, interaction.user.id)
