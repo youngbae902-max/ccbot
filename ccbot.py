@@ -5919,6 +5919,57 @@ async def on_ready():
         log.exception("Falha ao iniciar ou sincronizar comandos")
         await notify_admin(f"Falha ao iniciar o CC BOT: {exc}")
 
+async def anexar_comprovantes_ao_pedido(pedido, canal_admin, arquivos, nomes_arquivos):
+    """Anexa arquivos à mensagem administrativa original, preservando os botões de aprovação."""
+    if not arquivos or len(arquivos) != len(nomes_arquivos):
+        raise ValueError("Lista de comprovantes vazia ou inconsistente.")
+
+    mensagem_id = pedido.get("admin_message_id")
+    if not mensagem_id:
+        raise RuntimeError("O pedido não possui ID da mensagem administrativa original.")
+    mensagem_admin = await canal_admin.fetch_message(int(mensagem_id))
+    if not mensagem_admin.embeds:
+        raise RuntimeError("A mensagem administrativa do pedido não contém o embed esperado.")
+    if len(mensagem_admin.attachments) + len(arquivos) > 10:
+        raise ValueError("O pedido já atingiu o limite de 10 anexos no Discord.")
+
+    embed = mensagem_admin.embeds[0]
+    nome_campo = "📎 Comprovante(s) recebido(s)"
+    linhas = "\n".join("• " + str(nome).replace(chr(96), "'") for nome in nomes_arquivos)
+    indice = next(
+        (i for i, campo in enumerate(embed.fields) if campo.name.casefold() == nome_campo.casefold()),
+        None
+    )
+    if indice is None:
+        embed.add_field(name=nome_campo, value=linhas[:1024], inline=False)
+    else:
+        valor_atual = embed.fields[indice].value
+        embed.set_field_at(
+            indice,
+            name=nome_campo,
+            value=(valor_atual + "\n" + linhas)[:1024],
+            inline=False
+        )
+
+    imagem = next(
+        (nome for nome in nomes_arquivos if Path(nome).suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}),
+        None
+    )
+    if imagem:
+        embed.set_image(url=f"attachment://{imagem}")
+
+    await mensagem_admin.edit(
+        embed=embed,
+        attachments=[*mensagem_admin.attachments, *arquivos],
+        view=ConfirmarPagamentoView()
+    )
+    pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
+    pedido["receipt_filename"] = ", ".join(nomes_arquivos)[:1000]
+    pedido["receipt_message_id"] = str(mensagem_admin.id)
+    save_json(PIX_ORDERS_FILE, pix_orders)
+    return mensagem_admin
+
+
 @bot.tree.command(name="comprovante", description="Enviar o arquivo do comprovante Pix sem publicar no chat")
 @app_commands.describe(arquivo="Imagem ou PDF do comprovante (até 10 MB)")
 async def enviar_comprovante_pix(interaction: discord.Interaction, arquivo: discord.Attachment):
@@ -5976,29 +6027,13 @@ async def enviar_comprovante_pix(interaction: discord.Interaction, arquivo: disc
         if canal_admin is None:
             canal_admin = await obter_canal_confirmacao(interaction.guild)
 
-        aviso = criar_embed_estetico(
-            title="🧾 COMPROVANTE RECEBIDO",
-            description=(
-                f"**Pedido:** {pedido.get('txid')}\n"
-                f"**Produto:** {pedido.get('product')}\n"
-                f"**Valor esperado:** {formatar_reais(pedido.get('amount', 0))}\n"
-                f"**Cliente:** {interaction.user.mention} (ID {interaction.user.id})\n"
-                f"**Pedido original:** <#{interaction.channel_id}>\n\n"
-                "Confira o recebimento na conta antes de aprovar. O arquivo não confirma o pagamento automaticamente."
-            ),
-            color=discord.Color.gold(),
-            timestamp=discord.utils.utcnow()
-        )
         nome_anexo = nome[:180]
-        if extensao in {".png", ".jpg", ".jpeg", ".webp"}:
-            aviso.set_image(url=f"attachment://{nome_anexo}")
-        mensagem_comprovante = await canal_admin.send(
-            embed=aviso,
-            file=discord.File(io.BytesIO(dados), filename=nome_anexo)
+        await anexar_comprovantes_ao_pedido(
+            pedido,
+            canal_admin,
+            [discord.File(io.BytesIO(dados), filename=nome_anexo)],
+            [nome_anexo]
         )
-        pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
-        pedido["receipt_filename"] = nome
-        pedido["receipt_message_id"] = str(mensagem_comprovante.id)
         save_json(PIX_ORDERS_FILE, pix_orders)
         await interaction.followup.send(
             "✅ Comprovante enviado para conferência. Ele não foi publicado no chat.",
@@ -6059,29 +6094,14 @@ async def receber_comprovante_pix(message: discord.Message):
         except Exception:
             log.exception("Não consegui localizar o canal de comprovantes do pedido %s", pedido.get("txid"))
             return
-    aviso = criar_embed_estetico(
-        title="🧾 COMPROVANTE RECEBIDO",
-        description=(
-            f"**Pedido:** {pedido.get('txid')}\n"
-            f"**Produto:** {pedido.get('product')}\n"
-            f"**Valor esperado:** {formatar_reais(pedido.get('amount', 0))}\n"
-            f"**Cliente:** {message.author.mention} (ID {message.author.id})\n"
-            f"**Pedido original:** <#{message.channel.id}>\n\n"
-            "Confira o recebimento na conta antes de aprovar. O anexo não confirma o pagamento automaticamente."
-        ),
-        color=discord.Color.gold(),
-        timestamp=discord.utils.utcnow()
-    )
     try:
-        primeiro_anexo = arquivos_validos[0].filename
-        if Path(primeiro_anexo).suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
-            aviso.set_image(url=f"attachment://{primeiro_anexo}")
-        mensagem_comprovante = await canal_admin.send(
-            embed=aviso,
-            files=arquivos_validos
+        nomes_arquivos = [arquivo.filename for arquivo in arquivos_validos]
+        await anexar_comprovantes_ao_pedido(
+            pedido,
+            canal_admin,
+            arquivos_validos,
+            nomes_arquivos
         )
-        pedido["receipt_received_at"] = datetime.now().isoformat(timespec="seconds")
-        pedido["receipt_message_id"] = str(mensagem_comprovante.id)
         save_json(PIX_ORDERS_FILE, pix_orders)
         await message.reply("✅ Comprovante encaminhado para **Confirmar pagamentos**. Aguarde a conferência manual.", mention_author=False)
     except Exception:
