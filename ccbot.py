@@ -3363,7 +3363,7 @@ PAINEL_GRUPOS = {
     "publicacoes": {
         "titulo": "Publicações e produtos",
         "descricao": "Painéis publicados no servidor e cadastros usados por eles.",
-        "categorias": ["publicar", "djs"],
+        "categorias": ["publicar", "djs", "trampar_conosco"],
     },
     "bot": {
         "titulo": "Central do bot",
@@ -3398,6 +3398,7 @@ OPCOES_CATEGORIAS_PAINEL = [
     discord.SelectOption(label="Adicionar ícones", description="Importar ZIPs ou imagens para publicar", emoji="🖼️", value="icones"),
     discord.SelectOption(label="Backups", description="Salvar cópia no Termux ou enviar por mensagem privada", emoji="💾", value="ferramentas"),
     discord.SelectOption(label="Painéis e produtos", description="Samples, acapellas, arrumador, beats e packs", emoji="📋", value="publicar"),
+    discord.SelectOption(label="Trampar Conosco", description="Atualizar o painel de trabalhos no canal existente", emoji="🧑‍💻", value="trampar_conosco"),
     discord.SelectOption(label="Permissões dos canais", description="Revisar acesso sem alterar a Comunidade", emoji="🔒", value="permissoes_categorias"),
     discord.SelectOption(label="Consultar hierarquia", description="Enviar relatório de canais, cargos e permissões", emoji="🧭", value="analisar_hierarquia"),
     discord.SelectOption(label="Organizar hierarquia", description="Reordenar canais após confirmação", emoji="🗂️", value="organizar_hierarquia"),
@@ -3471,6 +3472,8 @@ class CategoriaPainelSelect(discord.ui.Select):
                 ),
                 view=PainelBoasVindasView()
             )
+        elif categoria == "trampar_conosco":
+            await atualizar_painel_trampar(interaction)
         elif categoria == "publicar":
             await interaction.response.edit_message(
                 embed=discord.Embed(
@@ -4468,6 +4471,64 @@ def criar_embed_trampar_conosco() -> discord.Embed:
     )
     embed.set_footer(text="C.C © • Escolha uma área no botão abaixo")
     return embed
+
+async def atualizar_painel_trampar(interaction: discord.Interaction):
+    """Atualiza somente o painel Trampar Conosco, sem tocar em outros canais/painéis."""
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador pode usar esta função.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        canal = bot.get_channel(WORK_WITH_US_CHANNEL_ID)
+        if canal is None:
+            canal = await bot.fetch_channel(WORK_WITH_US_CHANNEL_ID)
+        if not isinstance(canal, discord.TextChannel):
+            await interaction.edit_original_response(content="❌ O canal Trampar Conosco não foi encontrado ou não é um canal de texto.", embed=None, view=None)
+            return
+
+        registros = settings.setdefault("community_panels", {})
+        registro = registros.get("Trampar Conosco", {})
+        mensagem = None
+        mensagem_id = registro.get("message_id") if isinstance(registro, dict) else None
+        if mensagem_id:
+            try:
+                mensagem = await canal.fetch_message(int(mensagem_id))
+            except (discord.NotFound, discord.HTTPException, ValueError, TypeError):
+                mensagem = None
+
+        if mensagem is None:
+            async for candidata in canal.history(limit=100):
+                if candidata.author.id != bot.user.id or not candidata.embeds:
+                    continue
+                titulo = (candidata.embeds[0].title or "").casefold()
+                descricao = (candidata.embeds[0].description or "").casefold()
+                if "trampar conosco" in titulo or "trabalhe conosco" in titulo or "seu talento tem espaço" in descricao:
+                    mensagem = candidata
+                    break
+
+        if mensagem is None:
+            mensagem = await canal.send(embed=criar_embed_trampar_conosco(), view=TramparConoscoView())
+            acao = "publicado"
+        else:
+            await mensagem.edit(embed=criar_embed_trampar_conosco(), view=TramparConoscoView())
+            acao = "atualizado"
+
+        registros["Trampar Conosco"] = {"message_id": mensagem.id}
+        save_json(DATA_FILE, settings)
+        await interaction.edit_original_response(
+            content=f"✅ Painel **Trampar Conosco {acao}** em <#{WORK_WITH_US_CHANNEL_ID}>. Nenhum outro painel ou canal foi alterado.",
+            embed=None,
+            view=None
+        )
+        log.info("Painel Trampar Conosco %s pelo /painel (%s), mensagem %s", acao, interaction.user.id, mensagem.id)
+    except Exception as exc:
+        log.exception("Falha ao atualizar o painel Trampar Conosco pelo /painel")
+        await interaction.edit_original_response(
+            content=f"❌ Não consegui atualizar o painel ({type(exc).__name__}). Confira os logs do bot.",
+            embed=None,
+            view=None
+        )
+
 
 async def publicar_paineis_comunidade():
     """Atualiza painéis existentes; procura a mensagem antiga antes de criar outra."""
