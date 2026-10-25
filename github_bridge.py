@@ -156,6 +156,13 @@ async def _diagnostico(guild):
         message_channels[channel.id] = channel
     for thread in getattr(guild, "threads", []):
         message_channels[thread.id] = thread
+    # Inclui também threads arquivadas de canais de texto, quando a API permite.
+    for text_channel in guild.text_channels:
+        try:
+            async for thread in text_channel.archived_threads(limit=None, oldest_first=True):
+                message_channels[thread.id] = thread
+        except Exception as exc:
+            log.warning("Diagnóstico: não foi possível listar threads arquivadas de %s: %s", text_channel.id, type(exc).__name__)
     for channel in guild.channels:
         if isinstance(channel, ForumChannel):
             try:
