@@ -6441,6 +6441,99 @@ async def atualizar_painel(
         )
 
 
+@bot.tree.command(name="atualizar-paineis", description="Atualizar automaticamente os painéis reconhecidos em todos os canais")
+async def atualizar_paineis(interaction: discord.Interaction):
+    """Varre os canais e threads acessíveis e atualiza painéis do bot sem exigir IDs manuais."""
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador autorizado pode atualizar painéis.", ephemeral=True
+        )
+        return
+    guild = interaction.guild
+    if guild is None:
+        await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    atualizados = 0
+    ignorados = 0
+    falhas = 0
+    vistos = set()
+
+    def texto_mensagem(msg):
+        partes = [msg.content or ""]
+        for emb in msg.embeds:
+            partes.extend([emb.title or "", emb.description or ""])
+            if emb.footer:
+                partes.append(emb.footer.text or "")
+        def ler_componentes(componentes):
+            for componente in componentes or []:
+                for atributo in ("content", "label", "custom_id"):
+                    valor = getattr(componente, atributo, None)
+                    if valor:
+                        partes.append(str(valor))
+                filhos = getattr(componente, "children", None)
+                if filhos:
+                    ler_componentes(filhos)
+        ler_componentes(msg.components)
+        return " ".join(partes).casefold()
+
+    def detectar(texto):
+        if "ccbot:pack:v2:basico" in texto or "pack personalizado" in texto:
+            return "Pack Personalizado", PackPersonalizadoView, True
+        if "gerador de samples" in texto or "ccbot:samples" in texto:
+            return "Gerador de Samples", GeradorSamplesView, True
+        if "trampar conosco" in texto or "central de oportunidades" in texto:
+            return "Trampar Conosco", TramparConoscoView, True
+        if "conecte com o c.c" in texto or "apresentar meu grupo" in texto:
+            return "Parcerias", ParceriasView, True
+        if "arrumador de arquivos" in texto or "arrumador de projetos" in texto:
+            return "Arrumador", ArrumadorPainelView, False
+        if "acapellas de mcs famosos" in texto or "busca de acapellas" in texto:
+            return "Acapellas", AcapellasActivityView, False
+        return None
+
+    canais = list(guild.text_channels)
+    canais.extend([t for t in guild.threads if t not in canais])
+    for canal in canais:
+        try:
+            async for mensagem in canal.history(limit=200):
+                if mensagem.id in vistos or not bot.user or mensagem.author.id != bot.user.id:
+                    continue
+                tipo_detectado = detectar(texto_mensagem(mensagem))
+                if not tipo_detectado:
+                    ignorados += 1
+                    continue
+                nome, fabrica, components_v2 = tipo_detectado
+                try:
+                    nova_view = fabrica()
+                    if components_v2:
+                        await mensagem.edit(content=None, embeds=[], attachments=[], view=nova_view)
+                    else:
+                        await mensagem.edit(view=nova_view)
+                    vistos.add(mensagem.id)
+                    atualizados += 1
+                    log.info("Painel atualizado automaticamente: tipo=%s canal=%s mensagem=%s", nome, canal.id, mensagem.id)
+                except discord.NotFound:
+                    continue
+                except discord.HTTPException:
+                    falhas += 1
+                    log.exception("Falha ao atualizar painel automaticamente: %s (%s)", nome, mensagem.id)
+        except (discord.Forbidden, discord.HTTPException):
+            falhas += 1
+            log.warning("Não foi possível examinar o canal %s durante atualização automática.", canal.id)
+
+    await interaction.edit_original_response(
+        content=(
+            "✅ **Varredura concluída**\n"
+            f"Painéis atualizados: **{atualizados}**\n"
+            f"Mensagens ignoradas: **{ignorados}**\n"
+            f"Falhas ou canais sem acesso: **{falhas}**\n\n"
+            "Não criei mensagens novas. A busca verificou até 200 mensagens recentes por canal."
+        )
+    )
+
+
 @bot.tree.command(name="diagnostico", description="Analisar os canais do servidor e enviar um relatório")
 async def diagnostico(interaction: discord.Interaction):
     if not is_admin(interaction):
