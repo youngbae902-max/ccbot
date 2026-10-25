@@ -1108,17 +1108,58 @@ class PackPerguntasView(discord.ui.LayoutView):
 class PackPersonalizadoView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
-        basico = discord.ui.Button(label="PACK PERSONALIZADO", emoji="<:tag:1561787923865665667>", style=discord.ButtonStyle.primary, custom_id="ccbot:pack:v2:basico")
+        basico = discord.ui.Button(
+            label="Montar meu pack",
+            emoji="<:tag:1561787923865665667>",
+            style=discord.ButtonStyle.primary,
+            custom_id="ccbot:pack:v2:basico"
+        )
         basico.callback = self.abrir_basico
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
                 "## <:box:1561761831587160140> PACK PERSONALIZADO\n"
-                "### <:tag:1561787923865665667> R$ 50,00\n"
-                "Informe nome, estilo e ideia do pack.\n"
-                "**Adicionais:** organização (+ R$ 10), samples personalizadas (+ R$ 10) "
-                "ou samples de outros packs (+ R$ 20)."
+                "### <:tag:1561787923865665667> R$ 50,00\n\n"
+                "Um pack pensado a partir da sua ideia, do seu estilo e da sonoridade que você quer alcançar. "
+                "Você informa os detalhes do projeto e escolhe os extras que fazem sentido para o resultado. "
+                "Assim, o pedido fica alinhado ao que você realmente procura, em vez de receber um pack genérico."
             )),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+            discord.ui.TextDisplay(content=(
+                "### 📝 COMO VAI FUNCIONAR\n\n"
+                "Ao começar, você vai informar o nome do pack, o estilo musical e explicar a sua ideia. "
+                "Pode descrever referências, tipos de sons e detalhes importantes para orientar a montagem. "
+                "Antes de enviar, você poderá revisar as informações e conferir o valor final."
+            )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+            discord.ui.TextDisplay(content=(
+                "### 🗂️ ORGANIZAÇÃO — + R$ 10,00\n\n"
+                "Adicione a organização dos arquivos para deixar o conteúdo mais fácil de navegar e usar. "
+                "É uma opção útil para quem prefere receber os materiais separados de forma mais clara."
+            )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+            discord.ui.TextDisplay(content=(
+                "### 🎛️ SAMPLES PERSONALIZADAS — + R$ 10,00\n\n"
+                "Inclua samples personalizadas, pensadas para combinar melhor com a proposta e a identidade "
+                "do pack que você descreveu no pedido."
+            )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+            discord.ui.TextDisplay(content=(
+                "### 🎚️ SAMPLES DE OUTROS PACKS — + R$ 20,00\n\n"
+                "Se quiser ampliar o conteúdo, você pode adicionar samples provenientes de outros packs. "
+                "Esse extra é opcional e pode ser escolhido junto dos demais."
+            )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+            discord.ui.TextDisplay(content=(
+                "### 💰 VALOR DO PEDIDO\n\n"
+                "O pack começa em **R$ 50,00**. Os adicionais são opcionais e o bot soma os valores "
+                "selecionados antes de você confirmar o pedido. Você não precisa escolher nenhum extra "
+                "para continuar."
+            )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+            discord.ui.TextDisplay(content=(
+                "**Quando estiver pronto, comece seu pedido pelo botão abaixo.** "
+                "Você poderá preencher os detalhes e escolher os adicionais antes de confirmar."
+            )),
             discord.ui.ActionRow(basico)
         ))
 
