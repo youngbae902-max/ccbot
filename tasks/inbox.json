@@ -11,6 +11,11 @@
     {
       "id": "inventario-completo-20261025-1720",
       "action": "diagnostico"
+    },
+    {
+      "id": "buscar-canal-1563931624964497450-20261025",
+      "action": "buscar_canal",
+      "channel_id": 1563931624964497400
     }
   ]
 }
