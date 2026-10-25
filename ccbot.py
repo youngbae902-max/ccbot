@@ -6643,7 +6643,8 @@ async def atualizar_paineis(interaction: discord.Interaction):
             return "Parcerias", ParceriasView, True
 
         titulos = {(embed.title or "").strip().casefold() for embed in mensagem.embeds}
-        if titulos.intersection({"🧰 arrumador de arquivos", "🧰 arrumador de projetos"}):
+        # O ID do botão permite recuperar o painel mesmo quando seu embed já foi apagado.
+        if "ccbot:arrumador_mandar" in texto or titulos.intersection({"🧰 arrumador de arquivos", "🧰 arrumador de projetos"}):
             return "Arrumador", ArrumadorPainelView, False
         if titulos.intersection({"🎤 acapellas de mcs famosos", "busca de acapellas"}):
             return "Acapellas", AcapellasActivityView, False
