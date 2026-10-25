@@ -6356,6 +6356,91 @@ async def criar_regras(interaction: discord.Interaction, canal: discord.TextChan
             )
 
 
+@bot.tree.command(name="atualizar-painel", description="Atualizar um painel existente em qualquer canal")
+@app_commands.describe(
+    canal="Canal onde a mensagem já está publicada",
+    mensagem_id="ID da mensagem do painel que será atualizada",
+    tipo="Modelo de painel que será aplicado à mensagem existente"
+)
+@app_commands.choices(tipo=[
+    app_commands.Choice(name="Gerador de Samples", value="samples"),
+    app_commands.Choice(name="Pack Personalizado", value="pack"),
+    app_commands.Choice(name="Arrumador", value="arrumador"),
+    app_commands.Choice(name="Acapellas", value="acapellas"),
+    app_commands.Choice(name="Parcerias", value="parcerias"),
+    app_commands.Choice(name="Trampar Conosco", value="trampar"),
+])
+async def atualizar_painel(
+    interaction: discord.Interaction,
+    canal: discord.TextChannel,
+    mensagem_id: str,
+    tipo: app_commands.Choice[str]
+):
+    """Atualiza a mensagem indicada; nunca publica uma mensagem duplicada."""
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador autorizado pode atualizar painéis.", ephemeral=True
+        )
+        return
+
+    try:
+        alvo_id = int(mensagem_id.strip())
+        if alvo_id <= 0:
+            raise ValueError
+    except (ValueError, AttributeError):
+        await interaction.response.send_message(
+            "ID de mensagem inválido. Copie o ID numérico da mensagem do Discord.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        mensagem = await canal.fetch_message(alvo_id)
+        if mensagem.author.id != bot.user.id:
+            await interaction.edit_original_response(
+                content="❌ Só posso atualizar mensagens enviadas pelo próprio CC BOT."
+            )
+            return
+
+        tipos = {
+            "samples": (GeradorSamplesView, True),
+            "pack": (PackPersonalizadoView, True),
+            "arrumador": (ArrumadorPainelView, False),
+            "acapellas": (AcapellasActivityView, False),
+            "parcerias": (ParceriasView, True),
+            "trampar": (TramparConoscoView, True),
+        }
+        fabrica, components_v2 = tipos[tipo.value]
+        nova_view = fabrica()
+        if components_v2:
+            await mensagem.edit(content=None, embeds=[], attachments=[], view=nova_view)
+        else:
+            await mensagem.edit(view=nova_view)
+
+        await interaction.edit_original_response(
+            content=f"✅ Painel **{tipo.name}** atualizado na mensagem existente em {canal.mention}. Nenhuma cópia foi criada."
+        )
+        log.info(
+            "Painel atualizado manualmente: tipo=%s canal=%s mensagem=%s por=%s",
+            tipo.value, canal.id, mensagem.id, interaction.user.id
+        )
+    except discord.NotFound:
+        await interaction.edit_original_response(
+            content="❌ Não encontrei essa mensagem nesse canal. Confira o canal e o ID."
+        )
+    except discord.Forbidden:
+        await interaction.edit_original_response(
+            content="❌ O bot não tem permissão para ler o histórico ou editar mensagens nesse canal."
+        )
+    except Exception as exc:
+        log.exception("Falha no comando /atualizar-painel")
+        detalhe = f" (HTTP {exc.status}, código {exc.code})" if isinstance(exc, discord.HTTPException) else ""
+        await interaction.edit_original_response(
+            content=f"❌ Não consegui atualizar o painel ({type(exc).__name__}{detalhe}). Confira os logs do bot."
+        )
+
+
 @bot.tree.command(name="diagnostico", description="Analisar os canais do servidor e enviar um relatório")
 async def diagnostico(interaction: discord.Interaction):
     if not is_admin(interaction):
