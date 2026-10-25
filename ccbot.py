@@ -6316,7 +6316,7 @@ async def on_app_command_error(interaction, error):
     if is_admin(interaction):
         await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
-@bot.tree.command(name="financiamentos", description="Publicar o painel de apoio à comunidade neste canal")
+@bot.tree.command(name="financiamentos", description="Publicar o painel de financiamentos neste canal")
 async def financiamentos(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
@@ -6333,43 +6333,26 @@ async def financiamentos(interaction: discord.Interaction):
     view = discord.ui.LayoutView(timeout=None)
     view.add_item(discord.ui.Container(
         discord.ui.TextDisplay(content=(
-            "# 🤝 FINANCIAMENTO DA C.C.\n"
-            "**A comunidade continua de pé quando todo mundo fortalece.**\n"
-            "-# APOIO VOLUNTÁRIO · TRANSPARÊNCIA · COMUNIDADE"
+            "# 🎯 FINANCIAMENTOS\n"
+            "**Toda contribuição faz a diferença**"
         )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content="Ajude nossa comunidade a se manter ativa."),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
         discord.ui.TextDisplay(content=(
-            "Manter a C.C. ativa exige tempo, dedicação e recursos. Este espaço existe para quem "
-            "quer ajudar o projeto a continuar funcionando, evoluindo e oferecendo oportunidades "
-            "para a comunidade.\n\n"
-            "Sua contribuição ajuda a sustentar esse trabalho e a manter o projeto em movimento. "
-            "**Qualquer valor é bem-vindo — contribua apenas se puder.**"
+            "Cada contribuição ajuda a manter nossa comunidade ativa e a melhorar "
+            "o que oferecemos a todos."
         )),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-        discord.ui.TextDisplay(content=(
-            "## 💜 COMO VOCÊ PODE AJUDAR\n\n"
-            "1. Abra o link oficial de contribuição pelo Nubank.\n"
-            "2. Escolha o valor que faz sentido para você.\n"
-            "3. Confirme os dados antes de concluir.\n\n"
-            "O apoio é voluntário e não é uma compra. Não há obrigação de contribuir nem benefício "
-            "garantido em troca. Participar, compartilhar e fortalecer a comunidade também faz diferença."
-        )),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-        discord.ui.Section(
-            discord.ui.TextDisplay(content=(
-                "**Quer ajudar a manter a C.C. ativa?**\n"
-                "Acesse o link e contribua se estiver ao seu alcance."
-            )),
-            accessory=discord.ui.Button(
-                label="Apoiar a comunidade",
-                emoji="💜",
+        discord.ui.ActionRow(
+            discord.ui.Button(
+                label="Fazer contribuição",
+                emoji="❤️",
                 style=discord.ButtonStyle.link,
                 url="https://nubank.com.br/cobrar/1127t0/6ade873d-e4ea-4abe-9e12-41cb9af6a1e2"
             )
         ),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
         discord.ui.TextDisplay(content=(
-            "-# Obrigado por fazer parte da C.C. — com apoio ou simplesmente estando aqui."
+            "-# Toda ajuda é bem-vinda. Agradecemos pelo apoio!"
         )),
         accent_color=0x8B5CF6
     ))
