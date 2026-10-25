@@ -4400,10 +4400,57 @@ class AbrirAreasTrabalhoButton(discord.ui.Button):
             ephemeral=True
         )
 
-class TramparConoscoView(discord.ui.View):
+class TramparConoscoView(discord.ui.LayoutView):
+    """Painel Components V2 para oportunidades de trabalho."""
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(AbrirAreasTrabalhoButton())
+        self.add_item(
+            discord.ui.Container(
+                discord.ui.TextDisplay(
+                    content=(
+                        "## <:tag:1561787923865665667> TRAMPAR CONOSCO\n"
+                        "**Seu talento tem espaço no C.C ©.**\n"
+                        "-# PAINEL ATUALIZADO"
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+                discord.ui.TextDisplay(
+                    content=(
+                        "### 🧩 ÁREAS DE TRABALHO\n"
+                        "🤖 **Bots para Discord**\n"
+                        "Python, automações e projetos com ou sem IA.\n\n"
+                        "🎨 **Design**\n"
+                        "Banners, artes e identidade visual.\n\n"
+                        "🛠️ **Organização / Staff**\n"
+                        "Organização de canais, suporte e moderação.\n\n"
+                        "🎬 **Edição de vídeo**\n"
+                        "Área planejada para o futuro."
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+                discord.ui.Section(
+                    discord.ui.TextDisplay(
+                        content=(
+                            "### 🎁 O QUE VOCÊ GANHA\n"
+                            "Um espaço no servidor para divulgar seu trabalho e seus projetos."
+                        )
+                    ),
+                    accessory=discord.ui.Thumbnail(
+                        media="https://dweeb.faizo.net/media/defaults/dweeb-default-thumbnail.jpg"
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+                discord.ui.TextDisplay(
+                    content=(
+                        "### ⏳ INSCRIÇÕES\n"
+                        "As inscrições oficiais ainda estão fechadas. Você pode indicar sua área de interesse pelo botão abaixo.\n"
+                        "-# C.C © • Oportunidades e projetos"
+                    )
+                ),
+                discord.ui.ActionRow(AbrirAreasTrabalhoButton()),
+                accent_color=5793266
+            )
+        )
 
 class ParceriasView(discord.ui.View):
     def __init__(self):
@@ -4507,10 +4554,11 @@ async def atualizar_painel_trampar(interaction: discord.Interaction):
                     break
 
         if mensagem is None:
-            mensagem = await canal.send(embed=criar_embed_trampar_conosco(), view=TramparConoscoView())
+            mensagem = await canal.send(view=TramparConoscoView())
             acao = "publicado"
         else:
-            await mensagem.edit(embed=criar_embed_trampar_conosco(), view=TramparConoscoView())
+            # Componentes V2 não podem coexistir com embeds/conteúdo tradicionais.
+            await mensagem.edit(content=None, embed=None, view=TramparConoscoView())
             acao = "atualizado"
 
         registros["Trampar Conosco"] = {"message_id": mensagem.id}
@@ -4572,7 +4620,14 @@ async def publicar_paineis_comunidade():
                         mensagem = candidata
                         break
 
-            if mensagem is None:
+            if nome == "Trampar Conosco":
+                if mensagem is None:
+                    mensagem = await canal.send(view=TramparConoscoView())
+                    log.info("Painel %s publicado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
+                else:
+                    await mensagem.edit(content=None, embed=None, view=TramparConoscoView())
+                    log.info("Painel %s existente atualizado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
+            elif mensagem is None:
                 mensagem = await canal.send(embed=criar_embed(), view=criar_view())
                 log.info("Painel %s publicado no canal %s (mensagem %s)", nome, canal_id, mensagem.id)
             else:
