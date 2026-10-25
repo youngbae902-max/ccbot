@@ -5837,9 +5837,8 @@ async def on_ready():
             # Mantém os comandos ativos apenas no servidor de destino.
             bot.tree.clear_commands(guild=guild)
             bot.tree.copy_global_to(guild=guild)
-            bot.tree.clear_commands(guild=None)
-            # Não sincronize a árvore global vazia: o Discord protege o comando
-            # Entry Point das Activities contra exclusão em atualizações em lote.
+            # Sincronizamos somente a árvore do servidor. Manter a árvore global em memória
+            # permite tentar novamente após uma falha sem perder os comandos locais.
             try:
                 synced = await bot.tree.sync(guild=guild)
                 bot._commands_synced_this_process = True
