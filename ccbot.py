@@ -4519,51 +4519,46 @@ def criar_embed_comprovante_info():
     return embed
 
 
-class ArrumadorPainelView(discord.ui.View):
+class ArrumadorPainelView(discord.ui.LayoutView):
+    """Painel Arrumador em Components V2, sem embeds tradicionais."""
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(MandarArrumadorButton())
+        mandar = MandarArrumadorButton()
+        self.add_item(discord.ui.Container(
+            discord.ui.Section(
+                discord.ui.TextDisplay(
+                    content=(
+                        "## 🧩 ARRUMADOR DE PROJETOS\n"
+                        "-# FL STUDIO MOBILE · SERVIÇO PERSONALIZADO\n\n"
+                        "Organize e ajuste seu projeto conforme as mudanças que você precisa."
+                    )
+                ),
+                accessory=discord.ui.Thumbnail(
+                    media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
+                )
+            ),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+            discord.ui.TextDisplay(
+                content=(
+                    "### 💳 INVESTIMENTO\n"
+                    "## R$ 33,99\n"
+                    "-# Pix · confirmação manual\n\n"
+                    "### 🛠️ COMO SOLICITAR\n"
+                    "1. Toque em **MANDAR**.\n"
+                    "2. Descreva as alterações desejadas.\n"
+                    "3. Faça o Pix no pedido privado e envie o comprovante."
+                )
+            ),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+            discord.ui.TextDisplay(
+                content="-# O serviço começa após a confirmação manual do pagamento."
+            ),
+            discord.ui.ActionRow(mandar)
+        ))
 
 def criar_embed_arrumador():
-    """Painel compacto em estilo ficha de serviço, com preço e fluxo bem separados."""
-    embed = criar_embed_estetico(
-        title="🧩  ARRUMADOR",
-        description=(
-            "**FL STUDIO MOBILE  /  ORGANIZAÇÃO DE PROJETOS**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "Seu projeto, ajustado ao que você precisa. Explique o resultado que procura e envie os detalhes no pedido privado."
-        ),
-        color=discord.Color.from_rgb(185, 45, 55)
-    )
-    embed.add_field(
-        name="💳  INVESTIMENTO",
-        value="## R$ 33,99\nPix · confirmação manual",
-        inline=True
-    )
-    embed.add_field(
-        name="🛠️  ATENDIMENTO",
-        value="Personalizado\nConforme suas instruções",
-        inline=True
-    )
-    embed.add_field(
-        name="COMO FUNCIONA",
-        value=(
-            "**01**  Clique em **MANDAR** abaixo.\n"
-            "**02**  Descreva as alterações desejadas.\n"
-            "**03**  Pague via Pix no pedido privado e anexe o comprovante."
-        ),
-        inline=False
-    )
-    embed.add_field(
-        name="LIBERAÇÃO DO SERVIÇO",
-        value="O trabalho começa somente após a confirmação manual do pagamento.",
-        inline=False
-    )
-    embed.set_thumbnail(
-        url="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
-    )
-    embed.set_footer(text="C.C  /  SERVIÇOS DE PRODUÇÃO MUSICAL")
-    return embed
+    """Compatibilidade com os pontos existentes: agora retorna o painel Components V2."""
+    return ArrumadorPainelView()
 
 async def arrumador(interaction: discord.Interaction):
     """Atualiza o painel do Arrumador existente; nunca cria uma mensagem duplicada."""
@@ -4579,8 +4574,11 @@ async def arrumador(interaction: discord.Interaction):
             canal = await bot.fetch_channel(canal_id)
         mensagem = await canal.fetch_message(mensagem_id)
         await mensagem.edit(
-            embed=criar_embed_arrumador(),
-            view=ArrumadorPainelView(),
+            content=None,
+            embed=None,
+            embeds=[],
+            attachments=[],
+            view=criar_embed_arrumador(),
             allowed_mentions=discord.AllowedMentions.none()
         )
         await interaction.followup.send(
@@ -6630,7 +6628,7 @@ async def atualizar_painel(
         tipos = {
             "samples": (GeradorSamplesView, True),
             "pack": (PackPersonalizadoView, True),
-            "arrumador": (ArrumadorPainelView, False),
+            "arrumador": (ArrumadorPainelView, True),
             "acapellas": (AcapellasActivityView, False),
             "parcerias": (ParceriasView, True),
             "trampar": (TramparConoscoView, True),
@@ -6640,9 +6638,6 @@ async def atualizar_painel(
         if components_v2:
             # Components V2 é o próprio painel; o Discord não permite misturá-lo com embeds.
             await mensagem.edit(content=None, embeds=[], attachments=[], view=nova_view)
-        elif tipo.value == "arrumador":
-            # O Arrumador usa embed tradicional + botão. Restaurar ambos na mensagem existente.
-            await mensagem.edit(content=None, embed=criar_embed_arrumador(), attachments=[], view=nova_view)
         else:
             # Outros painéis tradicionais mantêm seu embed/conteúdo; só atualizamos os botões.
             await mensagem.edit(view=nova_view)
@@ -6766,8 +6761,8 @@ async def atualizar_paineis(interaction: discord.Interaction):
 
         titulos = {(embed.title or "").strip().casefold() for embed in mensagem.embeds}
         # O ID do botão permite recuperar o painel mesmo quando seu embed já foi apagado.
-        if "ccbot:arrumador_mandar" in texto or titulos.intersection({"🧰 arrumador de arquivos", "🧰 arrumador de projetos"}):
-            return "Arrumador", ArrumadorPainelView, False
+        if "ccbot:arrumador_mandar" in texto or titulos.intersection({"🧰 arrumador de arquivos", "🧰 arrumador de projetos", "🧩 arrumador"}):
+            return "Arrumador", ArrumadorPainelView, True
         if titulos.intersection({"🎤 acapellas de mcs famosos", "busca de acapellas"}):
             return "Acapellas", AcapellasActivityView, False
         return None
@@ -6796,8 +6791,6 @@ async def atualizar_paineis(interaction: discord.Interaction):
                     if components_v2:
                         # Components V2 contém o layout completo do painel.
                         await mensagem.edit(content=None, embeds=[], attachments=[], view=nova_view)
-                    elif nome == "Arrumador":
-                        await mensagem.edit(content=None, embed=criar_embed_arrumador(), attachments=[], view=nova_view)
                     elif nome == "Comprovante":
                         await mensagem.edit(
                             content=None,
