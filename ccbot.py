@@ -41,6 +41,20 @@ import github_bridge
 from support_features import configure_support
 from promo_features import configure_promos
 
+# Identidade visual global dos embeds: grafite e rodapé consistente.
+# Cores, rodapés e mídias específicos de cada fluxo são preservados.
+_DiscordEmbedOriginal = discord.Embed
+
+def criar_embed_estetico(*args, **kwargs):
+    """Aplica acabamento padrão sem apagar a identidade de cada painel."""
+    embed = _DiscordEmbedOriginal(*args, **kwargs)
+    if embed.color is None:
+        embed.color = discord.Color.from_rgb(43, 45, 49)
+    if not embed.footer.text:
+        embed.set_footer(text="C.C ©  •  Comunidade e Produção Musical")
+    return embed
+
+
 BASE = Path.home() / "ccbot-repo"
 CONFIG = BASE / "config"
 DATA_FILE = CONFIG / "config.json"
@@ -300,7 +314,7 @@ class ConfirmarPublicacaoBeatView(discord.ui.View):
         # Responde primeiro à interação para evitar que ela expire durante a publicação.
         await interaction.response.defer(ephemeral=True, thinking=True)
 
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             title=f"🎧 {self.nome}",
             description=self.descricao or "Sem descrição.",
             color=discord.Color.green()
@@ -386,7 +400,7 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
             )
             return
 
-        instrucoes = discord.Embed(
+        instrucoes = criar_embed_estetico(
             title="🎧 Envio da prévia do beat",
             description=(
                 "Envie **o arquivo de áudio neste canal** para continuar o cadastro.\n\n"
@@ -506,7 +520,7 @@ class BeatInfoModal(discord.ui.Modal, title="Cadastrar beat para venda"):
         descricao_beat = self.descricao.value.strip()
         estilo_beat = self.estilo.value.strip()
 
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             title=f"🎧 {nome_beat}",
             description=descricao_beat or "Sem descrição.",
             color=discord.Color.green()
@@ -750,7 +764,7 @@ class PackAdicionais(discord.ui.Select):
 async def enviar_pedido_pack(interaction, plano, valor, detalhes, adicionais):
     try:
         # O pedido é enviado ao PV do administrador e ao canal de avisos.
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             title="📦 Novo pedido • Pack Personalizado",
             description=f"**Plano:** {plano}\n**Valor estimado:** R$ {valor},00",
             color=discord.Color.blurple()
@@ -1469,7 +1483,7 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
     pix_orders[txid] = registro
     save_json(PIX_ORDERS_FILE, pix_orders)
 
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title="Pagamento Pix pendente",
         description=(
             f"Produto: {produto}\nValor: {formatar_reais(valor)}\n"
@@ -1494,7 +1508,7 @@ async def criar_pedido_pagamento(interaction, produto, valor, detalhes=None, tip
 
     try:
         canal_admin = await obter_canal_confirmacao(guild)
-        aviso = discord.Embed(
+        aviso = criar_embed_estetico(
             title="🧾 PAGAMENTO PENDENTE — CONFERÊNCIA MANUAL",
             description=(
                 f"**Produto:** {produto}\n"
@@ -2292,7 +2306,7 @@ class TestarBoasVindasButton(discord.ui.Button):
                 channel = await bot.fetch_channel(WELCOME_CHANNEL_ID)
 
             member = interaction.user
-            embed = discord.Embed(
+            embed = criar_embed_estetico(
                 title="Seja bem-vindo(a)",
                 description=(
                     "**Eaee, suave? Seja bem-vindo ao nosso server!**\n\n"
@@ -2463,7 +2477,7 @@ class ConfirmarLimpezaPVButton(discord.ui.Button):
                 texto += f"\nNão foi possível apagar {falhas} mensagem(ns)."
             await interaction.followup.send(texto, ephemeral=True)
             await interaction.message.edit(
-                embed=discord.Embed(
+                embed=criar_embed_estetico(
                     title="🧹 Limpeza concluída",
                     description=texto,
                     color=discord.Color.green()
@@ -2557,7 +2571,7 @@ async def enviar_lote_imagens(destino, imagens, nome, descricao=None, primeira=F
     for inicio in range(0, len(imagens), 10):
         lote = imagens[inicio:inicio + 10]
         arquivos = [discord.File(io.BytesIO(dados), filename=arquivo_nome) for arquivo_nome, dados in lote]
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             title=f"🖼️ Icon - {nome}",
             description=descricao if inicio == 0 else None,
             color=discord.Color.from_rgb(0, 0, 0)
@@ -2612,7 +2626,7 @@ async def publicar_zip_icone(nome, imagens, modo):
     if modo == "single":
         primeira_nome, primeira_dados = imagens[0]
         arquivo_capa = discord.File(io.BytesIO(primeira_dados), filename=primeira_nome)
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             title=f"🖼️ Icon - {nome}",
             description=f"📸 {len(imagens)} foto(s) • Abra Ver icons para acessar o tópico.",
             color=discord.Color.from_rgb(0, 0, 0)
@@ -2865,7 +2879,7 @@ class PainelIconesView(discord.ui.View):
         self.add_item(VoltarPainelButton())
 
 def criar_embed_painel_icones():
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title="🖼️ CENTRAL DE ÍCONES",
         description=(
             "Envie ZIPs ou imagens diretamente pelo formulário, sem monitoramento de pastas.\n\n"
@@ -2994,7 +3008,7 @@ async def abrir_permissoes_categorias(interaction: discord.Interaction):
 
     quantidade = sum(1 for c in interaction.guild.categories if c.name.strip().casefold() != "community")
     comunidades = [c.name for c in interaction.guild.categories if c.name.strip().casefold() == "community"]
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title="🔒 Permissões das categorias",
         description=(
             f"Vou alterar **{quantidade} categorias**, preservando a categoria "
@@ -3026,7 +3040,7 @@ class TrabalhosOnView(discord.ui.View):
             if not isinstance(canal, discord.TextChannel):
                 raise TypeError("O canal configurado não é um canal de texto.")
 
-            embed = discord.Embed(
+            embed = criar_embed_estetico(
                 title="🟢  TRABALHOS ESTÃO ON!",
                 description=(
                     "Os trabalhos estão **abertos e disponíveis**!\n\n"
@@ -3066,7 +3080,7 @@ async def abrir_trabalhos_on(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
         return
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title="📣 Aviso: Trabalhos ON",
         description=(
             f"Vou publicar um embed no canal <#{TRABALHOS_ON_CHANNEL_ID}> informando que os trabalhos estão abertos.\n\n"
@@ -3289,7 +3303,7 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
         await interaction.response.send_message("Abra esta função dentro do servidor.", ephemeral=True)
         return
 
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title="🗂️ Hierarquia do servidor",
         description=(
             "O CC BOT vai organizar as categorias e os canais conhecidos, padronizar os nomes e ordenar os cargos principais.\n\n"
@@ -3342,7 +3356,7 @@ async def hierarquia(interaction: discord.Interaction):
         await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
         return
 
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title="🗂️ Hierarquia do servidor",
         description=(
             "O CC BOT vai organizar as categorias e os canais conhecidos, padronizar os nomes e ordenar os cargos principais.\n\n"
@@ -3428,7 +3442,7 @@ class PainelGrupoSelect(discord.ui.Select):
         grupo = self.values[0]
         info = PAINEL_GRUPOS[grupo]
         await interaction.response.edit_message(
-            embed=discord.Embed(
+            embed=criar_embed_estetico(
                 title=info["titulo"],
                 description=info["descricao"] + "\n\nSelecione uma função abaixo.",
                 color=PAINEL_ADMIN_COLOR
@@ -3457,7 +3471,7 @@ class CategoriaPainelSelect(discord.ui.Select):
         categoria = self.values[0]
         if categoria == "djs":
             await interaction.response.edit_message(
-                embed=discord.Embed(
+                embed=criar_embed_estetico(
                     title="🎧 Gerenciamento de DJs",
                     description="Configure quais DJs aparecem no painel **Gerar Samples**.\n\nUse os botões abaixo para adicionar, alterar ou excluir nomes.",
                     color=discord.Color.green()
@@ -3466,7 +3480,7 @@ class CategoriaPainelSelect(discord.ui.Select):
             )
         elif categoria == "boas_vindas":
             await interaction.response.edit_message(
-                embed=discord.Embed(
+                embed=criar_embed_estetico(
                     title="👋 Boas-vindas",
                     description=f"Canal configurado: <#{WELCOME_CHANNEL_ID}>\n\nUse o botão para publicar uma mensagem de teste nesse canal.",
                     color=discord.Color.green()
@@ -3479,7 +3493,7 @@ class CategoriaPainelSelect(discord.ui.Select):
             await atualizar_painel_trampar(interaction)
         elif categoria == "publicar":
             await interaction.response.edit_message(
-                embed=discord.Embed(
+                embed=criar_embed_estetico(
                     title="📋 Publicar painéis",
                     description=(
                         "Escolha uma função abaixo. Os sistemas continuam ativos; "
@@ -3499,7 +3513,7 @@ class CategoriaPainelSelect(discord.ui.Select):
             await abrir_organizacao_hierarquia(interaction)
         elif categoria == "emojis":
             await interaction.response.edit_message(
-                embed=discord.Embed(
+                embed=criar_embed_estetico(
                     title="🎨 Personalização • Emojis",
                     description="Envie um ZIP ou imagens para adicionar emojis personalizados ao servidor.",
                     color=PAINEL_ADMIN_COLOR
@@ -3513,7 +3527,7 @@ class CategoriaPainelSelect(discord.ui.Select):
             )
         elif categoria == "canal_avisos":
             await interaction.response.edit_message(
-                embed=discord.Embed(
+                embed=criar_embed_estetico(
                     title="📨 Canal de avisos do bot",
                     description=f"Canal atual: <#{settings.get('notice_channel', DEFAULT_NOTICE_CHANNEL)}>\n\nEscolha abaixo onde o bot deve enviar erros e avisos técnicos.",
                     color=PAINEL_ADMIN_COLOR
@@ -3522,7 +3536,7 @@ class CategoriaPainelSelect(discord.ui.Select):
             )
         elif categoria == "limpar_pv":
             await interaction.response.edit_message(
-                embed=discord.Embed(
+                embed=criar_embed_estetico(
                     title="🧹 Limpar mensagens do PV",
                     description=(
                         "Esta função apaga **somente mensagens enviadas pelo CC BOT** na conversa privada com você.\n\n"
@@ -3535,7 +3549,7 @@ class CategoriaPainelSelect(discord.ui.Select):
             )
         elif categoria == "ferramentas":
             await interaction.response.edit_message(
-                embed=discord.Embed(
+                embed=criar_embed_estetico(
                     title="🧰 Ferramentas administrativas",
                     description=(
                         "**Emojis:** envie um ZIP ou imagens diretamente pelo formulário do Discord.\n\n"
@@ -3549,7 +3563,7 @@ class CategoriaPainelSelect(discord.ui.Select):
             )
         else:
             await interaction.response.edit_message(
-                embed=discord.Embed(
+                embed=criar_embed_estetico(
                     title="🛠️ Testes e manutenção",
                     description="Use a opção abaixo para conferir se o bot está online e respondendo às interações.",
                     color=discord.Color.green()
@@ -3643,7 +3657,7 @@ class PainelManutencaoView(discord.ui.View):
         self.add_item(VoltarPainelButton())
 
 def criar_embed_painel():
-    return discord.Embed(
+    return criar_embed_estetico(
         title="CC BOT | Administração",
         description=(
             "Central de controle do servidor.\n\n"
@@ -3675,9 +3689,11 @@ class GeradorSamplesView(discord.ui.LayoutView):
         super().__init__(timeout=None)
         self.add_item(
             discord.ui.Container(
+                # Banner horizontal em destaque, com descrição acessível.
                 discord.ui.MediaGallery(
                     discord.MediaGalleryItem(
-                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561721929583566858/605081.jpg?ex=6ad76263&is=6ad610e3&hm=23259b8d57737e9607039f616c91ceea22a3e99d47e000691c14e7115ac69edd&"
+                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561721929583566858/605081.jpg?ex=6ad76263&is=6ad610e3&hm=23259b8d57737e9607039f616c91ceea22a3e99d47e000691c14e7115ac69edd&",
+                        description="Banner do Gerador de Samples"
                     )
                 ),
                 discord.ui.Separator(
@@ -3927,7 +3943,7 @@ async def painel_acapellas(interaction: discord.Interaction):
             )
             return
 
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             title="🎙️ ACAPELLAS DE MCs FAMOSOS",
             description=(
                 "**Problemas em achar acapellas de MCs famosos?**\n"
@@ -4223,7 +4239,7 @@ class ArrumadorPainelView(discord.ui.View):
         self.add_item(MandarArrumadorButton())
 
 def criar_embed_arrumador():
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title="🧰 ARRUMADOR DE ARQUIVOS",
         description=(
             "Organize seu projeto do FL Studio Mobile do jeito que você precisa.\n\n"
@@ -4274,7 +4290,7 @@ def criar_embed_promocional(nome: str) -> discord.Embed:
         "PACKy": "Explore packs e conteúdos para sua produção musical.",
         "Garimpo": "Descubra novidades e conteúdos disponíveis no Garimpo.",
     }
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title="Acesse",
         description=f"**{nome}**\n\n{textos[nome]}",
         color=discord.Color.from_rgb(0, 0, 0)
@@ -4368,7 +4384,7 @@ class SelecionarAreaTrabalho(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         area = self.values[0]
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             title=f"💼 Interesse em trabalhar — {area}",
             description=(
                 f"Você selecionou **{area}**. Escolha como quer entrar em contato "
@@ -4532,7 +4548,7 @@ class ParceriasView(discord.ui.LayoutView):
 
 
 def criar_embed_trampar_conosco() -> discord.Embed:
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title="<:tag:1561787923865665667> TRAMPAR CONOSCO",
         description=(
             "**Seu talento tem espaço no C.C ©.**\n"
@@ -4896,7 +4912,7 @@ async def on_member_join(member: discord.Member):
         if channel is None:
             channel = await bot.fetch_channel(WELCOME_CHANNEL_ID)
 
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             title="Seja bem-vindo(a)",
             description=(
                 f"**Eaee, suave? Seja bem-vindo ao nosso server!**\n\n"
@@ -4923,7 +4939,7 @@ async def on_member_remove(member: discord.Member):
         if channel is None:
             channel = await bot.fetch_channel(WELCOME_CHANNEL_ID)
 
-        embed = discord.Embed(
+        embed = criar_embed_estetico(
             description=f"**{member.mention} saiu.. sentiremos sua falta**",
             color=discord.Color.red()
         )
@@ -5108,7 +5124,7 @@ async def garantir_painel_info_vendas(guild):
     else:
         await canal.edit(category=categoria, overwrites=overwrites)
 
-    embed = discord.Embed(
+    embed = criar_embed_estetico(
         title=SALES_INFO_TITLE,
         description=(
             "As compras são liberadas **após a confirmação manual do pagamento**. "
@@ -5552,7 +5568,7 @@ class FreeProjectsAccessView(discord.ui.View):
                 )
             await thread.add_user(interaction.user)
             if created:
-                embed = discord.Embed(
+                embed = criar_embed_estetico(
                     title=cfg["title"],
                     description=(
                         f"Este é seu tópico privado de **{cfg['button_label'].lower()}**.\n"
@@ -5639,7 +5655,7 @@ async def configurar_paineis_gratis(guild):
                         if cfg["custom_id"] in ids:
                             message = candidate
                             break
-            embed = discord.Embed(
+            embed = criar_embed_estetico(
                 title=cfg["title"],
                 description=f"**Conteúdo gratuito para suas produções.**\n-# PAINEL ATUALIZADO\n\n{cfg['description']}",
                 color=discord.Color.from_rgb(20, 20, 20)
@@ -5840,7 +5856,7 @@ async def enviar_comprovante_pix(interaction: discord.Interaction, arquivo: disc
         if canal_admin is None:
             canal_admin = await obter_canal_confirmacao(interaction.guild)
 
-        aviso = discord.Embed(
+        aviso = criar_embed_estetico(
             title="🧾 COMPROVANTE RECEBIDO",
             description=(
                 f"**Pedido:** {pedido.get('txid')}\n"
@@ -5918,7 +5934,7 @@ async def receber_comprovante_pix(message: discord.Message):
         except Exception:
             log.exception("Não consegui localizar o canal de comprovantes do pedido %s", pedido.get("txid"))
             return
-    aviso = discord.Embed(
+    aviso = criar_embed_estetico(
         title="🧾 COMPROVANTE RECEBIDO",
         description=(
             f"**Pedido:** {pedido.get('txid')}\n"
