@@ -6037,6 +6037,27 @@ async def configurar_paineis_gratis(guild):
             except discord.HTTPException:
                 log.exception("Falha ao remover categoria extra %s", category.name)
 
+STATUS_CHANNEL_ID = 1564083128727904326
+
+async def atualizar_status_canal(nome: str):
+    """Atualiza o nome do canal de status sem mexer em outros canais."""
+    try:
+        canal = bot.get_channel(STATUS_CHANNEL_ID)
+        if canal is None:
+            canal = await bot.fetch_channel(STATUS_CHANNEL_ID)
+        if getattr(canal, "name", None) != nome:
+            await canal.edit(name=nome, reason="Atualização automática do status do CC BOT")
+            log.info("Canal de status atualizado para: %s", nome)
+    except Exception:
+        log.exception("Não foi possível atualizar o canal de status %s.", STATUS_CHANNEL_ID)
+
+
+@bot.event
+async def on_disconnect():
+    # Se perder a conexão com o gateway, sinaliza offline; on_ready volta para online.
+    await atualizar_status_canal("│🚫﹒off")
+
+
 @bot.event
 async def on_ready():
     try:
@@ -6062,6 +6083,7 @@ async def on_ready():
         else:
             log.info("Sincronização de comandos já realizada nesta execução; ignorando repetição.")
         log.info("Conectado como %s", bot.user)
+        await atualizar_status_canal("│🟢﹒online")
 
         # Não publicar nem reconfigurar painéis em massa durante a inicialização.
         # A configuração de painéis gratuitos deve ser acionada manualmente.
