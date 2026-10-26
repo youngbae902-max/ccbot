@@ -3624,9 +3624,11 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
         "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
     )
 
-    # TextDisplay direto no LayoutView: sem Container (barra lateral) e sem rodapé de embed.
+    # Componentes V2 dentro de Container sem accent_color: cartão sem barra lateral colorida.
     view = discord.ui.LayoutView(timeout=None)
-    view.add_item(discord.ui.TextDisplay(content=conteudo))
+    view.add_item(discord.ui.Container(
+        discord.ui.TextDisplay(content=conteudo)
+    ))
 
     try:
         mensagem = await canal.send(
