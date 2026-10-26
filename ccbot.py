@@ -1163,6 +1163,7 @@ class PackPerguntasView(discord.ui.LayoutView):
             )
 
 class PackPersonalizadoView(discord.ui.LayoutView):
+    """Painel de Pack Personalizado em Components V2, alinhado ao estilo dos demais painéis."""
     def __init__(self):
         super().__init__(timeout=None)
         encomendar = discord.ui.Button(
@@ -1174,14 +1175,18 @@ class PackPersonalizadoView(discord.ui.LayoutView):
         encomendar.callback = self.abrir_basico
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
-                "# 🧩 Monte seu próprio pack\n"
-                "Crie um pack do seu jeito, com conteúdos escolhidos por você e pensados para o seu estilo de produção.\n\n"
-                "**O que você pode personalizar?**\n\n"
-                "• Os **samples que você mais gosta**.\n"
-                "• **Acapellas dos MCs** que você mais curte.\n"
-                "• Um **pack feito sob medida** para você, de acordo com suas preferências.\n\n"
-                "Personalize do seu jeito e peça o seu abaixo."
+                "# 🧩 MONTE SEU PRÓPRIO PACK\n"
+                "-# PACK PERSONALIZADO\n\n"
+                "Monte um pack com os conteúdos que combinam com seu estilo de produção."
             )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+            discord.ui.TextDisplay(content=(
+                "### O QUE VOCÊ PODE PERSONALIZAR?\n\n"
+                "• Os **samples que você mais gosta**.\n\n"
+                "• **Acapellas dos MCs** que você mais curte.\n\n"
+                "• Um **pack feito sob medida**, pensado de acordo com suas preferências."
+            )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
             discord.ui.ActionRow(encomendar)
         ))
 
