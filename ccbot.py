@@ -2325,11 +2325,7 @@ class VoltarPainelButton(discord.ui.Button):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
-        await interaction.response.edit_message(
-            content="🟢 **C.C — PAINEL ADMINISTRATIVO**\nEscolha uma ferramenta abaixo.",
-            embed=None,
-            view=PainelAdminView()
-        )
+        await interaction.response.edit_message(view=PainelAdminV2View())
 
 class AdicionarEmojisPainelButton(discord.ui.Button):
     def __init__(self):
@@ -3318,11 +3314,7 @@ class AbrirPainelAdminButton(discord.ui.Button):
             )
             return
         # Mantém a tela V2 intacta e abre as ferramentas sem misturar formatos.
-        await interaction.response.send_message(
-            embed=criar_embed_painel(),
-            view=PainelAdminView(),
-            ephemeral=True
-        )
+        await interaction.response.send_message(view=PainelAdminV2View(), ephemeral=True)
 
 
 class PainelEntradaView(discord.ui.LayoutView):
@@ -3734,21 +3726,27 @@ class PublicarPainelButton(discord.ui.Button):
         }
         await handlers[self.action](interaction)
 
-class PainelPublicarView(discord.ui.View):
+class PainelPublicarView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(PublicarPainelButton("Arrumador", "🧰", "arrumador"))
-        self.add_item(PublicarPainelButton("Acapellas", "🎙️", "acapellas"))
-        self.add_item(PublicarPainelButton("Samples", "🎧", "samples"))
-        self.add_item(PublicarPainelButton("Venda de beats", "💿", "beats"))
-        self.add_item(PublicarPainelButton("Pack personalizado", "📦", "pack"))
-        self.add_item(VoltarPainelButton())
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 📋 Publicar painéis\nEscolha o painel que deseja publicar ou atualizar."),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(PublicarPainelButton("Arrumador", "🧰", "arrumador"), PublicarPainelButton("Acapellas", "🎙️", "acapellas")),
+            discord.ui.ActionRow(PublicarPainelButton("Samples", "🎧", "samples"), PublicarPainelButton("Venda de beats", "💿", "beats")),
+            discord.ui.ActionRow(PublicarPainelButton("Pack personalizado", "📦", "pack"), VoltarPainelButton())
+        ))
 
-class PainelSubcategoriasView(discord.ui.View):
+class PainelSubcategoriasView(discord.ui.LayoutView):
     def __init__(self, grupo):
         super().__init__(timeout=300)
-        self.add_item(CategoriaPainelSelect(grupo))
-        self.add_item(VoltarPainelButton())
+        info = PAINEL_GRUPOS[grupo]
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content=f"# {info['titulo']}\n{info['descricao']}"),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(CategoriaPainelSelect(grupo)),
+            discord.ui.ActionRow(VoltarPainelButton())
+        ))
 
 class PainelAdminView(discord.ui.View):
     def __init__(self):
@@ -3772,20 +3770,23 @@ class PainelAdminV2View(discord.ui.LayoutView):
             )
         )
 
-class PainelDJsView(discord.ui.View):
+class PainelDJsView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(AdicionarDJButton())
-        self.add_item(AlterarDJButton())
-        self.add_item(ExcluirDJButton())
-        self.add_item(SamplesAdminButton())
-        self.add_item(VoltarPainelButton())
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 🎧 DJs e estoque\nCadastre DJs e gerencie os estoques de samples."),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(AdicionarDJButton(), AlterarDJButton(), ExcluirDJButton()),
+            discord.ui.ActionRow(SamplesAdminButton(), VoltarPainelButton())
+        ))
 
-class PainelBoasVindasView(discord.ui.View):
+class PainelBoasVindasView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(TestarBoasVindasButton())
-        self.add_item(VoltarPainelButton())
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content=f"# 👋 Boas-vindas\nCanal configurado: <#{WELCOME_CHANNEL_ID}>\nUse o botão para publicar uma mensagem de teste."),
+            discord.ui.ActionRow(TestarBoasVindasButton(), VoltarPainelButton())
+        ))
 
 class VerificarBotButton(discord.ui.Button):
     def __init__(self):
@@ -3802,11 +3803,13 @@ class VerificarBotButton(discord.ui.Button):
             ephemeral=True
         )
 
-class PainelManutencaoView(discord.ui.View):
+class PainelManutencaoView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(VerificarBotButton())
-        self.add_item(VoltarPainelButton())
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 🛠️ Manutenção\nConfira se o CC BOT está online e respondendo."),
+            discord.ui.ActionRow(VerificarBotButton(), VoltarPainelButton())
+        ))
 
 def criar_embed_painel():
     # Embed do painel sem rodapé automático.
