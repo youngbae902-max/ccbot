@@ -2513,7 +2513,8 @@ class VoltarPainelButton(discord.ui.Button):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
         await interaction.response.edit_message(
-            embed=criar_embed_painel(),
+            content="🟢 **C.C — PAINEL ADMINISTRATIVO**\nEscolha uma ferramenta abaixo.",
+            embed=None,
             view=PainelAdminView()
         )
 
@@ -3514,13 +3515,9 @@ class PainelEntradaView(discord.ui.View):
         self.add_item(AbrirPainelAdminButton())
 
 
-def criar_embed_entrada_painel():
-    # Embed compacto, sem rodapé, imagem, thumbnail ou decoração lateral.
-    return discord.Embed(
-        title="🟢 C.C — PAINEL",
-        description="Acesse as ferramentas administrativas do servidor.",
-        color=discord.Color.from_rgb(46, 204, 113)
-    )
+def texto_entrada_painel():
+    # Mensagem simples: sem embed, barra lateral ou rodapé.
+    return "🟢 **C.C — PAINEL**\nAcesse as ferramentas administrativas do servidor."
 
 
 @bot.tree.command(name="painel", description="Abrir o painel administrativo do CC BOT")
@@ -3538,7 +3535,7 @@ async def painel(interaction: discord.Interaction):
 
     try:
         await interaction.response.send_message(
-            embed=criar_embed_entrada_painel(),
+            content=texto_entrada_painel(),
             view=PainelEntradaView(),
             ephemeral=True
         )
