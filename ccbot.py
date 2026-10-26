@@ -3567,8 +3567,7 @@ OPCOES_CATEGORIAS_PAINEL = [
 ]
 
 async def atualizar_embed_regras(interaction: discord.Interaction):
-    """Atualiza a mensagem existente de regras, sem barra lateral nem rodapé de embed."""
-    message_id = 1563928985241526362
+    """Publica uma nova mensagem de regras sem barra lateral nem rodapé de embed."""
     rules_channel_id = 1561513274737168414
     guild = interaction.guild
     if guild is None:
@@ -3586,15 +3585,6 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
                 ephemeral=True
             )
             return
-
-    try:
-        mensagem = await canal.fetch_message(message_id)
-    except (discord.NotFound, discord.Forbidden, discord.HTTPException) as exc:
-        await interaction.followup.send(
-            f"❌ Não consegui localizar a mensagem de regras existente ({type(exc).__name__}). Nenhuma mensagem foi criada.",
-            ephemeral=True
-        )
-        return
 
     conteudo = (
         "# 📜 REGRAS DA COMUNIDADE\n"
@@ -3639,25 +3629,22 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
     view.add_item(discord.ui.TextDisplay(content=conteudo))
 
     try:
-        await mensagem.edit(
-            content=None,
-            embeds=[],
-            attachments=[],
+        mensagem = await canal.send(
             view=view,
             allowed_mentions=discord.AllowedMentions.none()
         )
         await interaction.followup.send(
-            f"✅ Aba de regras atualizada em {canal.mention}. A mensagem existente foi editada; nenhuma duplicata foi criada.",
+            f"✅ Novo painel de regras publicado em {canal.mention}. A mensagem anterior foi mantida.",
             ephemeral=True
         )
         log.info(
-            "Regras Components V2 atualizadas: canal=%s mensagem=%s por=%s",
+            "Novo painel de regras Components V2 publicado: canal=%s mensagem=%s por=%s",
             canal.id, mensagem.id, interaction.user.id
         )
     except discord.HTTPException as exc:
-        log.exception("Falha ao atualizar a mensagem de regras")
+        log.exception("Falha ao publicar o novo painel de regras")
         await interaction.followup.send(
-            f"❌ Não consegui atualizar as regras ({type(exc).__name__}). Confira as permissões do bot.",
+            f"❌ Não consegui publicar as novas regras ({type(exc).__name__}). Confira as permissões do bot.",
             ephemeral=True
         )
 
