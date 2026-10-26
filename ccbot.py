@@ -3487,9 +3487,42 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
         view=ConfirmarOrganizacaoHierarquiaView(interaction.guild.id)
     )
 
+class AbrirPainelAdminButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Abrir painel",
+            emoji="🟢",
+            style=discord.ButtonStyle.success,
+            custom_id="ccbot:painel_abrir"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message(
+                "Apenas o administrador pode usar este painel.", ephemeral=True
+            )
+            return
+        await interaction.response.edit_message(
+            embed=criar_embed_painel(),
+            view=PainelAdminView()
+        )
+
+
+class PainelEntradaView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(
+            discord.ui.TextDisplay(
+                content="## C.C — PAINEL\nAcesse as ferramentas administrativas do servidor."
+            )
+        )
+        self.add_item(
+            discord.ui.ActionRow(AbrirPainelAdminButton())
+        )
+
+
 @bot.tree.command(name="painel", description="Abrir o painel administrativo do CC BOT")
 async def painel(interaction: discord.Interaction):
-    # Validações simples respondem imediatamente; a montagem do painel ocorre após defer.
     if not is_admin(interaction):
         await interaction.response.send_message(
             "Apenas o administrador pode usar este comando.", ephemeral=True
@@ -3501,21 +3534,19 @@ async def painel(interaction: discord.Interaction):
         )
         return
 
-    await interaction.response.defer(ephemeral=True, thinking=True)
     try:
-        embed = criar_embed_painel()
-        view = PainelAdminView()
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        await interaction.response.send_message(
+            view=PainelEntradaView(),
+            ephemeral=True
+        )
         log.info("Comando /painel aberto por %s (%s).", interaction.user, interaction.user.id)
     except Exception as exc:
         log.exception("Falha ao abrir /painel")
-        try:
-            await interaction.followup.send(
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
                 f"Não consegui abrir o painel ({type(exc).__name__}). O erro foi registrado no log.",
                 ephemeral=True
             )
-        except discord.HTTPException:
-            pass
 
 @bot.tree.command(name="hierarquia", description="Abrir o painel para atualizar a hierarquia do servidor")
 async def hierarquia(interaction: discord.Interaction):
