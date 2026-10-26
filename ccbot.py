@@ -7216,6 +7216,9 @@ async def exportar_servidor(interaction: discord.Interaction):
 
     total_mensagens = 0
     buffer = io.BytesIO()
+    await interaction.edit_original_response(
+        content=f"📦 Preparando exportação de {len(alvos_mensagens)} canais/threads..."
+    )
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as pacote:
         pacote.writestr("servidor.json", json.dumps({
             "servidor": {
@@ -7227,10 +7230,25 @@ async def exportar_servidor(interaction: discord.Interaction):
             "canais": dados_canais
         }, ensure_ascii=False, indent=2))
 
-        for canal_id, canal in alvos_mensagens.items():
+        for indice_canal, (canal_id, canal) in enumerate(alvos_mensagens.items(), start=1):
             registros = []
+            total_lidos_no_canal = 0
             try:
+                await interaction.edit_original_response(
+                    content=f"📥 Lendo canal/thread {indice_canal}/{len(alvos_mensagens)}: "
+                            f"{getattr(canal, 'name', canal_id)} · {total_mensagens} mensagens coletadas..."
+                )
                 async for msg in canal.history(limit=None, oldest_first=True):
+                    total_lidos_no_canal += 1
+                    if total_lidos_no_canal % 100 == 0:
+                        try:
+                            await interaction.edit_original_response(
+                                content=f"📥 Lendo {getattr(canal, 'name', canal_id)}: "
+                                        f"{total_lidos_no_canal} mensagens neste canal · "
+                                        f"{total_mensagens + total_lidos_no_canal} no total..."
+                            )
+                        except Exception:
+                            pass
                     componentes = []
                     for componente in getattr(msg, "components", []):
                         try:
@@ -7259,6 +7277,14 @@ async def exportar_servidor(interaction: discord.Interaction):
                         "fixada": getattr(msg, "pinned", False)
                     })
                 total_mensagens += len(registros)
+                try:
+                    await interaction.edit_original_response(
+                        content=f"✅ Canal/thread {indice_canal}/{len(alvos_mensagens)} concluído: "
+                                f"{getattr(canal, 'name', canal_id)} · "
+                                f"{total_mensagens} mensagens coletadas."
+                    )
+                except Exception:
+                    pass
                 pacote.writestr(
                     f"mensagens/{canal_id}.json",
                     json.dumps(registros, ensure_ascii=False, indent=2)
