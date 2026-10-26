@@ -141,12 +141,22 @@ class SamplesSystem:
         sent_ids = []
         notes = []
 
+        def record_sent(item_ids):
+            nonlocal already
+            item_ids = list(item_ids)
+            if not item_ids:
+                return
+            sent_ids.extend(item_ids)
+            already = already | set(item_ids)
+            self.history[hist_key] = list(already)
+            self.save_history()
+
         try:
             # Links vão em texto; arquivos soltos são agrupados em ZIP; ZIPs originais ficam intactos.
             if links:
                 text = "\n".join(f"• **{discord.utils.escape_markdown(x.get('name', 'Link'))}**\n{x.get('url', '')}" for x in links)
                 await interaction.user.send("**🎧 Seus links de samples**\n" + text)
-                sent_ids.extend(x["id"] for x in links)
+                record_sent(x["id"] for x in links)
 
             original_zips = [x for x in files if x.get("kind") == "zip"]
             loose = [x for x in files if x.get("kind") == "file"]
@@ -160,7 +170,7 @@ class SamplesSystem:
                     content=f"📦 **{discord.utils.escape_markdown(item.get('name', 'Arquivo ZIP'))}**",
                     file=discord.File(io.BytesIO(data), filename=_safe_name(item.get("name", "samples.zip")))
                 )
-                sent_ids.append(item["id"])
+                record_sent([item["id"]])
 
             if loose:
                 buffer = io.BytesIO()
@@ -175,7 +185,7 @@ class SamplesSystem:
                         content="🎧 **Suas samples em arquivos agrupados**",
                         file=discord.File(io.BytesIO(data), filename=f"samples_{_slug(dj)}_{category}.zip")
                     )
-                    sent_ids.extend(x["id"] for x in loose)
+                    record_sent(x["id"] for x in loose)
                 else:
                     # Envia arquivos pequenos em lotes; arquivos acima do limite ficam pendentes.
                     for item in loose:
@@ -187,7 +197,7 @@ class SamplesSystem:
                         await interaction.user.send(
                             file=discord.File(io.BytesIO(data), filename=_safe_name(item.get("name", path.name)))
                         )
-                        sent_ids.append(item["id"])
+                        record_sent([item["id"]])
 
             if sent_ids:
                 self.history[hist_key] = list(already | set(sent_ids))
@@ -299,6 +309,7 @@ class SamplesSystem:
                             dest.write_bytes(content)
                             incoming.append({"id": item_id, "kind": kind, "name": name, "path": dest_name})
             elif Path(attachment.filename).suffix.lower() == ".txt":
+                existing_by_id = {item.get("id"): item for item in self.items(dj, category)}
                 for line in data.decode("utf-8-sig").splitlines():
                     if not line.startswith("ITEM;"):
                         continue
@@ -307,8 +318,15 @@ class SamplesSystem:
                         if "=" in part:
                             k, v = part.split("=", 1)
                             fields[k] = v
-                    if fields.get("tipo") == "link" and fields.get("link", "").startswith("https://"):
-                        incoming.append({"id": uuid.uuid4().hex, "kind": "link", "name": _safe_name(fields.get("nome", "Link")), "url": fields["link"]})
+                    item_id = fields.get("id", "")
+                    kind = fields.get("tipo", "")
+                    name = _safe_name(fields.get("nome", "Item"))
+                    if kind == "link" and fields.get("link", "").startswith(("https://", "http://")):
+                        incoming.append({"id": uuid.uuid4().hex, "kind": "link", "name": name, "url": fields["link"]})
+                    elif kind in ("file", "zip") and item_id in existing_by_id:
+                        preserved = dict(existing_by_id[item_id])
+                        preserved["name"] = name
+                        incoming.append(preserved)
             else:
                 raise ValueError("Envie um .txt ou .zip exportado pelo painel.")
             old = self.items(dj, category)
@@ -539,12 +557,12 @@ class SamplesEditItemModal(discord.ui.Modal, title="Editar item do estoque"):
         if item is None:
             await interaction.response.send_message("Esse item não está mais no estoque.", ephemeral=True)
             return
+        url = str(self.link.value or "").strip()
+        if item.get("kind") == "link" and not url.startswith(("https://", "http://")):
+            await interaction.response.send_message("Para itens do tipo link, informe um endereço http:// ou https:// válido.", ephemeral=True)
+            return
         item["name"] = _safe_name(str(self.nome.value).strip())
         if item.get("kind") == "link":
-            url = str(self.link.value or "").strip()
-            if not url.startswith(("https://", "http://")):
-                await interaction.response.send_message("Para itens do tipo link, informe um endereço http:// ou https:// válido.", ephemeral=True)
-                return
             item["url"] = url
         SYSTEM.save_stock()
         await interaction.response.send_message("Item atualizado.", ephemeral=True)
