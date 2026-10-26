@@ -3738,15 +3738,22 @@ class CategoriaPainelSelect(discord.ui.Select):
         else:
             await interaction.response.edit_message(view=PainelManutencaoView())
 
-class PublicarPainelButton(discord.ui.Button):
-    def __init__(self, label, emoji, action):
+class PublicarPainelSelect(discord.ui.Select):
+    def __init__(self):
         super().__init__(
-            label=label,
-            emoji=emoji,
-            style=discord.ButtonStyle.primary,
-            custom_id=f"ccbot:publicar_{action}"
+            placeholder="Selecione o painel para publicar ou atualizar",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(label="Arrumador", description="Publicar ou atualizar o painel", emoji="🧰", value="arrumador"),
+                discord.SelectOption(label="Acapellas", description="Publicar ou atualizar o painel", emoji="🎙️", value="acapellas"),
+                discord.SelectOption(label="Samples", description="Publicar ou atualizar o painel", emoji="🎧", value="samples"),
+                discord.SelectOption(label="Venda de beats", description="Publicar ou atualizar o painel", emoji="💿", value="beats"),
+                discord.SelectOption(label="Pack personalizado", description="Publicar ou atualizar o painel", emoji="📦", value="pack"),
+                discord.SelectOption(label="Garimpador de Packs", description="Publicar ou atualizar no canal atual", emoji="🎲", value="garimpador"),
+            ],
+            custom_id="ccbot:publicar_painel:selecionar"
         )
-        self.action = action
 
     async def callback(self, interaction: discord.Interaction):
         if not is_admin(interaction):
@@ -3754,30 +3761,27 @@ class PublicarPainelButton(discord.ui.Button):
                 "Apenas o administrador pode usar este painel.", ephemeral=True
             )
             return
-
-        # Reutiliza os fluxos originais, sem duplicar a lógica dos sistemas.
-        if self.action == "garimpador":
+        action = self.values[0]
+        if action == "garimpador":
             await GarimpadorPublicarButton().callback(interaction)
             return
         handlers = {
-            "emojis": adicionar_emojis,
             "arrumador": arrumador,
             "acapellas": painel_acapellas,
             "samples": samples,
             "beats": venda_de_beats,
             "pack": criar_pack_personalizado,
         }
-        await handlers[self.action](interaction)
+        await handlers[action](interaction)
+
 
 class PainelPublicarView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(discord.ui.Container(
-            discord.ui.TextDisplay(content="# 📋 Publicar painéis\nEscolha o painel que deseja publicar ou atualizar."),
+            discord.ui.TextDisplay(content="# 📋 Publicar painéis\nSelecione no menu o painel que deseja publicar ou atualizar."),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-            discord.ui.ActionRow(PublicarPainelButton("Arrumador", "🧰", "arrumador"), PublicarPainelButton("Acapellas", "🎙️", "acapellas")),
-            discord.ui.ActionRow(PublicarPainelButton("Samples", "🎧", "samples"), PublicarPainelButton("Venda de beats", "💿", "beats")),
-            discord.ui.ActionRow(PublicarPainelButton("Pack personalizado", "📦", "pack"), PublicarPainelButton("Garimpador de Packs", "🎲", "garimpador")),
+            discord.ui.ActionRow(PublicarPainelSelect()),
             discord.ui.ActionRow(VoltarPainelButton())
         ))
 
