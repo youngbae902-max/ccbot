@@ -3035,16 +3035,12 @@ class TrabalhosOnView(discord.ui.View):
                 allowed_mentions=discord.AllowedMentions(everyone=True)
             )
             await interaction.edit_original_response(
-                content=f"✅ Aviso publicado em <#{canal.id}> e enviado com menção a todos.\nMensagem: https://discord.com/channels/{interaction.guild_id}/{canal.id}/{mensagem.id}",
-                embed=None,
-                view=None
+                view=PainelResultadoV2(f"# ✅ Aviso publicado\nEnviado em <#{canal.id}> com menção a todos.\n[Ver mensagem](https://discord.com/channels/{interaction.guild_id}/{canal.id}/{mensagem.id})")
             )
         except Exception as exc:
             log.exception("Falha ao publicar aviso Trabalhos ON")
             await interaction.edit_original_response(
-                content=f"❌ Não consegui publicar o aviso. Confira se o bot tem permissão para enviar mensagens, embeds e mencionar @everyone. Erro: {type(exc).__name__}",
-                embed=None,
-                view=None
+                view=PainelResultadoV2(f"# ❌ Falha ao publicar\nConfira as permissões para enviar mensagens e mencionar @everyone. Erro: {type(exc).__name__}")
             )
 
     @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.secondary, custom_id="ccbot:cancelar_trabalhos_on")
@@ -3052,22 +3048,17 @@ class TrabalhosOnView(discord.ui.View):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
-        await interaction.response.edit_message(content="Publicação cancelada. Nenhum aviso foi enviado.", embed=None, view=None)
+        await interaction.response.edit_message(view=PainelResultadoV2("# ✖️ Publicação cancelada\nNenhum aviso foi enviado."))
 
 async def abrir_trabalhos_on(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
         return
-    embed = criar_embed_estetico(
-        title="📣 Aviso: Trabalhos ON",
-        description=(
-            f"Vou publicar um embed no canal <#{TRABALHOS_ON_CHANNEL_ID}> informando que os trabalhos estão abertos.\n\n"
-            "**A publicação marcará @everyone**, notificando todos os membros conforme as configurações deles.\n\n"
-            "Confirme apenas quando quiser enviar o aviso."
-        ),
-        color=discord.Color.from_rgb(0, 0, 0)
+    texto = (
+        f"# 📣 Aviso: Trabalhos ON\nVou publicar no canal <#{TRABALHOS_ON_CHANNEL_ID}> informando que os trabalhos estão abertos.\n\n"
+        "**A publicação marcará @everyone** e notificará os membros.\n\nConfirme apenas quando quiser enviar o aviso."
     )
-    await interaction.response.edit_message(embed=embed, view=TrabalhosOnView())
+    await interaction.response.edit_message(view=PainelConfirmacaoV2(texto, [PublicarTrabalhosV2Button(), CancelarTrabalhosV2Button()]))
 
 def formatar_permissoes_overwrite(canal):
     linhas = []
@@ -3694,6 +3685,18 @@ class CancelarOrganizacaoV2Button(discord.ui.Button):
         self.guild_id = guild_id
     async def callback(self, interaction):
         await ConfirmarOrganizacaoHierarquiaView(self.guild_id).cancelar(interaction, self)
+
+class PublicarTrabalhosV2Button(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Publicar e marcar todos", emoji="📣", style=discord.ButtonStyle.success, custom_id="ccbot:v2_publicar_trabalhos_on")
+    async def callback(self, interaction):
+        await TrabalhosOnView().publicar(interaction, self)
+
+class CancelarTrabalhosV2Button(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.secondary, custom_id="ccbot:v2_cancelar_trabalhos_on")
+    async def callback(self, interaction):
+        await TrabalhosOnView().cancelar(interaction, self)
 
 class PainelAdminV2View(discord.ui.LayoutView):
     def __init__(self):
