@@ -4378,39 +4378,33 @@ def criar_embed_comprovante_info():
 
 
 class ArrumadorPainelView(discord.ui.LayoutView):
-    """Painel Arrumador em Components V2, sem embeds tradicionais nem imagens expiradas."""
+    """Painel Arrumador em Components V2, direto e sem rodapé."""
     def __init__(self):
         super().__init__(timeout=None)
         mandar = MandarArrumadorButton()
         self.add_item(discord.ui.Container(
-            discord.ui.TextDisplay(
-                content=(
-                    "# 🧰 ARRUMADOR DE PROJETOS\n"
-                    "-# FL STUDIO MOBILE · ORGANIZAÇÃO PERSONALIZADA\n\n"
-                    "Seu projeto, organizado conforme as alterações que você precisa."
-                )
-            ),
+            discord.ui.TextDisplay(content=(
+                "# 🧰 ARRUMADOR DE PROJETOS\n"
+                "-# FL STUDIO MOBILE · ORGANIZAÇÃO PERSONALIZADA\n\n"
+                "Seu projeto organizado conforme as mudanças que você precisa."
+            )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-            discord.ui.TextDisplay(
-                content=(
-                    "### SERVIÇO\n"
-                    "## R$ 33,99\n"
-                    "-# Pagamento via Pix · confirmação manual"
-                )
-            ),
+            discord.ui.TextDisplay(content=(
+                "### VALOR DO SERVIÇO\n"
+                "## R$ 33,99\n"
+                "-# Pix · confirmação manual"
+            )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-            discord.ui.TextDisplay(
-                content=(
-                    "### COMO SOLICITAR\n"
-                    "**01**  Toque em **MANDAR** e descreva o que precisa mudar.\n\n"
-                    "**02**  Abra seu pedido privado e faça o Pix.\n\n"
-                    "**03**  Envie o comprovante e aguarde a conferência do ADM.\n\n"
-                    "-# O envio do projeto para organização é liberado após a confirmação do pagamento."
-                )
-            ),
+            discord.ui.TextDisplay(content=(
+                "### COMO SOLICITAR\n\n"
+                "**01**  Toque em **MANDAR** e descreva o que precisa mudar.\n\n"
+                "**02**  Envie seu projeto em arquivo ZIP no pedido privado.\n\n"
+                "**03**  Aguarde a conferência manual do pagamento."
+            )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
             discord.ui.ActionRow(mandar)
         ))
+
 
 def criar_embed_arrumador():
     """Mantém a chamada antiga compatível, retornando o painel Components V2."""
