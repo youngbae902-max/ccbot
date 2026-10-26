@@ -752,9 +752,8 @@ class SamplesAdminView(discord.ui.LayoutView):
             SamplesAdminActionButton(self, "import", "Importar/substituir", "🔄", discord.ButtonStyle.primary),
             SamplesAdminActionButton(self, "history", "Histórico", "📜", discord.ButtonStyle.secondary),
         ]
-        rows.append(discord.ui.ActionRow(*buttons[:3]))
-        rows.append(discord.ui.ActionRow(*buttons[3:6]))
-        rows.append(discord.ui.ActionRow(buttons[6], buttons[7]))
+        rows.append(discord.ui.ActionRow(*buttons[:4]))
+        rows.append(discord.ui.ActionRow(*buttons[4:8]))
         if self.publish_callback:
             rows.append(discord.ui.ActionRow(SamplesPublishButton(self)))
         self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=text), *rows))
