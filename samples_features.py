@@ -143,7 +143,7 @@ class SamplesSystem:
     def rename_stock_type(self, dj, category, name):
         name = str(name).strip()
         if not name:
-            raise ValueError("Digite um nome para o stock.")
+            raise ValueError("Digite um nome para o estoque.")
         if len(name) > 90:
             raise ValueError("O nome deve ter até 90 caracteres.")
         types = self.stock_types.get(dj, [])
@@ -151,7 +151,7 @@ class SamplesSystem:
         if target is None:
             raise ValueError("Esse estoque não existe mais.")
         if any(x is not target and str(x.get("name", "")).casefold() == name.casefold() for x in types if isinstance(x, dict)):
-            raise ValueError("Esse DJ já tem um stock com esse nome.")
+            raise ValueError("Esse DJ já tem um estoque com esse nome.")
         target["name"] = name
         self.save_stock_types()
 
@@ -544,7 +544,7 @@ class SamplesPurchaseView(discord.ui.LayoutView):
                 "## 🎧 ESTILO DE SAMPLE\n"
                 f"**DJ escolhido:** {discord.utils.escape_markdown(self.dj)}\n\n"
                 "**Qual estilo de sample você quer?**\n"
-                "Escolha uma opção. Todos os stocks abaixo são exclusivos deste DJ."
+                "Escolha uma opção. Todos os estoques abaixo são exclusivos deste DJ."
             )
             if categories:
                 rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
@@ -819,7 +819,7 @@ class SamplesPublishButton(discord.ui.Button):
 
 
 class SamplesStockNameModal(discord.ui.Modal):
-    name = discord.ui.TextInput(label="Nome do stock", placeholder="Ex.: Samples por IA", min_length=1, max_length=90)
+    name = discord.ui.TextInput(label="Nome do estoque", placeholder="Ex.: Samples por IA", min_length=1, max_length=90)
 
     def __init__(self, parent, rename=False):
         super().__init__(title="Renomear estoque" if rename else "Criar estoque")
@@ -934,7 +934,7 @@ class SamplesAdminView(discord.ui.LayoutView):
             await interaction.response.send_modal(SamplesAddModal(self.dj, self.category))
         elif action in ("delete", "edit"):
             if not self.category:
-                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                await interaction.response.send_message("Crie um estoque primeiro.", ephemeral=True)
                 return
             items = SYSTEM.items(self.dj, self.category)
             if not items:
@@ -947,17 +947,17 @@ class SamplesAdminView(discord.ui.LayoutView):
                 )
         elif action == "clear":
             if not self.category:
-                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                await interaction.response.send_message("Crie um estoque primeiro.", ephemeral=True)
                 return
             await interaction.response.send_message(f"Confirma apagar os **{len(SYSTEM.items(self.dj, self.category))}** itens de **{self.dj} / {SYSTEM.stock_label(self.dj, self.category)}**?", view=SamplesClearConfirmView(self.dj, self.category), ephemeral=True)
         elif action == "import":
             if not self.category:
-                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                await interaction.response.send_message("Crie um estoque primeiro.", ephemeral=True)
                 return
             await interaction.response.send_modal(SamplesImportModal(self.dj, self.category))
         elif action == "history":
             if not self.category:
-                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                await interaction.response.send_message("Crie um estoque primeiro.", ephemeral=True)
                 return
             records = []
             prefix = "::" + self.dj + "::" + self.category
@@ -979,7 +979,7 @@ class SamplesAdminView(discord.ui.LayoutView):
             await interaction.response.send_message(content, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
         else:
             if not self.category:
-                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                await interaction.response.send_message("Crie um estoque primeiro.", ephemeral=True)
                 return
             await SYSTEM.admin_export(interaction, self.dj, self.category, action)
 
