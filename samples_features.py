@@ -906,6 +906,9 @@ class SamplesAdminView(discord.ui.LayoutView):
                 return
             await interaction.response.send_modal(SamplesAddModal(self.dj, self.category))
         elif action in ("delete", "edit"):
+            if not self.category:
+                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                return
             items = SYSTEM.items(self.dj, self.category)
             if not items:
                 await interaction.response.send_message("Esse estoque está vazio.", ephemeral=True)
@@ -926,6 +929,9 @@ class SamplesAdminView(discord.ui.LayoutView):
                 return
             await interaction.response.send_modal(SamplesImportModal(self.dj, self.category))
         elif action == "history":
+            if not self.category:
+                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                return
             records = []
             prefix = "::" + self.dj + "::" + self.category
             for key, sent in SYSTEM.history.items():
