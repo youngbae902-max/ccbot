@@ -1995,10 +1995,6 @@ async def status(interaction: discord.Interaction):
         ephemeral=True
     )
 
-@bot.tree.command(
-    name="embedcomponenty2",
-    description="Criar uma mensagem Discord Components V2 com container, separador, imagem e botão"
-)
 @app_commands.describe(
     titulo="Título do componente",
     descricao="Texto principal em Markdown",
@@ -5209,7 +5205,6 @@ async def atualizar_contador_vendas():
 async def antes_de_atualizar_contador_vendas():
     await bot.wait_until_ready()
 
-@bot.tree.command(name="limpar-boas-vindas", description="Apagar as mensagens do canal de boas-vindas")
 async def limpar_boas_vindas(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
@@ -6768,7 +6763,6 @@ async def atualizar_painel(
         )
 
 
-@bot.tree.command(name="atualizar-paineis", description="Atualizar automaticamente os painéis reconhecidos em todos os canais")
 async def atualizar_paineis(interaction: discord.Interaction):
     """Varre os canais e threads acessíveis e atualiza painéis do bot sem exigir IDs manuais."""
     if not is_admin(interaction):
