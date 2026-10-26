@@ -3618,7 +3618,7 @@ OPCOES_CATEGORIAS_PAINEL = [
 
 async def atualizar_embed_regras(interaction: discord.Interaction):
     """Atualiza a mensagem de regras existente no canal #regras usando Components V2."""
-    message_id = 1563670149150547999
+    message_id = 1563928985241526362
     rules_channel_id = 1561513274737168414
     guild = interaction.guild
     if guild is None:
