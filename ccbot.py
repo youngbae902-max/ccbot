@@ -207,6 +207,7 @@ class CCBot(commands.Bot):
             ("Acapellas", AcapellasActivityView),
             ("Trampar Conosco", TramparConoscoView),
             ("Comprar Beats", lambda: VendaBeatView("", "", "")),
+            ("Garimpador de Packs", GarimpadorPacksView),
             ("Ver icons", IconVerIconsView),
             ("Central de Ícones", PainelIconesView),
             ("Packs grátis", lambda: FreeProjectsAccessView("packs")),
