@@ -1165,41 +1165,24 @@ class PackPerguntasView(discord.ui.LayoutView):
 class PackPersonalizadoView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=None)
-        basico = discord.ui.Button(
-            label="Montar meu pack",
-            emoji="🏷️",
-            style=discord.ButtonStyle.primary,
+        encomendar = discord.ui.Button(
+            label="ENCOMENDAR",
+            emoji="🛍️",
+            style=discord.ButtonStyle.success,
             custom_id="ccbot:pack:v2:basico"
         )
-        basico.callback = self.abrir_basico
+        encomendar.callback = self.abrir_basico
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
-                "## 📦 PACK PERSONALIZADO\n"
-                "### 🏷️ Pack sob medida — R$ 50,00\n\n"
-                "Um pack criado a partir da sua ideia, estilo e identidade sonora.\n"
-                "Responda às perguntas e escolha somente os adicionais que quiser.\n\n"
-                "**O que está incluído**\n"
-                "• Nome, estilo musical e descrição do projeto\n"
-                "• Cerca de 3 horas de trabalho + conhecimento aplicado\n\n"
-                "**Adicionais opcionais**\n"
-                "🗂️ Organização das pastas · + R$ 10\n"
-                "🎛️ Samples personalizadas · + R$ 10\n"
-                "🎚️ Samples de outros packs · + R$ 20\n\n"
-                "O total é calculado conforme os extras selecionados. Toque abaixo para começar."
+                "# 🧩 Monte seu próprio pack\n"
+                "Crie um pack do seu jeito, com conteúdos escolhidos por você e pensados para o seu estilo de produção.\n\n"
+                "**O que você pode personalizar?**\n\n"
+                "• Os **samples que você mais gosta**.\n"
+                "• **Acapellas dos MCs** que você mais curte.\n"
+                "• Um **pack feito sob medida** para você, de acordo com suas preferências.\n\n"
+                "Personalize do seu jeito e peça o seu abaixo."
             )),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-            discord.ui.TextDisplay(content=(
-                "### ✦ ADICIONAIS\n"
-                "🗂️ **Organização** · + R$ 10\n"
-                "🎛️ **Samples personalizadas** · + R$ 10\n"
-                "🎚️ **Samples de outros packs** · + R$ 20"
-            )),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-            discord.ui.TextDisplay(content=(
-                "Informe o nome, o estilo e a ideia do pack.\n"
-                "### Total ajustado pelos extras escolhidos."
-            )),
-            discord.ui.ActionRow(basico)
+            discord.ui.ActionRow(encomendar)
         ))
 
     async def abrir_basico(self, interaction: discord.Interaction):
