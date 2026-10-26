@@ -4166,6 +4166,7 @@ async def painel_acapellas(interaction: discord.Interaction):
     if not isinstance(canal, (discord.TextChannel, discord.Thread)):
         await interaction.response.send_message("Use essa opção dentro de um canal de texto.", ephemeral=True)
         return
+    await interaction.response.defer(ephemeral=True, thinking=True)
     try:
         embed = discord.Embed(
             title="🎙️ LISTA DE ACAPELLAS",
@@ -4186,14 +4187,11 @@ async def painel_acapellas(interaction: discord.Interaction):
         else:
             await canal.send(embed=embed)
             resultado = f"Lista de Acapellas publicada em {canal.mention}."
-        await interaction.response.send_message(resultado, ephemeral=True)
+        await interaction.followup.send(resultado, ephemeral=True)
     except Exception as exc:
         log.exception("Falha ao publicar cabeçalho da lista de Acapellas")
         msg = f"❌ Não consegui publicar a lista ({type(exc).__name__}: {str(exc)[:160]})."
-        if interaction.response.is_done():
-            await interaction.followup.send(msg, ephemeral=True)
-        else:
-            await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.followup.send(msg, ephemeral=True)
 
 @bot.tree.command(name="acapella", description="Adicionar ou atualizar um MC na lista de acapellas")
 @app_commands.describe(nome="Nome do MC", foto="Foto do MC", link="Link da acapella")
@@ -4201,23 +4199,23 @@ async def cadastrar_acapella(interaction: discord.Interaction, nome: str, foto: 
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador autorizado pode cadastrar MCs.", ephemeral=True)
         return
+    await interaction.response.defer(ephemeral=True, thinking=True)
     nome = nome.strip()
     parsed = urlparse(link.strip())
     if not nome:
-        await interaction.response.send_message("Digite o nome do MC.", ephemeral=True)
+        await interaction.followup.send("Digite o nome do MC.", ephemeral=True)
         return
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        await interaction.response.send_message("O link da acapella precisa ser uma URL válida (http/https).", ephemeral=True)
+        await interaction.followup.send("O link da acapella precisa ser uma URL válida (http/https).", ephemeral=True)
         return
     if not (foto.content_type or "").lower().startswith("image/"):
-        await interaction.response.send_message("O arquivo enviado precisa ser uma imagem.", ephemeral=True)
+        await interaction.followup.send("O arquivo enviado precisa ser uma imagem.", ephemeral=True)
         return
     canal = interaction.channel
     if not isinstance(canal, (discord.TextChannel, discord.Thread)):
-        await interaction.response.send_message("Use /acapella dentro do canal onde ficará a lista.", ephemeral=True)
+        await interaction.followup.send("Use /acapella dentro do canal onde ficará a lista.", ephemeral=True)
         return
 
-    await interaction.response.defer(ephemeral=True, thinking=True)
     registros = _load_acapellas_discord()
     chave = nome.casefold()
     registro_antigo = registros.get(chave)
