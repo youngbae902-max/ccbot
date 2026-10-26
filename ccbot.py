@@ -3314,6 +3314,105 @@ class PainelEntradaView(discord.ui.LayoutView):
         )
 
 
+
+# Garimpador de Packs: sorteia um link cadastrado pelo administrador.
+GARIMPADOR_FILE = CONFIG / "garimpador_packs.json"
+garimpador_links = load_json(GARIMPADOR_FILE, [])
+if not isinstance(garimpador_links, list):
+    garimpador_links = []
+    save_json(GARIMPADOR_FILE, garimpador_links)
+
+class GarimpadorPacksView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Gerar Pack", style=discord.ButtonStyle.success,
+        emoji="🎲", custom_id="cc:garimpador_packs:gerar"
+    )
+    async def gerar_pack(self, interaction: discord.Interaction, button: discord.ui.Button):
+        links = [u for u in garimpador_links if isinstance(u, str) and u.startswith(("https://", "http://"))]
+        if not links:
+            await interaction.response.send_message(
+                "Ainda não há links cadastrados.", ephemeral=True
+            )
+            return
+        # A resposta contém somente o link sorteado.
+        await interaction.response.send_message(random.choice(links), ephemeral=True)
+
+@bot.tree.command(name="garimpador_links", description="Adicionar links ao Garimpador de Packs")
+@app_commands.describe(links="Cole um ou vários links, um por linha")
+async def garimpador_adicionar_links(interaction: discord.Interaction, links: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador autorizado pode cadastrar links.", ephemeral=True
+        )
+        return
+    novos = []
+    invalidos = []
+    for item in re.split(r"[\s,]+", links.strip()):
+        if not item:
+            continue
+        parsed = urlparse(item)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            if item not in garimpador_links and item not in novos:
+                novos.append(item)
+        else:
+            invalidos.append(item)
+    if novos:
+        garimpador_links.extend(novos)
+        save_json(GARIMPADOR_FILE, garimpador_links)
+    resumo = f"Links adicionados: **{len(novos)}**. Total cadastrado: **{len(garimpador_links)}**."
+    if invalidos:
+        resumo += f"\nIgnorados por não serem links válidos: **{len(invalidos)}**."
+    await interaction.response.send_message(resumo, ephemeral=True)
+
+@bot.tree.command(name="garimpador_publicar", description="Criar ou atualizar o painel Garimpador de Packs no Mercado")
+async def garimpador_publicar(interaction: discord.Interaction):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador autorizado pode publicar esse painel.", ephemeral=True
+        )
+        return
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    guild = interaction.guild
+    if guild is None:
+        await interaction.followup.send("Use este comando dentro do servidor.", ephemeral=True)
+        return
+    categoria = discord.utils.get(guild.categories, name="MERCADO") or discord.utils.get(guild.categories, name="cc store") or discord.utils.get(guild.categories, name="Mercado")
+    canal = discord.utils.get(guild.text_channels, name="garimpador-de-packs")
+    if canal is None:
+        canal = await guild.create_text_channel(
+            "garimpador-de-packs", category=categoria,
+            reason="Criar aba Garimpador de Packs no Mercado"
+        )
+    # Reaproveita a mensagem do painel existente para evitar duplicatas.
+    mensagem = None
+    async for msg in canal.history(limit=30):
+        if msg.author.id == bot.user.id and isinstance(msg.components, list) and msg.components:
+            mensagem = msg
+            break
+    view = GarimpadorPacksView()
+    try:
+        if mensagem:
+            await mensagem.edit(
+                content="## 🎲 GARIMPADOR DE PACKS\nGere um link aleatório da lista cadastrada.",
+                embed=None, view=view
+            )
+        else:
+            await canal.send(
+                "## 🎲 GARIMPADOR DE PACKS\nGere um link aleatório da lista cadastrada.",
+                view=view
+            )
+        await interaction.followup.send(
+            f"Painel Garimpador de Packs disponível em {canal.mention}. Links cadastrados: **{len(garimpador_links)}**.",
+            ephemeral=True
+        )
+    except discord.HTTPException:
+        log.exception("Falha ao publicar o painel Garimpador de Packs")
+        await interaction.followup.send("Não consegui publicar o painel. Confira as permissões do bot.", ephemeral=True)
+
+
 @bot.tree.command(name="painel", description="Abrir o painel administrativo do CC BOT")
 async def painel(interaction: discord.Interaction):
     if not is_admin(interaction):
