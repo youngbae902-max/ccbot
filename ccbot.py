@@ -40,6 +40,7 @@ from discord import app_commands
 import github_bridge
 from support_features import configure_support
 from promo_features import configure_promos
+from samples_features import configure_samples, SamplesPanelView, SamplesAdminButton, samples_panel_view
 
 # Identidade visual global dos embeds: grafite e rodapé consistente.
 # Cores, rodapés e mídias específicos de cada fluxo são preservados.
@@ -200,7 +201,7 @@ class CCBot(commands.Bot):
         """Registra componentes persistentes antes de o bot conectar ao Discord."""
         await super().setup_hook()
         views_persistentes = [
-            ("Gerador de Samples", GeradorSamplesView),
+            ("Gerador de Samples", SamplesPanelView),
             ("Pack Personalizado", PackPersonalizadoView),
             ("Arrumador de Projetos", ArrumadorPainelView),
             ("Acapellas", AcapellasActivityView),
@@ -226,6 +227,7 @@ class CCBot(commands.Bot):
             log.exception("Falha ao registrar a view de confirmação manual de pagamentos.")
 
 bot = CCBot(command_prefix="!", intents=intents)
+SAMPLES = configure_samples(bot, CONFIG, DJS_FILE, ADMIN_ID)
 
 def is_admin(interaction: discord.Interaction):
     return interaction.user.id == ADMIN_ID
@@ -2121,175 +2123,6 @@ async def embedcomponenty2(
             content=f"Não consegui publicar o componente: {mensagem[:500]}"
         )
 
-class ListaDJsSelect(discord.ui.Select):
-    def __init__(self, view):
-        self.parent_view = view
-        inicio = view.page * 25
-        nomes = mcs[inicio:inicio + 25]
-        options = [
-            discord.SelectOption(
-                label=str(nome)[:100] or "DJ sem nome",
-                value=str(inicio + indice),
-                default=(str(nome) == view.selected_dj)
-            )
-            for indice, nome in enumerate(nomes)
-        ]
-        super().__init__(
-            placeholder="Selecione um DJ...",
-            min_values=1,
-            max_values=1,
-            options=options,
-            custom_id=f"ccbot:selecionar_dj:{view.page}"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        try:
-            indice = int(self.values[0])
-            if indice < 0 or indice >= len(mcs):
-                await interaction.response.send_message(
-                    "Essa opção de DJ não está mais disponível. Abra a lista novamente.",
-                    ephemeral=True
-                )
-                return
-
-            self.parent_view.selected_dj = str(mcs[indice])
-            await interaction.response.edit_message(
-                view=ListaDJsView(
-                    page=self.parent_view.page,
-                    selected_dj=self.parent_view.selected_dj
-                )
-            )
-        except Exception as exc:
-            log.exception("Falha ao selecionar DJ")
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    f"Não consegui selecionar esse DJ: {exc}",
-                    ephemeral=True
-                )
-
-class NavegarDJsButton(discord.ui.Button):
-    def __init__(self, view, delta):
-        self.parent_view = view
-        self.delta = delta
-        total_paginas = max(1, (len(mcs) + 24) // 25)
-        label = "⬅️ Anterior" if delta < 0 else "Próxima ➡️"
-        disabled = (
-            (delta < 0 and view.page == 0) or
-            (delta > 0 and view.page >= total_paginas - 1)
-        )
-        super().__init__(
-            label=label,
-            style=discord.ButtonStyle.secondary,
-            disabled=disabled,
-            custom_id=f"ccbot:navegar_djs:{view.page}:{delta}"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        nova_pagina = self.parent_view.page + self.delta
-        await interaction.response.edit_message(
-            view=ListaDJsView(
-                page=nova_pagina,
-                selected_dj=self.parent_view.selected_dj
-            )
-        )
-
-class ConfirmarDJButton(discord.ui.Button):
-    def __init__(self, view):
-        self.parent_view = view
-        super().__init__(
-            label="Confirmar DJ",
-            emoji="🎧",
-            style=discord.ButtonStyle.success,
-            disabled=not bool(view.selected_dj),
-            custom_id="ccbot:confirmar_dj"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        nome = self.parent_view.selected_dj
-        if not nome:
-            await interaction.response.send_message(
-                "Selecione um DJ primeiro.",
-                ephemeral=True
-            )
-            return
-
-        # Confirma a interação imediatamente para evitar "o aplicativo não respondeu".
-        try:
-            await interaction.response.defer()
-            await enviar_pedido_admin(
-                f"🎧 **Pedido do gerador de samples**\n"
-                f"DJ selecionado: {nome}\n"
-                f"Solicitante: {interaction.user} (ID {interaction.user.id})\n"
-                f"Servidor: {interaction.guild.name if interaction.guild else 'DM'}"
-            )
-            view_confirmacao = discord.ui.LayoutView(timeout=300)
-            view_confirmacao.add_item(
-                discord.ui.Container(
-                    discord.ui.TextDisplay(
-                        content=(
-                            "## 🎧 DJ SELECIONADO\n"
-                            f"**{discord.utils.escape_markdown(nome)}**\n\n"
-                            "✅ Sua escolha foi confirmada e enviada para processamento.\n"
-                            "A geração automática dos arquivos de áudio ainda não está integrada."
-                        )
-                    )
-                )
-            )
-            await interaction.edit_original_response(view=view_confirmacao)
-        except Exception as exc:
-            log.exception("Falha ao confirmar DJ selecionado: %s", nome)
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.send_message(
-                        "Não consegui confirmar esse DJ. Tente selecionar novamente.",
-                        ephemeral=True
-                    )
-                else:
-                    await interaction.followup.send(
-                        "Não consegui concluir a confirmação do DJ. Tente novamente.",
-                        ephemeral=True
-                    )
-            except Exception:
-                log.exception("Falha ao informar o usuário sobre o erro na confirmação do DJ")
-
-class ListaDJsView(discord.ui.LayoutView):
-    def __init__(self, page=0, selected_dj=None):
-        super().__init__(timeout=300)
-        self.page = max(0, min(page, max(0, (len(mcs) - 1) // 25)))
-        self.selected_dj = selected_dj
-        total_paginas = max(1, (len(mcs) + 24) // 25)
-        inicio = self.page * 25
-        nomes = mcs[inicio:inicio + 25]
-
-        conteudo = (
-            "## 🎧 GERAR SAMPLES\n"
-            "Selecione um DJ na lista e confirme abaixo.\n\n"
-            f"**DJs cadastrados:** {len(mcs)}  •  **Página:** {self.page + 1}/{total_paginas}\n"
-            "-# Se houver mais de 25 DJs, use os botões de navegação."
-        )
-        if self.selected_dj:
-            conteudo += f"\n\n**Selecionado:** {discord.utils.escape_markdown(self.selected_dj)}"
-
-        container_items = [
-            discord.ui.TextDisplay(content=conteudo),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small)
-        ]
-        if nomes:
-            container_items.append(discord.ui.ActionRow(ListaDJsSelect(self)))
-            container_items.append(
-                discord.ui.ActionRow(
-                    NavegarDJsButton(self, -1),
-                    NavegarDJsButton(self, 1)
-                )
-            )
-            container_items.append(discord.ui.ActionRow(ConfirmarDJButton(self)))
-        else:
-            container_items.append(
-                discord.ui.TextDisplay(content="Nenhum DJ cadastrado. Peça ao administrador para adicionar DJs.")
-            )
-
-        self.add_item(discord.ui.Container(*container_items))
-
 class AdicionarDJModal(discord.ui.Modal, title="Adicionar DJ"):
     nome = discord.ui.TextInput(
         label="Nome do DJ",
@@ -2353,6 +2186,7 @@ class AlterarDJModal(discord.ui.Modal, title="Alterar nome de DJ"):
             await interaction.response.send_message("Já existe um DJ com esse nome.", ephemeral=True)
             return
 
+        SAMPLES.rename_dj(antigo, novo)
         mcs[indice] = novo
         mcs.sort(key=str.casefold)
         save_json(DJS_FILE, mcs)
@@ -3767,8 +3601,8 @@ class CategoriaPainelSelect(discord.ui.Select):
         if categoria == "djs":
             await interaction.response.edit_message(
                 embed=criar_embed_estetico(
-                    title="🎧 Gerenciamento de DJs",
-                    description="Configure quais DJs aparecem no painel **Gerar Samples**.\n\nUse os botões abaixo para adicionar, alterar ou excluir nomes.",
+                    title="🎧 Gerenciamento de DJs e estoque",
+                    description="Cadastre os DJs e gerencie os três estoques de samples de cada um.",
                     color=discord.Color.green()
                 ),
                 view=PainelDJsView()
@@ -3941,6 +3775,7 @@ class PainelDJsView(discord.ui.View):
         self.add_item(AdicionarDJButton())
         self.add_item(AlterarDJButton())
         self.add_item(ExcluirDJButton())
+        self.add_item(SamplesAdminButton())
         self.add_item(VoltarPainelButton())
 
 class PainelBoasVindasView(discord.ui.View):
@@ -3981,69 +3816,6 @@ def criar_embed_painel():
         ),
         color=PAINEL_ADMIN_COLOR
     )
-
-class GerarSamplesButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Gerar Samples", emoji="<:emoji_1:1561748306818891857>", style=discord.ButtonStyle.success, custom_id="ccbot:gerar_samples")
-
-    async def callback(self, interaction: discord.Interaction):
-        if not mcs:
-            await interaction.response.send_message(
-                "Ainda não há DJs cadastrados.",
-                ephemeral=True
-            )
-            return
-
-        await interaction.response.send_message(
-            view=ListaDJsView(),
-            ephemeral=True
-        )
-
-class GeradorSamplesView(discord.ui.LayoutView):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(
-            discord.ui.Container(
-                # Banner horizontal em destaque, com descrição acessível.
-                discord.ui.MediaGallery(
-                    discord.MediaGalleryItem(
-                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561721929583566858/605081.jpg?ex=6ad76263&is=6ad610e3&hm=23259b8d57737e9607039f616c91ceea22a3e99d47e000691c14e7115ac69edd&",
-                        description="Banner do Gerador de Samples"
-                    )
-                ),
-                discord.ui.Separator(
-                    visible=True,
-                    spacing=discord.SeparatorSpacing.large
-                ),
-                discord.ui.Section(
-                    discord.ui.TextDisplay(
-                        content=(
-                            "### 📦  GERADOR DE SAMPLES\n"
-                            "**Tenha acesso a novas possibilidades para suas produções!**\n"
-                            "-# Novo Gerador de Samples da atualidade\n"
-                        )
-                    ),
-                    accessory=discord.ui.Thumbnail(
-                        media="https://cdn.discordapp.com/ephemeral-attachments/1442529633919570057/1561722097011527761/801_Sem_Titulo_20261018095128.png?ex=6ad7628b&is=6ad6110b&hm=5221dbb0652028ae88f6d57d7daa303cb8c86a67373c387f2711e7888011ef69&"
-                    )
-                ),
-                discord.ui.Separator(
-                    visible=True,
-                    spacing=discord.SeparatorSpacing.large
-                ),
-                discord.ui.TextDisplay(
-                    content=(
-                        "## **PAINEL ATUALIZADO**\n"
-                        "-# Confira abaixo todas as funcionalidades disponíveis e descubra tudo o que você pode fazer com o nosso painel!\n\n"
-                        "### <:box_1:1561761829502459964> Samples No Estilo Dos Djs!\n"
-                        "Clique em **Gerar Samples** e escolha um DJ cadastrado pelo administrador.\n\n"
-                        "### <:box_1:1561761829502459964> Gere __Quantas Samples Quiser!__\n"
-                        "Tenha liberdade para gerar **quantas samples quiser**, de forma prática, rápida e direto pelo painel."
-                    )
-                ),
-                discord.ui.ActionRow(GerarSamplesButton())
-            )
-        )
 
 # Importação de emojis pelo formulário do Discord: ZIP ou imagens soltas.
 EMOJI_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
@@ -4215,7 +3987,32 @@ async def adicionar_emojis(interaction: discord.Interaction):
 async def samples(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
-    await interaction.response.send_message(view=GeradorSamplesView())
+    try:
+        canal = bot.get_channel(SAMPLES_PANEL_CHANNEL_ID)
+        if canal is None:
+            canal = await bot.fetch_channel(SAMPLES_PANEL_CHANNEL_ID)
+        mensagem = None
+        try:
+            mensagem = await canal.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
+        except discord.NotFound:
+            mensagem = None
+        if mensagem is not None:
+            await mensagem.edit(view=samples_panel_view())
+            resposta = f"✅ Painel de samples reconstruído e atualizado na mensagem existente: {mensagem.jump_url}"
+        else:
+            mensagem = await canal.send(view=samples_panel_view())
+            resposta = f"✅ Painel de samples publicado: {mensagem.jump_url}"
+        if interaction.response.is_done():
+            await interaction.followup.send(resposta, ephemeral=True)
+        else:
+            await interaction.response.send_message(resposta, ephemeral=True)
+    except Exception as exc:
+        log.exception("Falha ao reconstruir painel de samples")
+        msg = f"❌ Não consegui atualizar o painel de samples ({type(exc).__name__})."
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
 
 class AcapellasActivityButton(discord.ui.Button):
     def __init__(self):
