@@ -437,19 +437,11 @@ class SamplesTypeSelect(discord.ui.Select):
     def __init__(self, parent, admin=False):
         self.parent_view = parent
         selected = getattr(parent, "category", None)
-        descriptions = {
-            "continuas": "Samples contínuas no estilo do DJ escolhido.",
-            "ia": "Samples feitas por IA, inspiradas no DJ escolhido.",
-            "packs": "Samples aleatórias de outros packs, mantendo a temática do DJ."
-        }
+        dj = getattr(parent, "dj", None)
+        categories = SYSTEM.stock_categories(dj) if dj else []
         options = [
-            discord.SelectOption(
-                label=label,
-                value=key,
-                description=descriptions.get(key),
-                default=key == selected
-            )
-            for key, label in SAMPLE_TYPES.items()
+            discord.SelectOption(label=str(item["name"])[:100], value=item["id"], default=item["id"] == selected)
+            for item in categories
         ]
         super().__init__(
             placeholder="Qual estilo de sample você quer?",
