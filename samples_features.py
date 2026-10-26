@@ -102,6 +102,15 @@ class SamplesSystem:
         self.stock.setdefault(self._key(dj, category), []).append(item)
         self.save_stock()
 
+    def remove_item_file(self, item):
+        if item.get("kind") not in ("file", "zip") or not item.get("path"):
+            return
+        try:
+            path = self._item_path(item)
+            path.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            log.exception("Não consegui remover arquivo do estoque: %s", item.get("name"))
+
     def rename_dj(self, old, new):
         for category in SAMPLE_TYPES:
             old_key = self._key(old, category)
@@ -332,6 +341,10 @@ class SamplesSystem:
             old = self.items(dj, category)
             self.stock[self._key(dj, category)] = incoming
             self.save_stock()
+            incoming_paths = {item.get("path") for item in incoming if item.get("path")}
+            for old_item in old:
+                if old_item.get("path") not in incoming_paths:
+                    self.remove_item_file(old_item)
             await interaction.followup.send(
                 f"Estoque substituído. Itens anteriores: **{len(old)}**; itens importados: **{len(incoming)}**. O histórico individual foi preservado para evitar repetição.",
                 ephemeral=True
@@ -591,6 +604,7 @@ class SamplesEditItemSelect(discord.ui.Select):
             return
         items.remove(item)
         SYSTEM.save_stock()
+        SYSTEM.remove_item_file(item)
         await interaction.response.edit_message(content="Item removido do estoque.", view=None)
 
 
@@ -629,9 +643,12 @@ class SamplesClearConfirmView(discord.ui.View):
             await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
             return
         key = SYSTEM._key(self.dj, self.category)
-        count = len(SYSTEM.stock.get(key, []))
+        old_items = list(SYSTEM.stock.get(key, []))
+        count = len(old_items)
         SYSTEM.stock[key] = []
         SYSTEM.save_stock()
+        for item in old_items:
+            SYSTEM.remove_item_file(item)
         await interaction.response.edit_message(content=f"Estoque apagado: {count} item(ns). O histórico individual foi preservado.", view=None)
 
     @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary, custom_id="ccbot:samples:clear_cancel")
