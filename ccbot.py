@@ -3530,8 +3530,10 @@ async def painel(interaction: discord.Interaction):
         return
 
     try:
+        # Abre diretamente o seletor de áreas administrativas, sem tela intermediária.
         await interaction.response.send_message(
-            view=PainelEntradaView(),
+            embed=criar_embed_painel(),
+            view=PainelAdminView(),
             ephemeral=True
         )
         log.info("Comando /painel aberto por %s (%s).", interaction.user, interaction.user.id)
