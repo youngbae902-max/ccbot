@@ -812,21 +812,30 @@ class SamplesAdminView(discord.ui.LayoutView):
 
     def refresh_items(self):
         djs = SYSTEM.djs()
-        items = SYSTEM.items(self.dj, self.category) if self.dj else []
+        categories = SYSTEM.stock_categories(self.dj) if self.dj else []
+        if self.category and not any(x["id"] == self.category for x in categories):
+            self.category = categories[0]["id"] if categories else None
+        items = SYSTEM.items(self.dj, self.category) if self.dj and self.category else []
+        label = SYSTEM.stock_label(self.dj, self.category) if self.dj and self.category else "Nenhum criado"
         text = (
             "## 🗃️ ADMINISTRAÇÃO DO ESTOQUE DE SAMPLES\n"
-            "Escolha o DJ e um tipo. Todas as operações abaixo afetam somente esse estoque.\n\n"
+            "Cada DJ pode ter seus próprios stocks e nomes. Crie ou renomeie cada um separadamente.\n\n"
             f"**DJ:** {discord.utils.escape_markdown(self.dj or 'Nenhum cadastrado')}\n"
-            f"**Tipo:** {SAMPLE_TYPES[self.category]}\n"
+            f"**Stock:** {discord.utils.escape_markdown(label)}\n"
             f"**Itens:** {len(items)}\n\n"
-            "Adicionar aceita arquivos soltos, ZIPs e links. Exportar gera um .txt (lista/links) ou .zip (arquivos + manifesto).\n\n"
-            "Configure o estoque aqui e clique em **Publicar painel** quando terminar. A publicação pública não inclui controles administrativos."
+            "Adicione arquivos, ZIPs ou links ao stock selecionado.\n\n"
+            "A pessoa verá somente os stocks cadastrados para o DJ escolhido."
         )
         self.clear_items()
         rows = []
         if djs:
             rows.append(discord.ui.ActionRow(SamplesDJSelect(self)))
-        rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
+        if categories:
+            rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
+        rows.append(discord.ui.ActionRow(
+            SamplesAdminActionButton(self, "create_stock", "Criar stock", "🆕", discord.ButtonStyle.success),
+            SamplesAdminActionButton(self, "rename_stock", "Renomear stock", "✏️", discord.ButtonStyle.secondary)
+        ))
         buttons = [
             SamplesAdminActionButton(self, "add", "Adicionar", "➕", discord.ButtonStyle.success),
             SamplesAdminActionButton(self, "edit", "Editar item", "✏️", discord.ButtonStyle.secondary),
