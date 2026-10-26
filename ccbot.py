@@ -7279,22 +7279,48 @@ async def exportar_servidor(interaction: discord.Interaction):
     )
 
 
-# CCBOT_PROCESS_LOCK: impede múltiplas instâncias de iniciar sessões Discord concorrentes.
-# O descritor fica aberto durante toda a execução; o kernel libera o lock ao encerrar o processo.
+# CCBOT_PROCESS_LOCK: impede sessões Discord concorrentes.
+# O kernel libera o bloqueio automaticamente quando o processo termina.
 _lock_path = CONFIG / "ccbot-process.lock"
 _lock_handle = _lock_path.open("a+", encoding="utf-8")
 try:
     fcntl.flock(_lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 except BlockingIOError:
-    raise SystemExit("Outra instância do CC BOT já está ativa; esta instância será encerrada.")
+    _lock_handle.seek(0)
+    _lock_owner = _lock_handle.read().strip() or "PID não registrado"
+    log.error(
+        "Inicialização cancelada: outra instância mantém o bloqueio (%s). "
+        "Confira config/ccbot.log e encerre somente o processo antigo se estiver travado.",
+        _lock_owner
+    )
+    raise SystemExit(
+        f"Outra instância do CC BOT mantém o bloqueio ({_lock_owner}). "
+        "Consulte config/ccbot.log para identificar o estado dela."
+    )
+
+_lock_handle.seek(0)
+_lock_handle.truncate()
+_lock_handle.write(str(os.getpid()))
+_lock_handle.flush()
+log.info("Inicializando CC BOT (PID %s). Log: %s", os.getpid(), CONFIG / "ccbot.log")
 
 if not TOKEN_FILE.is_file():
+    log.critical("Token não encontrado em %s.", TOKEN_FILE)
     raise SystemExit(
         f"Token não encontrado em {TOKEN_FILE}. Crie o arquivo com o token do bot."
     )
 
 TOKEN = TOKEN_FILE.read_text(encoding="utf-8").strip()
 if not TOKEN:
+    log.critical("O arquivo de token está vazio: %s", TOKEN_FILE)
     raise SystemExit("O arquivo token.txt está vazio.")
 
-bot.run(TOKEN)
+try:
+    bot.run(TOKEN)
+except KeyboardInterrupt:
+    log.info("CC BOT encerrado manualmente.")
+except BaseException:
+    log.exception("CC BOT encerrou durante a inicialização ou execução.")
+    raise
+finally:
+    log.info("Processo do CC BOT finalizado (PID %s).", os.getpid())
