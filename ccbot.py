@@ -2672,11 +2672,7 @@ class IconNomeModal(discord.ui.Modal, title="Nome da pasta de ícones"):
         except ValueError as exc:
             await interaction.response.send_message(str(exc), ephemeral=True)
             return
-        await interaction.response.send_message(
-            f"Nome: {pendente['name']}\nAgora escolha como publicar este lote:",
-            view=IconModoPublicacaoView(self.user_id),
-            ephemeral=True
-        )
+        await interaction.response.send_message(view=IconModoPublicacaoView(self.user_id), ephemeral=True)
 
 class IconUploadModal(discord.ui.Modal, title="Enviar arquivos de ícones"):
     arquivos = discord.ui.Label(
@@ -2755,9 +2751,7 @@ class IconUploadModal(discord.ui.Modal, title="Enviar arquivos de ícones"):
                 "name": None
             }
             await interaction.followup.send(
-                f"Recebi {len(imagens_salvas)} imagem(ns) e salvei os arquivos na pasta uploads/icons do bot.\n"
-                "Agora informe o nome da pasta/ícone e escolha como publicar.",
-                view=IconZipRecebidoView(interaction.user.id),
+                view=IconZipRecebidoView(interaction.user.id, len(imagens_salvas)),
                 ephemeral=True
             )
         except (zipfile.BadZipFile, ValueError, OSError) as exc:
@@ -2786,12 +2780,15 @@ class IconProcessarZipButton(discord.ui.Button):
             return
         await interaction.response.send_modal(IconNomeModal(self.user_id))
 
-class IconZipRecebidoView(discord.ui.View):
-    def __init__(self, user_id):
+class IconZipRecebidoView(discord.ui.LayoutView):
+    def __init__(self, user_id, total=0):
         super().__init__(timeout=600)
-        self.add_item(IconProcessarZipButton(user_id))
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content=f"# 🖼️ Arquivos recebidos\nImagens recebidas: **{total}**. Agora defina o nome e o formato de publicação."),
+            discord.ui.ActionRow(IconProcessarZipButton(user_id))
+        ))
 
-class IconModoPublicacaoView(discord.ui.View):
+class IconModoPublicacaoLegacyView(discord.ui.View):
     def __init__(self, user_id):
         super().__init__(timeout=300)
         self.user_id = user_id
@@ -2810,21 +2807,18 @@ class IconModoPublicacaoView(discord.ui.View):
             thread, total = await publicar_zip_icone(pendente["name"], imagens, modo)
             ICON_ZIP_PENDING.pop(self.user_id, None)
             await interaction.edit_original_response(
-                content=(
-                    f"✅ Importação concluída\n"
-                    f"Ícone: {pendente['name']}\n"
-                    f"Fotos: {total}\n"
+                view=PainelResultadoV2(
+                    "# ✅ Importação concluída\n"
+                    f"Ícone: **{pendente['name']}**\nFotos: **{total}**\n"
                     f"Publicação: {'Post único (capa + Ver icons)' if modo == 'single' else 'Post em álbum (todas as fotos)'}\n"
                     f"Tópico permanente: {thread.mention}\n"
-                    "Novas importações com o mesmo nome serão adicionadas a esse mesmo tópico."
-                ),
-                view=None
+                    "Novas importações com o mesmo nome serão adicionadas ao mesmo tópico."
+                )
             )
         except Exception as exc:
             log.exception("Falha ao processar ZIP de ícones")
             await interaction.edit_original_response(
-                content=f"Não consegui publicar os arquivos: {type(exc).__name__}: {str(exc)[:350]}",
-                view=None
+                view=PainelResultadoV2(f"# ❌ Falha ao publicar ícones\n{type(exc).__name__}: {str(exc)[:350]}")
             )
 
     @discord.ui.button(label="Post único (capa + Ver icons)", emoji="🖼️", style=discord.ButtonStyle.primary)
@@ -2834,6 +2828,23 @@ class IconModoPublicacaoView(discord.ui.View):
     @discord.ui.button(label="Post em álbum", emoji="📚", style=discord.ButtonStyle.secondary)
     async def post_album(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.publicar(interaction, "album")
+
+class IconModoPublicacaoView(discord.ui.LayoutView):
+    def __init__(self, user_id):
+        super().__init__(timeout=300)
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 🖼️ Como publicar\nEscolha o formato de publicação para este lote de ícones."),
+            discord.ui.ActionRow(IconModoPublicacaoButton(user_id, "single"), IconModoPublicacaoButton(user_id, "album"))
+        ))
+
+class IconModoPublicacaoButton(discord.ui.Button):
+    def __init__(self, user_id, modo):
+        self.user_id = user_id
+        self.modo = modo
+        label = "Post único (capa + Ver icons)" if modo == "single" else "Post em álbum"
+        super().__init__(label=label, emoji="🖼️" if modo == "single" else "📚", style=discord.ButtonStyle.primary if modo == "single" else discord.ButtonStyle.secondary, custom_id=f"ccbot:icons_mode:{modo}:{user_id}")
+    async def callback(self, interaction):
+        await IconModoPublicacaoLegacyView(self.user_id).publicar(interaction, self.modo)
 
 class IconEnviarZipButton(discord.ui.Button):
     def __init__(self):
