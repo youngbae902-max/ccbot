@@ -702,11 +702,27 @@ class SamplesAdminActionButton(discord.ui.Button):
         await self.parent_view.handle_action(interaction, self.action)
 
 
+class SamplesPublishButton(discord.ui.Button):
+    def __init__(self, parent):
+        self.parent_view = parent
+        super().__init__(label="Publicar painel", emoji="🚀", style=discord.ButtonStyle.success, custom_id="ccbot:samples:publish")
+
+    async def callback(self, interaction):
+        if not SYSTEM.is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode publicar o painel.", ephemeral=True)
+            return
+        if not self.parent_view.publish_callback:
+            await interaction.response.send_message("A publicação não está configurada nesta sessão.", ephemeral=True)
+            return
+        await self.parent_view.publish_callback(interaction)
+
+
 class SamplesAdminView(discord.ui.LayoutView):
-    def __init__(self, dj=None, category="continuas"):
+    def __init__(self, dj=None, category="continuas", publish_callback=None):
         super().__init__(timeout=300)
         self.dj = dj or (SYSTEM.djs()[0] if SYSTEM.djs() else None)
         self.category = category
+        self.publish_callback = publish_callback
         self.refresh_items()
 
     def refresh_items(self):
@@ -718,7 +734,8 @@ class SamplesAdminView(discord.ui.LayoutView):
             f"**DJ:** {discord.utils.escape_markdown(self.dj or 'Nenhum cadastrado')}\n"
             f"**Tipo:** {SAMPLE_TYPES[self.category]}\n"
             f"**Itens:** {len(items)}\n\n"
-            "Adicionar aceita arquivos soltos, ZIPs e links. Exportar gera um .txt (lista/links) ou .zip (arquivos + manifesto)."
+            "Adicionar aceita arquivos soltos, ZIPs e links. Exportar gera um .txt (lista/links) ou .zip (arquivos + manifesto).\n\n"
+            "Configure o estoque aqui e clique em **Publicar painel** quando terminar. A publicação pública não inclui controles administrativos."
         )
         self.clear_items()
         rows = []
@@ -737,6 +754,8 @@ class SamplesAdminView(discord.ui.LayoutView):
         rows.append(discord.ui.ActionRow(*buttons[:3]))
         rows.append(discord.ui.ActionRow(*buttons[3:6]))
         rows.append(discord.ui.ActionRow(buttons[6]))
+        if self.publish_callback:
+            rows.append(discord.ui.ActionRow(SamplesPublishButton(self)))
         self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=text), *rows))
 
     async def handle_action(self, interaction, action):
