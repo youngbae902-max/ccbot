@@ -4244,6 +4244,7 @@ class AcapellasAdminView(discord.ui.LayoutView):
             discord.ui.TextDisplay(content="# 🎙️ Catálogo de Acapellas\nCadastre o nome do MC, a foto e o link. Se cadastrar novamente o mesmo nome, os dados serão atualizados."),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
             discord.ui.ActionRow(AcapellaCadastrarButton(), AcapellaAbrirSiteButton()),
+            discord.ui.ActionRow(VoltarPainelButton()),
         ))
 
 class AcapellasActivityView(discord.ui.View):
