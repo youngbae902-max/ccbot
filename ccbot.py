@@ -3341,78 +3341,89 @@ class GarimpadorPacksView(discord.ui.View):
         # A resposta contém somente o link sorteado.
         await interaction.response.send_message(random.choice(links), ephemeral=True)
 
-@bot.tree.command(name="garimpador_links", description="Adicionar links ao Garimpador de Packs")
-@app_commands.describe(links="Cole um ou vários links, um por linha")
-async def garimpador_adicionar_links(interaction: discord.Interaction, links: str):
-    if not is_admin(interaction):
-        await interaction.response.send_message(
-            "Apenas o administrador autorizado pode cadastrar links.", ephemeral=True
-        )
-        return
-    novos = []
-    invalidos = []
-    for item in re.split(r"[\s,]+", links.strip()):
-        if not item:
-            continue
-        parsed = urlparse(item)
-        if parsed.scheme in ("http", "https") and parsed.netloc:
-            if item not in garimpador_links and item not in novos:
-                novos.append(item)
-        else:
-            invalidos.append(item)
-    if novos:
-        garimpador_links.extend(novos)
-        save_json(GARIMPADOR_FILE, garimpador_links)
-    resumo = f"Links adicionados: **{len(novos)}**. Total cadastrado: **{len(garimpador_links)}**."
-    if invalidos:
-        resumo += f"\nIgnorados por não serem links válidos: **{len(invalidos)}**."
-    await interaction.response.send_message(resumo, ephemeral=True)
 
-@bot.tree.command(name="garimpador_publicar", description="Criar ou atualizar o painel Garimpador de Packs no Mercado")
-async def garimpador_publicar(interaction: discord.Interaction):
-    if not is_admin(interaction):
-        await interaction.response.send_message(
-            "Apenas o administrador autorizado pode publicar esse painel.", ephemeral=True
-        )
-        return
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    guild = interaction.guild
-    if guild is None:
-        await interaction.followup.send("Use este comando dentro do servidor.", ephemeral=True)
-        return
-    categoria = discord.utils.get(guild.categories, name="MERCADO") or discord.utils.get(guild.categories, name="cc store") or discord.utils.get(guild.categories, name="Mercado")
-    canal = discord.utils.get(guild.text_channels, name="garimpador-de-packs")
-    if canal is None:
-        canal = await guild.create_text_channel(
-            "garimpador-de-packs", category=categoria,
-            reason="Criar aba Garimpador de Packs no Mercado"
-        )
-    # Reaproveita a mensagem do painel existente para evitar duplicatas.
-    mensagem = None
-    async for msg in canal.history(limit=30):
-        if msg.author.id == bot.user.id and isinstance(msg.components, list) and msg.components:
-            mensagem = msg
-            break
-    view = GarimpadorPacksView()
-    try:
-        if mensagem:
-            await mensagem.edit(
-                content="## 🎲 GARIMPADOR DE PACKS\nGere um link aleatório da lista cadastrada.",
-                embed=None, view=view
-            )
-        else:
-            await canal.send(
-                "## 🎲 GARIMPADOR DE PACKS\nGere um link aleatório da lista cadastrada.",
-                view=view
-            )
-        await interaction.followup.send(
-            f"Painel Garimpador de Packs disponível em {canal.mention}. Links cadastrados: **{len(garimpador_links)}**.",
-            ephemeral=True
-        )
-    except discord.HTTPException:
-        log.exception("Falha ao publicar o painel Garimpador de Packs")
-        await interaction.followup.send("Não consegui publicar o painel. Confira as permissões do bot.", ephemeral=True)
+class GarimpadorLinksModal(discord.ui.Modal, title="Adicionar links de packs"):
+    links = discord.ui.TextInput(
+        label="Links (um por linha)",
+        placeholder="https://...\nhttps://...",
+        style=discord.TextStyle.paragraph,
+        required=True,
+        max_length=4000
+    )
 
+    async def on_submit(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador autorizado pode cadastrar links.", ephemeral=True)
+            return
+        novos, invalidos = [], []
+        for item in re.split(r"[\s,]+", str(self.links).strip()):
+            if not item:
+                continue
+            parsed = urlparse(item)
+            if parsed.scheme in ("http", "https") and parsed.netloc:
+                if item not in garimpador_links and item not in novos:
+                    novos.append(item)
+            else:
+                invalidos.append(item)
+        if novos:
+            garimpador_links.extend(novos)
+            save_json(GARIMPADOR_FILE, garimpador_links)
+        resumo = f"Links adicionados: **{len(novos)}**. Total cadastrado: **{len(garimpador_links)}**."
+        if invalidos:
+            resumo += f"\nIgnorados por não serem links válidos: **{len(invalidos)}**."
+        await interaction.response.send_message(resumo, ephemeral=True)
+
+class GarimpadorAdicionarButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Adicionar links", emoji="🔗", style=discord.ButtonStyle.primary, custom_id="ccbot:garimpador:adicionar")
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador autorizado pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.send_modal(GarimpadorLinksModal())
+
+class GarimpadorPublicarButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Publicar no Mercado", emoji="🎲", style=discord.ButtonStyle.success, custom_id="ccbot:garimpador:publicar")
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador autorizado pode usar este painel.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+        if guild is None:
+            await interaction.followup.send("Use este painel dentro do servidor.", ephemeral=True)
+            return
+        categoria = discord.utils.get(guild.categories, name="MERCADO") or discord.utils.get(guild.categories, name="cc store") or discord.utils.get(guild.categories, name="Mercado")
+        canal = discord.utils.get(guild.text_channels, name="garimpador-de-packs")
+        if canal is None:
+            canal = await guild.create_text_channel("garimpador-de-packs", category=categoria, reason="Criar aba Garimpador de Packs no Mercado")
+        mensagem = None
+        async for msg in canal.history(limit=30):
+            if msg.author.id == bot.user.id and msg.content and "GARIMPADOR DE PACKS" in msg.content:
+                mensagem = msg
+                break
+        texto = "## 🎲 GARIMPADOR DE PACKS\nClique no botão para sortear um link."
+        view = GarimpadorPacksView()
+        try:
+            if mensagem:
+                await mensagem.edit(content=texto, embed=None, view=view)
+            else:
+                await canal.send(texto, view=view)
+            await interaction.followup.send(f"Painel disponível em {canal.mention}. Links cadastrados: **{len(garimpador_links)}**.", ephemeral=True)
+        except discord.HTTPException:
+            log.exception("Falha ao publicar o painel Garimpador de Packs")
+            await interaction.followup.send("Não consegui publicar. Confira as permissões do bot.", ephemeral=True)
+
+class GarimpadorAdminView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 🎲 Garimpador de Packs\nCadastre os links e publique o gerador na aba Mercado.\n\n**Links cadastrados:** " + str(len(garimpador_links))),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(GarimpadorAdicionarButton(), GarimpadorPublicarButton()),
+            discord.ui.ActionRow(VoltarPainelButton())
+        ))
 
 @bot.tree.command(name="painel", description="Abrir o painel administrativo do CC BOT")
 async def painel(interaction: discord.Interaction):
@@ -3466,6 +3477,11 @@ async def hierarquia(interaction: discord.Interaction):
 PAINEL_ADMIN_COLOR = discord.Color.from_rgb(35, 37, 42)
 
 PAINEL_GRUPOS = {
+    "garimpador": {
+        "titulo": "Garimpador de Packs",
+        "descricao": "Cadastre links e publique o gerador aleatório no Mercado.",
+        "categorias": ["garimpador"],
+    },
     "paineis": {
         "titulo": "Painéis",
         "descricao": "Somente publicação e atualização dos painéis de produtos. Sem configurações de outras áreas.",
@@ -3519,6 +3535,7 @@ OPCOES_CATEGORIAS_PAINEL = [
     discord.SelectOption(label="Adicionar emojis", description="Enviar ZIP ou imagens para personalizar o servidor", emoji="😀", value="emojis"),
     discord.SelectOption(label="Adicionar ícones", description="Importar ZIPs ou imagens para publicar", emoji="🖼️", value="icones"),
     discord.SelectOption(label="Backups", description="Salvar cópia no Termux ou enviar por mensagem privada", emoji="💾", value="ferramentas"),
+    discord.SelectOption(label="Garimpador de Packs", description="Cadastrar links e publicar gerador", emoji="🎲", value="garimpador"),
     discord.SelectOption(label="Painéis e produtos", description="Samples, acapellas, arrumador, beats e packs", emoji="📋", value="publicar"),
     discord.SelectOption(label="Parcerias", description="Atualizar o painel de parcerias existente", emoji="🤝", value="parcerias"),
     discord.SelectOption(label="Trampar Conosco", description="Atualizar o painel de trabalhos no canal existente", emoji="🧑‍💻", value="trampar_conosco"),
@@ -3680,6 +3697,8 @@ class CategoriaPainelSelect(discord.ui.Select):
             await atualizar_painel_parcerias(interaction)
         elif categoria == "trampar_conosco":
             await atualizar_painel_trampar(interaction)
+        elif categoria == "garimpador":
+            await interaction.response.edit_message(view=GarimpadorAdminView())
         elif categoria == "publicar":
             await interaction.response.edit_message(view=PainelPublicarView())
         elif categoria == "permissoes_categorias":
