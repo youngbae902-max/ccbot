@@ -2970,14 +2970,14 @@ class PermissoesCategoriasView(discord.ui.View):
         )
         if falhas:
             resumo += "\n\n⚠️ **Falhas:**\n" + "\n".join(f"• {x}" for x in falhas[:10])
-        await interaction.edit_original_response(content=resumo, view=None)
+        await interaction.edit_original_response(view=PainelResultadoV2("# 🔒 Permissões concluídas\n" + resumo))
 
     @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.secondary, custom_id="ccbot:cancelar_permissoes_categorias")
     async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
-        await interaction.response.edit_message(content="Operação cancelada. Nenhuma permissão foi alterada.", embed=None, view=None)
+        await interaction.response.edit_message(view=PainelResultadoV2("# ✖️ Operação cancelada\nNenhuma permissão foi alterada."))
 
 async def abrir_permissoes_categorias(interaction: discord.Interaction):
     if not is_admin(interaction):
@@ -2989,18 +2989,15 @@ async def abrir_permissoes_categorias(interaction: discord.Interaction):
 
     quantidade = sum(1 for c in interaction.guild.categories if c.name.strip().casefold() != "community")
     comunidades = [c.name for c in interaction.guild.categories if c.name.strip().casefold() == "community"]
-    embed = criar_embed_estetico(
-        title="🔒 Permissões das categorias",
-        description=(
-            f"Vou alterar **{quantidade} categorias**, preservando a categoria "
-            f"**Community** ({', '.join(comunidades) if comunidades else 'não encontrada'}).\n\n"
-            "Nas demais categorias, @everyone poderá **ver os canais, usar comandos de aplicativos e interagir com botões**, "
-            "mas não poderá enviar mensagens nem criar tópicos. As permissões específicas de outros cargos serão mantidas.\n\n"
-            "Confirme apenas se deseja aplicar essa mudança ao servidor."
-        ),
-        color=PAINEL_ADMIN_COLOR
+    texto = (
+        f"# 🔒 Permissões das categorias\nVou alterar **{quantidade} categorias**, preservando **Community** "
+        f"({', '.join(comunidades) if comunidades else 'não encontrada'}).\n\n"
+        "Nas demais, @everyone poderá ver canais e usar botões/comandos, mas não enviar mensagens nem criar tópicos. "
+        "As permissões específicas dos outros cargos serão mantidas.\n\nConfirme para aplicar."
     )
-    await interaction.response.edit_message(embed=embed, view=PermissoesCategoriasView())
+    await interaction.response.edit_message(
+        view=PainelConfirmacaoV2(texto, [AplicarPermissoesV2Button(), CancelarPermissoesV2Button()])
+    )
 
 TRABALHOS_ON_CHANNEL_ID = 1561837934649409696
 
@@ -3270,11 +3267,7 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode cancelar.", ephemeral=True)
             return
-        await interaction.response.edit_message(
-            content="Atualização cancelada. Nenhuma alteração foi feita.",
-            embed=None,
-            view=None
-        )
+        await interaction.response.edit_message(view=PainelResultadoV2("# ✖️ Atualização cancelada\nNenhuma alteração foi feita."))
 
 async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
     if not is_admin(interaction):
@@ -3284,18 +3277,16 @@ async def abrir_organizacao_hierarquia(interaction: discord.Interaction):
         await interaction.response.send_message("Abra esta função dentro do servidor.", ephemeral=True)
         return
 
-    embed = criar_embed_estetico(
-        title="🗂️ Hierarquia do servidor",
-        description=(
-            "O CC BOT vai organizar as categorias e os canais conhecidos, padronizar os nomes e ordenar os cargos principais.\n\n"
-            "A estrutura prioriza Status, Customização, Sites, Mercado/Vendas, Comunidade e Grátis.\n\n"
-            "Canais e mensagens existentes serão preservados; nenhuma categoria ou canal será apagado."
-        ),
-        color=discord.Color.dark_grey()
+    texto = (
+        "# 🗂️ Hierarquia do servidor\nO CC BOT vai organizar categorias/canais conhecidos, padronizar nomes e ordenar cargos.\n\n"
+        "A estrutura prioriza Status, Customização, Sites, Mercado/Vendas, Comunidade e Grátis.\n\n"
+        "Canais e mensagens existentes serão preservados; nenhum canal será apagado. Confirme para continuar."
     )
     await interaction.response.edit_message(
-        embed=embed,
-        view=ConfirmarOrganizacaoHierarquiaView(interaction.guild.id)
+        view=PainelConfirmacaoV2(texto, [
+            AplicarOrganizacaoV2Button(interaction.guild.id),
+            CancelarOrganizacaoV2Button(interaction.guild.id)
+        ])
     )
 
 class AbrirPainelAdminButton(discord.ui.Button):
@@ -3682,21 +3673,54 @@ class PainelAdminView(discord.ui.View):
         self.add_item(PainelGrupoSelect())
 
 
+class AplicarPermissoesV2Button(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Aplicar permissões", emoji="🔒", style=discord.ButtonStyle.danger, custom_id="ccbot:v2_aplicar_permissoes")
+    async def callback(self, interaction):
+        await PermissoesCategoriasView().aplicar(interaction, self)
+
+class CancelarPermissoesV2Button(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.secondary, custom_id="ccbot:v2_cancelar_permissoes")
+    async def callback(self, interaction):
+        await PermissoesCategoriasView().cancelar(interaction, self)
+
+class AplicarOrganizacaoV2Button(discord.ui.Button):
+    def __init__(self, guild_id):
+        super().__init__(label="Aplicar organização", emoji="🔄", style=discord.ButtonStyle.success, custom_id="ccbot:v2_aplicar_hierarquia")
+        self.guild_id = guild_id
+    async def callback(self, interaction):
+        await ConfirmarOrganizacaoHierarquiaView(self.guild_id).aplicar(interaction, self)
+
+class CancelarOrganizacaoV2Button(discord.ui.Button):
+    def __init__(self, guild_id):
+        super().__init__(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.danger, custom_id="ccbot:v2_cancelar_hierarquia")
+        self.guild_id = guild_id
+    async def callback(self, interaction):
+        await ConfirmarOrganizacaoHierarquiaView(self.guild_id).cancelar(interaction, self)
+
 class PainelAdminV2View(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(
-            discord.ui.Container(
-                discord.ui.TextDisplay(
-                    content=(
-                        "# 🛠️ Central administrativa\n"
-                        "Selecione uma área administrativa para acessar as ferramentas."
-                    )
-                ),
-                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-                discord.ui.ActionRow(PainelGrupoSelect())
-            )
-        )
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 🛠️ Central administrativa\nSelecione uma área para acessar as ferramentas."),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(PainelGrupoSelect())
+        ))
+
+class PainelConfirmacaoV2(discord.ui.LayoutView):
+    def __init__(self, texto, componentes):
+        super().__init__(timeout=300)
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content=texto),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(*componentes)
+        ))
+
+class PainelResultadoV2(discord.ui.LayoutView):
+    def __init__(self, texto):
+        super().__init__(timeout=300)
+        self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=texto)))
 
 class PainelDJsView(discord.ui.LayoutView):
     def __init__(self):
