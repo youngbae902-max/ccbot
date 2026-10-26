@@ -2676,7 +2676,8 @@ class CancelarLimpezaPVButton(discord.ui.Button):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
         await interaction.response.edit_message(
-            embed=criar_embed_painel(),
+            content="🟢 **C.C — PAINEL ADMINISTRATIVO**\nEscolha uma ferramenta abaixo.",
+            embed=None,
             view=PainelAdminView()
         )
 
