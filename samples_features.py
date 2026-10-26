@@ -41,10 +41,15 @@ class SamplesSystem:
         self.admin_id = int(admin_id)
         self.stock_file = self.config_dir / "samples_stock.json"
         self.history_file = self.config_dir / "samples_history.json"
+        self.types_file = self.config_dir / "samples_stock_types.json"
         self.files_dir = self.config_dir / "samples_stock_files"
         self.files_dir.mkdir(parents=True, exist_ok=True)
         self.stock = self._load(self.stock_file, {})
         self.history = self._load(self.history_file, {})
+        self.stock_types = self._load(self.types_file, {})
+        if not isinstance(self.stock_types, dict):
+            self.stock_types = {}
+        self._migrate_stock_types()
         if not isinstance(self.stock, dict):
             self.stock = {}
         if not isinstance(self.history, dict):
@@ -79,6 +84,64 @@ class SamplesSystem:
             return [str(x) for x in values if str(x).strip()] if isinstance(values, list) else []
         except (OSError, json.JSONDecodeError):
             return []
+
+    def _migrate_stock_types(self):
+        # Mantém estoques existentes, sem criar os três padrões para todo DJ.
+        changed = False
+        for key in self.stock:
+            parts = key.rsplit("::", 1)
+            if len(parts) != 2:
+                continue
+            dj, category = parts
+            types = self.stock_types.setdefault(dj, [])
+            if not any(isinstance(x, dict) and x.get("id") == category for x in types):
+                types.append({"id": category, "name": SAMPLE_TYPES.get(category, category.replace("_", " ").replace("-", " ").title())})
+                changed = True
+        if changed:
+            self.save_stock_types()
+
+    def save_stock_types(self):
+        self._save(self.types_file, self.stock_types)
+
+    def stock_categories(self, dj):
+        return [x for x in self.stock_types.get(dj, []) if isinstance(x, dict) and x.get("id") and x.get("name")]
+
+    def stock_label(self, dj, category):
+        item = next((x for x in self.stock_categories(dj) if x["id"] == category), None)
+        return item["name"] if item else SAMPLE_TYPES.get(category, str(category))
+
+    def add_stock_type(self, dj, name):
+        name = str(name).strip()
+        if not name:
+            raise ValueError("Digite um nome para o stock.")
+        if len(name) > 90:
+            raise ValueError("O nome deve ter até 90 caracteres.")
+        types = self.stock_types.setdefault(dj, [])
+        if len(types) >= 25:
+            raise ValueError("Cada DJ pode ter até 25 stocks.")
+        if any(str(x.get("name", "")).casefold() == name.casefold() for x in types if isinstance(x, dict)):
+            raise ValueError("Esse DJ já tem um stock com esse nome.")
+        category = "custom_" + uuid.uuid4().hex[:12]
+        types.append({"id": category, "name": name})
+        self.save_stock_types()
+        self.stock.setdefault(self._key(dj, category), [])
+        self.save_stock()
+        return category
+
+    def rename_stock_type(self, dj, category, name):
+        name = str(name).strip()
+        if not name:
+            raise ValueError("Digite um nome para o stock.")
+        if len(name) > 90:
+            raise ValueError("O nome deve ter até 90 caracteres.")
+        types = self.stock_types.get(dj, [])
+        target = next((x for x in types if isinstance(x, dict) and x.get("id") == category), None)
+        if target is None:
+            raise ValueError("Esse stock não existe mais.")
+        if any(x is not target and str(x.get("name", "")).casefold() == name.casefold() for x in types if isinstance(x, dict)):
+            raise ValueError("Esse DJ já tem um stock com esse nome.")
+        target["name"] = name
+        self.save_stock_types()
 
     def _key(self, dj, category):
         return f"{dj}::{category}"
