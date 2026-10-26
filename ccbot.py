@@ -3693,7 +3693,6 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
             "> Ao permanecer no servidor, você concorda em seguir estas regras.\n"
             "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
         )),
-        accent_color=0x57E3A7
     ))
 
     try:
