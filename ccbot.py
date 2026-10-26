@@ -2504,8 +2504,8 @@ class VoltarPainelButton(discord.ui.Button):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
         await interaction.response.edit_message(
-            content="🟢 **C.C — PAINEL ADMINISTRATIVO**\nEscolha uma ferramenta abaixo.",
-            embed=None,
+            content=None,
+            embed=criar_embed_painel(),
             view=PainelAdminView()
         )
 
@@ -2667,8 +2667,8 @@ class CancelarLimpezaPVButton(discord.ui.Button):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
         await interaction.response.edit_message(
-            content="🟢 **C.C — PAINEL ADMINISTRATIVO**\nEscolha uma ferramenta abaixo.",
-            embed=None,
+            content=None,
+            embed=criar_embed_painel(),
             view=PainelAdminView()
         )
 
@@ -3530,9 +3530,10 @@ async def painel(interaction: discord.Interaction):
         return
 
     try:
-        # Abre diretamente a central administrativa em Components V2.
+        # Mantém a central e todas as subpáginas na mesma mensagem efêmera.
         await interaction.response.send_message(
-            view=PainelAdminV2View(),
+            embed=criar_embed_painel(),
+            view=PainelAdminView(),
             ephemeral=True
         )
         log.info("Comando /painel aberto por %s (%s).", interaction.user, interaction.user.id)
@@ -3734,14 +3735,14 @@ class PainelGrupoSelect(discord.ui.Select):
         grupo = self.values[0]
         info = PAINEL_GRUPOS[grupo]
         # O seletor está numa mensagem Components V2; abre a área numa resposta própria.
-        await interaction.response.send_message(
+        await interaction.response.edit_message(
+            content=None,
             embed=criar_embed_estetico(
                 title=info["titulo"],
-                description=info["descricao"] + "\n\nSelecione uma função abaixo.",
+                description=info["descricao"] + "\n\n**Escolha uma função abaixo.**\nUse **Voltar ao painel** para retornar às áreas administrativas.",
                 color=PAINEL_ADMIN_COLOR
             ),
-            view=PainelSubcategoriasView(grupo),
-            ephemeral=True
+            view=PainelSubcategoriasView(grupo)
         )
 
 class CategoriaPainelSelect(discord.ui.Select):
@@ -3970,16 +3971,43 @@ class PainelManutencaoView(discord.ui.View):
         self.add_item(VoltarPainelButton())
 
 def criar_embed_painel():
-    # Embed do painel sem rodapé automático.
-    return discord.Embed(
-        title="CC BOT | Administração",
+    """Página inicial compacta da central administrativa."""
+    embed = discord.Embed(
+        title="🛠️ C.C — Central administrativa",
         description=(
-            "Central de controle do servidor.\n\n"
-            "Selecione uma área para acessar as ferramentas disponíveis. "
-            "As alterações importantes continuam pedindo confirmação antes de serem aplicadas."
+            "Gerencie o servidor por áreas, sem precisar procurar comandos separados.\n\n"
+            "**Selecione uma área no menu abaixo.** A tela será atualizada no mesmo lugar; "
+            "use **Voltar ao painel** para retornar."
         ),
         color=PAINEL_ADMIN_COLOR
     )
+    embed.add_field(
+        name="📋 Publicações e produtos",
+        value="Painéis, catálogo e cadastro de DJs.",
+        inline=False
+    )
+    embed.add_field(
+        name="🤖 Central do bot",
+        value="Boas-vindas, regras, avisos e manutenção.",
+        inline=False
+    )
+    embed.add_field(
+        name="🎨 Personalização",
+        value="Emojis e ícones personalizados.",
+        inline=True
+    )
+    embed.add_field(
+        name="💾 Sistema e backups",
+        value="Backups e ferramentas técnicas.",
+        inline=True
+    )
+    embed.add_field(
+        name="🗂️ Estrutura do servidor",
+        value="Permissões, diagnóstico e hierarquia.",
+        inline=False
+    )
+    embed.set_footer(text="C.C • Acesso administrativo restrito")
+    return embed
 
 class GerarSamplesButton(discord.ui.Button):
     def __init__(self):
