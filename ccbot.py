@@ -3647,34 +3647,34 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
         return
 
     regras = (
-        "**01 · Respeito**\\n"
+        "**01 · Respeito**\n"
         "Racismo, preconceito, assédio, ameaças e discriminação não serão tolerados. "
-        "Racismo e preconceito geram **banimento permanente**.\\n\\n"
-        "**02 · Conteúdo proibido**\\n"
+        "Racismo e preconceito geram **banimento permanente**.\n\n"
+        "**02 · Conteúdo proibido**\n"
         "É proibido divulgar bets/apostas, pornografia, conteúdo sexual explícito/adulto, "
         "golpes, links maliciosos ou conteúdo ilegal. A divulgação de conteúdo adulto, "
-        "racista ou preconceituoso gera **banimento permanente**.\\n\\n"
-        "**03 · Divulgação**\\n"
+        "racista ou preconceituoso gera **banimento permanente**.\n\n"
+        "**03 · Divulgação**\n"
         "O canal de divulgações é exclusivo para **beats**. Não divulgue lojas, grupos, "
-        "servidores, serviços ou produtos fora dos espaços autorizados. Spam pode ser removido.\\n\\n"
-        "**04 · Compras**\\n"
+        "servidores, serviços ou produtos fora dos espaços autorizados. Spam pode ser removido.\n\n"
+        "**04 · Compras**\n"
         "Antes de pagar, leia **como funcionam as vendas**, confira produto, preço e condições. "
         "O pagamento é conferido manualmente; comprovante não significa aprovação automática. "
-        "Não abra pedidos duplicados.\\n\\n"
-        "**05 · Golpes**\\n"
+        "Não abra pedidos duplicados.\n\n"
+        "**05 · Golpes**\n"
         "Tentativa de golpe, fraude, comprovante falso ou tentativa de enganar clientes/equipe "
-        "gera **banimento imediato**. Nunca compartilhe senhas ou dados bancários completos.\\n\\n"
-        "**06 · Suporte**\\n"
+        "gera **banimento imediato**. Nunca compartilhe senhas ou dados bancários completos.\n\n"
+        "**06 · Suporte**\n"
         "Se houver problema com compra, entrega ou acesso, abra um ticket no **Suporte Dedicado**. "
-        "A equipe busca responder em até **24 horas** e também oferece contato por WhatsApp.\\n\\n"
-        "**07 · Materiais**\\n"
+        "A equipe busca responder em até **24 horas** e também oferece contato por WhatsApp.\n\n"
+        "**07 · Materiais**\n"
         "Respeite as condições de cada produto e material gratuito. Não revenda ou redistribua "
-        "conteúdo contrariando as condições informadas.\\n\\n"
-        "**08 · Moderação**\\n"
+        "conteúdo contrariando as condições informadas.\n\n"
+        "**08 · Moderação**\n"
         "As regras valem para todos, inclusive clientes. Cada compra ajuda a manter o projeto ativo, "
         "mas não dá privilégios nem muda as regras. A equipe pode remover conteúdo e aplicar "
-        "advertência, restrição ou banimento conforme a gravidade.\\n\\n"
-        "**09 · Segurança nas vendas**\\n"
+        "advertência, restrição ou banimento conforme a gravidade.\n\n"
+        "**09 · Segurança nas vendas**\n"
         "Mantenha a conversa no canal privado do pedido. Se algo parecer estranho, pare e fale com "
         "o suporte antes de continuar."
     )
@@ -3682,15 +3682,15 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
     view = discord.ui.LayoutView(timeout=None)
     view.add_item(discord.ui.Container(
         discord.ui.TextDisplay(content=(
-            "# 📜 REGRAS DA COMUNIDADE\\n"
-            "**Uma comunidade criativa, segura e transparente.**\\n"
+            "# 📜 REGRAS DA COMUNIDADE\n"
+            "**Uma comunidade criativa, segura e transparente.**\n"
             "-# LEIA ANTES DE PARTICIPAR OU COMPRAR"
         )),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
         discord.ui.TextDisplay(content=regras),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
         discord.ui.TextDisplay(content=(
-            "> Ao permanecer no servidor, você concorda em seguir estas regras.\\n"
+            "> Ao permanecer no servidor, você concorda em seguir estas regras.\n"
             "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
         )),
         accent_color=0x57E3A7
