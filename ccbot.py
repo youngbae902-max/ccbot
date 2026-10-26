@@ -6374,7 +6374,6 @@ async def on_app_command_error(interaction, error):
     if is_admin(interaction):
         await notify_admin(f"Erro em comando slash: {type(error).__name__}: {error}")
 
-@bot.tree.command(name="financiamentos", description="Publicar o painel de financiamentos neste canal")
 async def financiamentos(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
@@ -6427,7 +6426,6 @@ async def financiamentos(interaction: discord.Interaction):
             )
 
 
-@bot.tree.command(name="criar-sites", description="Publicar o painel de sites neste canal")
 async def criar_sites(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
@@ -6530,7 +6528,6 @@ async def criar_sites(interaction: discord.Interaction):
             )
 
 
-@bot.tree.command(name="criar-sobre-nos", description="Publicar o painel Sobre Nós neste canal")
 async def criar_sobre_nos(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
@@ -6606,7 +6603,6 @@ async def criar_sobre_nos(interaction: discord.Interaction):
             )
 
 
-@bot.tree.command(name="criar-regras", description="Publicar uma nova mensagem de regras sem alterar a existente")
 @app_commands.describe(canal="Canal onde a nova mensagem de regras será publicada")
 async def criar_regras(interaction: discord.Interaction, canal: discord.TextChannel):
     if not is_admin(interaction):
@@ -7092,7 +7088,6 @@ async def diagnostico(interaction: discord.Interaction):
     )
 
 
-@bot.tree.command(name="exportar-servidor", description="Exportar IDs, canais e histórico acessível para diagnóstico")
 async def exportar_servidor(interaction: discord.Interaction):
     """Exporta a estrutura do servidor e as mensagens que o bot consegue ler."""
     if not is_admin(interaction):
