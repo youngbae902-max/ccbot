@@ -3244,22 +3244,18 @@ class ConfirmarOrganizacaoHierarquiaView(discord.ui.View):
             alteradas = await renomear_categorias_solicitadas(guild)
             cargos_alterados = await ordenar_cargos_principais(guild)
             await interaction.edit_original_response(
-                content=(
-                    "✅ **Organização do servidor aplicada pelo CC BOT.**\n"
-                    f"• Organização de categorias/canais: **{'concluída' if organizacao_ok else 'parcial — confira as permissões'}**\n"
+                view=PainelResultadoV2(
+                    "# ✅ Organização aplicada\n"
+                    f"• Categorias/canais: **{'concluída' if organizacao_ok else 'parcial — confira as permissões'}**\n"
                     f"• Categorias renomeadas: **{alteradas}**\n"
                     f"• Cargos reposicionados: **{cargos_alterados}**\n"
-                    "Os canais e mensagens existentes foram preservados; nenhum canal foi apagado."
-                ),
-                embed=None,
-                view=None
+                    "Canais e mensagens existentes foram preservados."
+                )
             )
         except Exception as exc:
             log.exception("Falha ao renomear categorias pelo painel")
             await interaction.edit_original_response(
-                content=f"❌ Falha ao renomear categorias ({type(exc).__name__}). Confira o log do CC BOT.",
-                embed=None,
-                view=None
+                view=PainelResultadoV2(f"# ❌ Falha na organização\nErro: {type(exc).__name__}. Confira o log do CC BOT.")
             )
 
     @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.danger)
