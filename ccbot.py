@@ -6628,7 +6628,6 @@ async def criar_regras(interaction: discord.Interaction, canal: discord.TextChan
             "> Ao permanecer no servidor, você concorda em seguir estas regras.\n"
             "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
         )),
-        accent_color=0x57E3A7
     ))
     try:
         await canal.send(view=view, allowed_mentions=discord.AllowedMentions.none())
