@@ -888,7 +888,17 @@ class SamplesAdminView(discord.ui.LayoutView):
         if not self.dj:
             await interaction.response.send_message("Cadastre um DJ primeiro.", ephemeral=True)
             return
-        if action == "add":
+        if action == "create_stock":
+            await interaction.response.send_modal(SamplesStockNameModal(self, rename=False))
+        elif action == "rename_stock":
+            if not self.category:
+                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+            else:
+                await interaction.response.send_modal(SamplesStockNameModal(self, rename=True))
+        elif action == "add":
+            if not self.category:
+                await interaction.response.send_message("Crie um stock para esse DJ primeiro.", ephemeral=True)
+                return
             await interaction.response.send_modal(SamplesAddModal(self.dj, self.category))
         elif action in ("delete", "edit"):
             items = SYSTEM.items(self.dj, self.category)
@@ -901,8 +911,14 @@ class SamplesAdminView(discord.ui.LayoutView):
                     ephemeral=True
                 )
         elif action == "clear":
+            if not self.category:
+                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                return
             await interaction.response.send_message(f"Confirma apagar os **{len(SYSTEM.items(self.dj, self.category))}** itens de **{self.dj} / {SYSTEM.stock_label(self.dj, self.category)}**?", view=SamplesClearConfirmView(self.dj, self.category), ephemeral=True)
         elif action == "import":
+            if not self.category:
+                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                return
             await interaction.response.send_modal(SamplesImportModal(self.dj, self.category))
         elif action == "history":
             records = []
@@ -924,6 +940,9 @@ class SamplesAdminView(discord.ui.LayoutView):
                 content += f"\n\nMostrando 40 de {len(records)} usuários."
             await interaction.response.send_message(content, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
         else:
+            if not self.category:
+                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                return
             await SYSTEM.admin_export(interaction, self.dj, self.category, action)
 
     async def refresh(self, interaction):
