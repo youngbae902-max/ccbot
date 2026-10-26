@@ -2463,14 +2463,7 @@ class ConfirmarLimpezaPVButton(discord.ui.Button):
             if falhas:
                 texto += f"\nNão foi possível apagar {falhas} mensagem(ns)."
             await interaction.followup.send(texto, ephemeral=True)
-            await interaction.message.edit(
-                embed=criar_embed_estetico(
-                    title="🧹 Limpeza concluída",
-                    description=texto,
-                    color=discord.Color.green()
-                ),
-                view=VoltarPainelButtonView()
-            )
+            await interaction.message.edit(view=PainelConfirmacaoV2("# 🧹 Limpeza concluída\n" + texto, [VoltarPainelButton()]))
         except Exception as exc:
             log.exception("Falha ao limpar mensagens do CC BOT no PV")
             await interaction.followup.send(
@@ -2491,17 +2484,15 @@ class CancelarLimpezaPVButton(discord.ui.Button):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
             return
-        await interaction.response.edit_message(
-            content="🟢 **C.C — PAINEL ADMINISTRATIVO**\nEscolha uma ferramenta abaixo.",
-            embed=None,
-            view=PainelAdminView()
-        )
+        await interaction.response.edit_message(view=PainelAdminV2View())
 
-class LimparPVView(discord.ui.View):
+class LimparPVView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=180)
-        self.add_item(ConfirmarLimpezaPVButton())
-        self.add_item(CancelarLimpezaPVButton())
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 🧹 Limpar mensagens do PV\nApaga somente mensagens do CC BOT, até 500 mensagens recentes."),
+            discord.ui.ActionRow(ConfirmarLimpezaPVButton(), CancelarLimpezaPVButton())
+        ))
 
 class VoltarPainelButtonView(discord.ui.View):
     def __init__(self):
