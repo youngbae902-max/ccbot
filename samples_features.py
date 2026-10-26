@@ -801,6 +801,35 @@ class SamplesPublishButton(discord.ui.Button):
         await self.parent_view.publish_callback(interaction)
 
 
+class SamplesStockNameModal(discord.ui.Modal):
+    name = discord.ui.TextInput(label="Nome do stock", placeholder="Ex.: Samples por IA", min_length=1, max_length=90)
+
+    def __init__(self, parent, rename=False):
+        super().__init__(title="Renomear stock" if rename else "Criar stock")
+        self.parent_view = parent
+        self.rename = rename
+        if rename and parent.dj and parent.category:
+            self.name.default = SYSTEM.stock_label(parent.dj, parent.category)[:90]
+
+    async def on_submit(self, interaction):
+        if not SYSTEM.is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
+            return
+        try:
+            if self.rename:
+                SYSTEM.rename_stock_type(self.parent_view.dj, self.parent_view.category, self.name.value)
+            else:
+                self.parent_view.category = SYSTEM.add_stock_type(self.parent_view.dj, self.name.value)
+            self.parent_view.refresh_items()
+            await interaction.response.send_message(
+                ("Stock renomeado para **" if self.rename else "Stock criado: **")
+                + discord.utils.escape_markdown(self.name.value.strip()) + "**. Reabra o painel de estoque para atualizar a lista.",
+                ephemeral=True
+            )
+        except ValueError as exc:
+            await interaction.response.send_message(str(exc), ephemeral=True)
+
+
 class SamplesAdminView(discord.ui.LayoutView):
     def __init__(self, dj=None, category=None, publish_callback=None):
         super().__init__(timeout=300)
