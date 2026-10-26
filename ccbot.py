@@ -40,7 +40,7 @@ from discord import app_commands
 import github_bridge
 from support_features import configure_support
 from promo_features import configure_promos
-from samples_features import configure_samples, SamplesPanelView, SamplesAdminButton, samples_panel_view
+from samples_features import configure_samples, SamplesPanelView, SamplesAdminButton, SamplesAdminView, samples_panel_view
 
 # Identidade visual global dos embeds: grafite e rodapé consistente.
 # Cores, rodapés e mídias específicos de cada fluxo são preservados.
@@ -3984,9 +3984,8 @@ async def adicionar_emojis(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(EmojiUploadModal())
 
-async def samples(interaction: discord.Interaction):
-    if await deny_unauthorized(interaction):
-        return
+async def publicar_painel_samples(interaction: discord.Interaction):
+    """Publica somente a versão limpa para clientes, atualizando a mensagem existente."""
     try:
         canal = bot.get_channel(SAMPLES_PANEL_CHANNEL_ID)
         if canal is None:
@@ -3996,19 +3995,44 @@ async def samples(interaction: discord.Interaction):
             mensagem = await canal.fetch_message(SAMPLES_PANEL_MESSAGE_ID)
         except discord.NotFound:
             mensagem = None
+
         if mensagem is not None:
-            await mensagem.edit(view=samples_panel_view())
-            resposta = f"✅ Painel de samples reconstruído e atualizado na mensagem existente: {mensagem.jump_url}"
+            await mensagem.edit(content=None, embeds=[], attachments=[], view=samples_panel_view())
+            resposta = f"✅ Painel público de samples atualizado: {mensagem.jump_url}"
         else:
             mensagem = await canal.send(view=samples_panel_view())
-            resposta = f"✅ Painel de samples publicado: {mensagem.jump_url}"
+            resposta = f"✅ Painel público de samples publicado: {mensagem.jump_url}"
+
         if interaction.response.is_done():
             await interaction.followup.send(resposta, ephemeral=True)
         else:
             await interaction.response.send_message(resposta, ephemeral=True)
     except Exception as exc:
-        log.exception("Falha ao reconstruir painel de samples")
-        msg = f"❌ Não consegui atualizar o painel de samples ({type(exc).__name__})."
+        log.exception("Falha ao publicar painel de samples")
+        msg = f"❌ Não consegui publicar o painel de samples ({type(exc).__name__})."
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+
+
+async def samples(interaction: discord.Interaction):
+    """Abre o gerenciador privado; só publica o painel público após confirmação."""
+    if await deny_unauthorized(interaction):
+        return
+    try:
+        await interaction.response.send_message(
+            content=(
+                "## 🛠️ CONFIGURAR GERADOR DE SAMPLES\n"
+                "Gerencie o estoque e os DJs nesta área privada. Quando estiver tudo pronto, "
+                "clique em **Publicar painel**. Os clientes não verão as opções administrativas."
+            ),
+            view=SamplesAdminView(publish_callback=publicar_painel_samples),
+            ephemeral=True
+        )
+    except Exception as exc:
+        log.exception("Falha ao abrir gerenciador de samples")
+        msg = f"❌ Não consegui abrir o gerenciador ({type(exc).__name__})."
         if interaction.response.is_done():
             await interaction.followup.send(msg, ephemeral=True)
         else:
