@@ -1,0 +1,655 @@
+import io
+import json
+import os
+import re
+import uuid
+import zipfile
+import logging
+from pathlib import Path
+from datetime import datetime
+
+import discord
+
+log = logging.getLogger("CCBOT.samples")
+
+SAMPLE_TYPES = {
+    "continuas": "Samples contínuas",
+    "packs": "Samples de outros packs",
+    "ia": "Samples feitas por IA",
+}
+MAX_UPLOAD_FILES = 10
+MAX_ITEM_BYTES = 24 * 1024 * 1024
+MAX_EXPORT_BYTES = 24 * 1024 * 1024
+
+
+def _safe_name(value):
+    name = Path(str(value).replace("\\", "/")).name
+    name = re.sub(r"[^\w.() -]", "_", name, flags=re.UNICODE).strip(" .")
+    return (name or "arquivo")[:180]
+
+
+def _slug(value):
+    value = re.sub(r"[^a-zA-Z0-9_-]+", "-", str(value)).strip("-").lower()
+    return (value or "dj")[:70]
+
+
+class SamplesSystem:
+    def __init__(self, bot, config_dir, djs_file, admin_id):
+        self.bot = bot
+        self.config_dir = Path(config_dir)
+        self.djs_file = Path(djs_file)
+        self.admin_id = int(admin_id)
+        self.stock_file = self.config_dir / "samples_stock.json"
+        self.history_file = self.config_dir / "samples_history.json"
+        self.files_dir = self.config_dir / "samples_stock_files"
+        self.files_dir.mkdir(parents=True, exist_ok=True)
+        self.stock = self._load(self.stock_file, {})
+        self.history = self._load(self.history_file, {})
+        if not isinstance(self.stock, dict):
+            self.stock = {}
+        if not isinstance(self.history, dict):
+            self.history = {}
+
+    def _load(self, path, default):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data
+        except FileNotFoundError:
+            self._save(path, default)
+            return default
+        except (OSError, json.JSONDecodeError):
+            log.exception("Falha ao carregar %s", path)
+            return default
+
+    def _save(self, path, data):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_name(path.name + ".tmp")
+        temp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        temp.replace(path)
+
+    def save_stock(self):
+        self._save(self.stock_file, self.stock)
+
+    def save_history(self):
+        self._save(self.history_file, self.history)
+
+    def djs(self):
+        try:
+            values = json.loads(self.djs_file.read_text(encoding="utf-8"))
+            return [str(x) for x in values if str(x).strip()] if isinstance(values, list) else []
+        except (OSError, json.JSONDecodeError):
+            return []
+
+    def _key(self, dj, category):
+        return f"{dj}::{category}"
+
+    def items(self, dj, category):
+        value = self.stock.get(self._key(dj, category), [])
+        return value if isinstance(value, list) else []
+
+    def _item_path(self, item):
+        raw = item.get("path", "")
+        path = (self.files_dir / raw).resolve()
+        root = self.files_dir.resolve()
+        if root not in path.parents:
+            raise ValueError("Caminho de arquivo inválido no estoque.")
+        return path
+
+    def is_admin(self, interaction):
+        return interaction.user.id == self.admin_id
+
+    def add_item(self, dj, category, item):
+        self.stock.setdefault(self._key(dj, category), []).append(item)
+        self.save_stock()
+
+    def rename_dj(self, old, new):
+        for category in SAMPLE_TYPES:
+            old_key = self._key(old, category)
+            new_key = self._key(new, category)
+            if old_key in self.stock:
+                self.stock[new_key] = self.stock.pop(old_key)
+        self.save_stock()
+        # Migra as chaves de histórico sem apagar entregas anteriores.
+        for key, sent in list(self.history.items()):
+            parts = key.split("::", 2)
+            if len(parts) == 3 and parts[1] == old:
+                self.history[f"{parts[0]}::{new}::{parts[2]}"] = sent
+                del self.history[key]
+        self.save_history()
+
+    def stock_summary(self, dj, category):
+        items = self.items(dj, category)
+        return f"{len(items)} item(ns) no estoque"
+
+    def _history_key(self, user_id, dj, category):
+        return f"{user_id}::{dj}::{category}"
+
+    async def deliver(self, interaction, dj, category, quantity):
+        items = self.items(dj, category)
+        hist_key = self._history_key(interaction.user.id, dj, category)
+        already = set(self.history.get(hist_key, []))
+        available = [item for item in items if item.get("id") not in already]
+        if not available:
+            await interaction.followup.send(
+                "Você já recebeu todos os itens disponíveis desse DJ e tipo. Não há novos itens para enviar agora.",
+                ephemeral=True
+            )
+            return
+        chosen = available[:quantity]
+        files = [x for x in chosen if x.get("kind") in ("file", "zip")]
+        links = [x for x in chosen if x.get("kind") == "link"]
+        sent_ids = []
+        notes = []
+
+        try:
+            # Links vão em texto; arquivos soltos são agrupados em ZIP; ZIPs originais ficam intactos.
+            if links:
+                text = "\n".join(f"• **{discord.utils.escape_markdown(x.get('name', 'Link'))}**\n{x.get('url', '')}" for x in links)
+                await interaction.user.send("**🎧 Seus links de samples**\n" + text)
+                sent_ids.extend(x["id"] for x in links)
+
+            original_zips = [x for x in files if x.get("kind") == "zip"]
+            loose = [x for x in files if x.get("kind") == "file"]
+            for item in original_zips:
+                path = self._item_path(item)
+                data = await __import__("asyncio").to_thread(path.read_bytes)
+                if len(data) > MAX_ITEM_BYTES:
+                    notes.append(f"{item.get('name')}: arquivo acima do limite de envio do Discord; não enviado")
+                    continue
+                await interaction.user.send(
+                    content=f"📦 **{discord.utils.escape_markdown(item.get('name', 'Arquivo ZIP'))}**",
+                    file=discord.File(io.BytesIO(data), filename=_safe_name(item.get("name", "samples.zip")))
+                )
+                sent_ids.append(item["id"])
+
+            if loose:
+                buffer = io.BytesIO()
+                with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+                    for item in loose:
+                        path = self._item_path(item)
+                        data = await __import__("asyncio").to_thread(path.read_bytes)
+                        archive.writestr(_safe_name(item.get("name", path.name)), data)
+                data = buffer.getvalue()
+                if len(data) <= MAX_ITEM_BYTES:
+                    await interaction.user.send(
+                        content="🎧 **Suas samples em arquivos agrupados**",
+                        file=discord.File(io.BytesIO(data), filename=f"samples_{_slug(dj)}_{category}.zip")
+                    )
+                    sent_ids.extend(x["id"] for x in loose)
+                else:
+                    # Envia arquivos pequenos em lotes; arquivos acima do limite ficam pendentes.
+                    for item in loose:
+                        path = self._item_path(item)
+                        data = await __import__("asyncio").to_thread(path.read_bytes)
+                        if len(data) > MAX_ITEM_BYTES:
+                            notes.append(f"{item.get('name')}: arquivo acima do limite de envio; não enviado")
+                            continue
+                        await interaction.user.send(
+                            file=discord.File(io.BytesIO(data), filename=_safe_name(item.get("name", path.name)))
+                        )
+                        sent_ids.append(item["id"])
+
+            if sent_ids:
+                self.history[hist_key] = list(already | set(sent_ids))
+                self.save_history()
+            detail = f"Entregues: **{len(sent_ids)}** de **{quantity}** solicitadas."
+            if len(chosen) < quantity:
+                detail += f"\nSó havia **{len(chosen)}** item(ns) novo(s) disponível(is) para você."
+            if notes:
+                detail += "\n\nNão enviados:\n" + "\n".join("• " + n for n in notes[:8])
+            await interaction.followup.send(detail, ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "Não consegui enviar no PV. Ative as mensagens diretas deste servidor e tente novamente. O histórico não foi atualizado para os itens que não consegui entregar.",
+                ephemeral=True
+            )
+        except Exception:
+            log.exception("Falha ao entregar estoque de samples")
+            await interaction.followup.send(
+                "Ocorreu um erro durante a entrega. Confira o PV e tente novamente; avise o administrador se algum item chegou incompleto.",
+                ephemeral=True
+            )
+
+    def export_txt(self, dj, category):
+        lines = [
+            "# CC BOT — Exportação do estoque de samples",
+            f"DJ: {dj}",
+            f"Tipo: {SAMPLE_TYPES[category]}",
+            f"Exportado em: {datetime.now().isoformat(timespec='seconds')}",
+            "# Cada item começa com ITEM; tipo=file/zip/link; nome=...; link=... (quando for link)",
+            ""
+        ]
+        for item in self.items(dj, category):
+            lines.append(
+                "ITEM;id={};tipo={};nome={};link={}".format(
+                    item.get("id", ""),
+                    item.get("kind", ""),
+                    str(item.get("name", "")).replace("\n", " "),
+                    str(item.get("url", "")).replace("\n", " ")
+                )
+            )
+        return ("\n".join(lines) + "\n").encode("utf-8")
+
+    def export_zip(self, dj, category):
+        buffer = io.BytesIO()
+        manifest = {"dj": dj, "category": category, "type_label": SAMPLE_TYPES[category], "items": []}
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            for item in self.items(dj, category):
+                record = {k: v for k, v in item.items() if k != "path"}
+                if item.get("kind") in ("file", "zip"):
+                    path = self._item_path(item)
+                    record["archive_path"] = f"files/{item.get('id')}_{_safe_name(item.get('name', path.name))}"
+                    archive.write(path, record["archive_path"])
+                manifest["items"].append(record)
+            archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        return buffer.getvalue()
+
+    async def admin_export(self, interaction, dj, category, kind):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            data = self.export_txt(dj, category) if kind == "txt" else self.export_zip(dj, category)
+            if len(data) > MAX_ITEM_BYTES:
+                await interaction.followup.send(
+                    "A exportação ultrapassa o limite de anexo do Discord. Divida o estoque em lotes menores.",
+                    ephemeral=True
+                )
+                return
+            filename = f"estoque_{_slug(dj)}_{category}.{kind}"
+            await interaction.followup.send(
+                f"Exportação do estoque de **{dj}** — **{SAMPLE_TYPES[category]}**.",
+                file=discord.File(io.BytesIO(data), filename=filename),
+                ephemeral=True
+            )
+        except Exception:
+            log.exception("Falha ao exportar estoque")
+            await interaction.followup.send("Não consegui exportar esse estoque.", ephemeral=True)
+
+    async def import_replace(self, interaction, dj, category, attachment):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            if attachment.size > MAX_ITEM_BYTES:
+                raise ValueError("O arquivo ultrapassa o limite de 24 MB.")
+            data = await attachment.read(use_cached=True)
+            incoming = []
+            if Path(attachment.filename).suffix.lower() == ".zip":
+                with zipfile.ZipFile(io.BytesIO(data), "r") as archive:
+                    manifest_info = next((x for x in archive.infolist() if x.filename == "manifest.json"), None)
+                    if manifest_info is None:
+                        raise ValueError("O ZIP precisa ser uma exportação do estoque feita pelo CC BOT.")
+                    manifest = json.loads(archive.read(manifest_info).decode("utf-8"))
+                    for item in manifest.get("items", []):
+                        kind = item.get("kind")
+                        if kind == "link":
+                            incoming.append({"id": uuid.uuid4().hex, "kind": "link", "name": _safe_name(item.get("name", "Link")), "url": item.get("url", "")})
+                        elif kind in ("file", "zip"):
+                            archive_path = item.get("archive_path", "")
+                            info = next((x for x in archive.infolist() if x.filename == archive_path and not x.is_dir()), None)
+                            if info is None:
+                                continue
+                            content = archive.read(info)
+                            if len(content) > MAX_ITEM_BYTES:
+                                continue
+                            item_id = uuid.uuid4().hex
+                            name = _safe_name(item.get("name", "arquivo"))
+                            dest_name = f"{_slug(dj)}/{category}/{item_id}_{name}"
+                            dest = (self.files_dir / dest_name).resolve()
+                            if self.files_dir.resolve() not in dest.parents:
+                                continue
+                            dest.parent.mkdir(parents=True, exist_ok=True)
+                            dest.write_bytes(content)
+                            incoming.append({"id": item_id, "kind": kind, "name": name, "path": dest_name})
+            elif Path(attachment.filename).suffix.lower() == ".txt":
+                for line in data.decode("utf-8-sig").splitlines():
+                    if not line.startswith("ITEM;"):
+                        continue
+                    fields = {}
+                    for part in line[5:].split(";"):
+                        if "=" in part:
+                            k, v = part.split("=", 1)
+                            fields[k] = v
+                    if fields.get("tipo") == "link" and fields.get("link", "").startswith("https://"):
+                        incoming.append({"id": uuid.uuid4().hex, "kind": "link", "name": _safe_name(fields.get("nome", "Link")), "url": fields["link"]})
+            else:
+                raise ValueError("Envie um .txt ou .zip exportado pelo painel.")
+            old = self.items(dj, category)
+            self.stock[self._key(dj, category)] = incoming
+            self.save_stock()
+            await interaction.followup.send(
+                f"Estoque substituído. Itens anteriores: **{len(old)}**; itens importados: **{len(incoming)}**. O histórico individual foi preservado para evitar repetição.",
+                ephemeral=True
+            )
+        except (ValueError, zipfile.BadZipFile, json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+            await interaction.followup.send(f"Não consegui importar: {str(exc)[:300]}", ephemeral=True)
+        except Exception:
+            log.exception("Falha ao importar estoque")
+            await interaction.followup.send("Falha inesperada ao importar o estoque.", ephemeral=True)
+
+
+SYSTEM = None
+
+
+def configure_samples(bot, config_dir, djs_file, admin_id):
+    global SYSTEM
+    SYSTEM = SamplesSystem(bot, config_dir, djs_file, admin_id)
+    return SYSTEM
+
+
+class SamplesTypeSelect(discord.ui.Select):
+    def __init__(self, parent, admin=False):
+        self.parent_view = parent
+        options = [discord.SelectOption(label=label, value=key) for key, label in SAMPLE_TYPES.items()]
+        selected = getattr(parent, "category", None)
+        for option in options:
+            option.default = option.value == selected
+        super().__init__(
+            placeholder="Escolha um tipo de estoque...",
+            min_values=1, max_values=1, options=options,
+            custom_id="ccbot:samples:type"
+        )
+
+    async def callback(self, interaction):
+        self.parent_view.category = self.values[0]
+        await self.parent_view.refresh(interaction)
+
+
+class SamplesDJSelect(discord.ui.Select):
+    def __init__(self, parent):
+        self.parent_view = parent
+        djs = SYSTEM.djs()[:25]
+        options = [discord.SelectOption(label=dj[:100], value=dj, default=dj == getattr(parent, "dj", None)) for dj in djs]
+        super().__init__(
+            placeholder="Escolha um DJ...",
+            min_values=1, max_values=1, options=options,
+            custom_id="ccbot:samples:dj"
+        )
+
+    async def callback(self, interaction):
+        self.parent_view.dj = self.values[0]
+        await self.parent_view.refresh(interaction)
+
+
+class SamplesQuantityModal(discord.ui.Modal, title="Quantidade de samples"):
+    quantity = discord.ui.TextInput(label="Quantidade", placeholder="Ex.: 20", min_length=1, max_length=3, default="20")
+
+    def __init__(self, dj, category):
+        super().__init__()
+        self.dj = dj
+        self.category = category
+
+    async def on_submit(self, interaction):
+        if not self.dj or not self.category:
+            await interaction.response.send_message("Escolha um DJ e um tipo de estoque primeiro.", ephemeral=True)
+            return
+        try:
+            quantity = int(str(self.quantity).strip())
+            if not 1 <= quantity <= 100:
+                raise ValueError
+        except ValueError:
+            await interaction.response.send_message("A quantidade precisa ser de 1 a 100.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await SYSTEM.deliver(interaction, self.dj, self.category, quantity)
+
+
+class SamplesChooseQuantityButton(discord.ui.Button):
+    def __init__(self, parent):
+        self.parent_view = parent
+        super().__init__(label="Escolher quantidade", emoji="📦", style=discord.ButtonStyle.success, custom_id="ccbot:samples:quantity")
+
+    async def callback(self, interaction):
+        await interaction.response.send_modal(SamplesQuantityModal(self.parent_view.dj, self.parent_view.category))
+
+
+class SamplesPurchaseView(discord.ui.LayoutView):
+    def __init__(self, dj=None, category=None):
+        super().__init__(timeout=300)
+        self.dj = dj
+        self.category = category
+        self.refresh_items()
+
+    def refresh_items(self):
+        djs = SYSTEM.djs()
+        content = (
+            "## 🎧 ESCOLHA SUAS SAMPLES\n"
+            "Selecione um DJ, escolha **um tipo por pedido** e informe a quantidade. "
+            "O histórico é individual e o estoque original permanece guardado.\n\n"
+            f"**DJs cadastrados:** {len(djs)}"
+        )
+        if self.dj:
+            content += f"\n**DJ:** {discord.utils.escape_markdown(self.dj)}"
+        if self.category:
+            content += f"\n**Tipo:** {SAMPLE_TYPES[self.category]} · {SYSTEM.stock_summary(self.dj, self.category)}"
+        rows = []
+        if djs:
+            rows.append(discord.ui.ActionRow(SamplesDJSelect(self)))
+            rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
+            rows.append(discord.ui.ActionRow(SamplesChooseQuantityButton(self)))
+        else:
+            content += "\n\nNenhum DJ cadastrado ainda."
+        self.clear_items()
+        self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=content), *rows))
+
+    async def refresh(self, interaction):
+        self.refresh_items()
+        await interaction.response.edit_message(view=self)
+
+
+class SamplesPurchaseButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Escolher samples", emoji="🎧", style=discord.ButtonStyle.success, custom_id="ccbot:samples:purchase")
+
+    async def callback(self, interaction):
+        if not SYSTEM.djs():
+            await interaction.response.send_message("Ainda não há DJs cadastrados.", ephemeral=True)
+            return
+        await interaction.response.send_message(view=SamplesPurchaseView(), ephemeral=True)
+
+
+class SamplesPanelView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content=(
+                "## 🎧 GERADOR DE SAMPLES\n"
+                "**Escolha seu DJ e monte seu lote de samples.**\n\n"
+                "Selecione um tipo por pedido: samples contínuas, samples de outros packs ou samples feitas por IA. "
+                "Escolha a quantidade e receba os itens disponíveis por mensagem privada.\n\n"
+                "-# O estoque é permanente. O bot registra o que cada pessoa já recebeu para evitar repetições."
+            )),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(SamplesPurchaseButton())
+        ))
+
+
+class SamplesAddModal(discord.ui.Modal, title="Adicionar ao estoque"):
+    links = discord.ui.TextInput(
+        label="Links (opcional)",
+        placeholder="Cole um link por linha",
+        style=discord.TextStyle.paragraph,
+        required=False,
+        max_length=4000
+    )
+
+    arquivos = discord.ui.Label(
+        text="Arquivos soltos ou ZIPs (opcional)",
+        description="Até 10 arquivos por envio. Todos os formatos são aceitos.",
+        component=discord.ui.FileUpload(custom_id="ccbot_samples_upload", min_values=0, max_values=MAX_UPLOAD_FILES, required=False)
+    )
+
+    def __init__(self, dj, category):
+        super().__init__()
+        self.dj = dj
+        self.category = category
+
+    async def on_submit(self, interaction):
+        if not SYSTEM.is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        added = 0
+        try:
+            for attachment in list(self.arquivos.component.values or []):
+                if attachment.size > MAX_ITEM_BYTES:
+                    raise ValueError(f"{attachment.filename} ultrapassa 24 MB. Para arquivos grandes, adicione um link.")
+                data = await attachment.read(use_cached=True)
+                item_id = uuid.uuid4().hex
+                name = _safe_name(attachment.filename)
+                rel = f"{_slug(self.dj)}/{self.category}/{item_id}_{name}"
+                dest = (SYSTEM.files_dir / rel).resolve()
+                if SYSTEM.files_dir.resolve() not in dest.parents:
+                    raise ValueError("Nome de arquivo inválido.")
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(data)
+                kind = "zip" if Path(name).suffix.lower() == ".zip" else "file"
+                SYSTEM.add_item(self.dj, self.category, {"id": item_id, "kind": kind, "name": name, "path": rel})
+                added += 1
+            for url in str(self.links.value or "").splitlines():
+                url = url.strip()
+                if not url:
+                    continue
+                if not url.startswith(("https://", "http://")):
+                    raise ValueError("Cada link precisa começar com http:// ou https://.")
+                SYSTEM.add_item(self.dj, self.category, {"id": uuid.uuid4().hex, "kind": "link", "name": url[:100], "url": url})
+                added += 1
+            await interaction.followup.send(f"Adicionados **{added}** item(ns) ao estoque de **{self.dj} / {SAMPLE_TYPES[self.category]}**.", ephemeral=True)
+        except (OSError, ValueError, discord.HTTPException) as exc:
+            await interaction.followup.send(f"Não consegui concluir o envio: {str(exc)[:300]}", ephemeral=True)
+        except Exception:
+            log.exception("Falha ao adicionar itens ao estoque")
+            await interaction.followup.send("Erro inesperado ao adicionar itens.", ephemeral=True)
+
+
+class SamplesEditItemSelect(discord.ui.Select):
+    def __init__(self, parent):
+        self.parent_view = parent
+        items = SYSTEM.items(parent.dj, parent.category)[:25]
+        options = [discord.SelectOption(label=f"{i+1}. {item.get('name', 'Item')}"[:100], value=item["id"]) for i, item in enumerate(items)]
+        super().__init__(placeholder="Selecione um item para apagar", min_values=1, max_values=1, options=options, custom_id="ccbot:samples:delete_item")
+
+    async def callback(self, interaction):
+        if not SYSTEM.is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
+            return
+        item_id = self.values[0]
+        key = SYSTEM._key(self.parent_view.dj, self.parent_view.category)
+        items = SYSTEM.items(self.parent_view.dj, self.parent_view.category)
+        item = next((x for x in items if x.get("id") == item_id), None)
+        if item is None:
+            await interaction.response.send_message("Esse item não está mais no estoque.", ephemeral=True)
+            return
+        items.remove(item)
+        SYSTEM.save_stock()
+        await interaction.response.edit_message(content="Item removido do estoque.", view=None)
+
+
+class SamplesClearConfirmView(discord.ui.View):
+    def __init__(self, dj, category):
+        super().__init__(timeout=120)
+        self.dj = dj
+        self.category = category
+
+    @discord.ui.button(label="Confirmar apagar tudo", style=discord.ButtonStyle.danger, custom_id="ccbot:samples:clear_confirm")
+    async def confirm(self, interaction, button):
+        if not SYSTEM.is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
+            return
+        key = SYSTEM._key(self.dj, self.category)
+        count = len(SYSTEM.stock.get(key, []))
+        SYSTEM.stock[key] = []
+        SYSTEM.save_stock()
+        await interaction.response.edit_message(content=f"Estoque apagado: {count} item(ns). O histórico individual foi preservado.", view=None)
+
+    @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary, custom_id="ccbot:samples:clear_cancel")
+    async def cancel(self, interaction, button):
+        await interaction.response.edit_message(content="Operação cancelada.", view=None)
+
+
+class SamplesAdminView(discord.ui.LayoutView):
+    def __init__(self, dj=None, category="continuas"):
+        super().__init__(timeout=300)
+        self.dj = dj or (SYSTEM.djs()[0] if SYSTEM.djs() else None)
+        self.category = category
+        self.refresh_items()
+
+    def refresh_items(self):
+        djs = SYSTEM.djs()
+        items = SYSTEM.items(self.dj, self.category) if self.dj else []
+        text = (
+            "## 🗃️ ADMINISTRAÇÃO DO ESTOQUE DE SAMPLES\n"
+            "Escolha o DJ e um tipo. Todas as operações abaixo afetam somente esse estoque.\n\n"
+            f"**DJ:** {discord.utils.escape_markdown(self.dj or 'Nenhum cadastrado')}\n"
+            f"**Tipo:** {SAMPLE_TYPES[self.category]}\n"
+            f"**Itens:** {len(items)}\n\n"
+            "Adicionar aceita arquivos soltos, ZIPs e links. Exportar gera um .txt (lista/links) ou .zip (arquivos + manifesto)."
+        )
+        self.clear_items()
+        rows = []
+        if djs:
+            rows.append(discord.ui.ActionRow(SamplesDJSelect(self)))
+        rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
+        buttons = [
+            discord.ui.Button(label="Adicionar", emoji="➕", style=discord.ButtonStyle.success, custom_id="ccbot:samples:admin_add"),
+            discord.ui.Button(label="Apagar item", emoji="🗑️", style=discord.ButtonStyle.secondary, custom_id="ccbot:samples:admin_delete"),
+            discord.ui.Button(label="Apagar estoque", emoji="⚠️", style=discord.ButtonStyle.danger, custom_id="ccbot:samples:admin_clear"),
+            discord.ui.Button(label="Exportar TXT", emoji="📄", style=discord.ButtonStyle.primary, custom_id="ccbot:samples:admin_txt"),
+            discord.ui.Button(label="Exportar ZIP", emoji="📦", style=discord.ButtonStyle.primary, custom_id="ccbot:samples:admin_zip"),
+        ]
+        rows.append(discord.ui.ActionRow(*buttons[:3]))
+        rows.append(discord.ui.ActionRow(*buttons[3:]))
+        self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=text), *rows))
+        # Bind actions explicitly so controls stay usable after rebuilding the view.
+        for button, action in zip(buttons, ("add", "delete", "clear", "txt", "zip")):
+            button.callback = self._action_callback(action)
+
+    def _action_callback(self, action):
+        async def callback(interaction):
+            if not SYSTEM.is_admin(interaction):
+                await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
+                return
+            if not self.dj:
+                await interaction.response.send_message("Cadastre um DJ primeiro.", ephemeral=True)
+                return
+            if action == "add":
+                await interaction.response.send_modal(SamplesAddModal(self.dj, self.category))
+            elif action == "delete":
+                items = SYSTEM.items(self.dj, self.category)
+                if not items:
+                    await interaction.response.send_message("Esse estoque está vazio.", ephemeral=True)
+                else:
+                    await interaction.response.send_message("Escolha o item para remover:", view=SamplesEditItemSelectView(self.dj, self.category), ephemeral=True)
+            elif action == "clear":
+                await interaction.response.send_message(f"Confirma apagar os **{len(SYSTEM.items(self.dj, self.category))}** itens de **{self.dj} / {SAMPLE_TYPES[self.category]}**?", view=SamplesClearConfirmView(self.dj, self.category), ephemeral=True)
+            else:
+                await SYSTEM.admin_export(interaction, self.dj, self.category, action)
+        return callback
+
+    async def refresh(self, interaction):
+        self.refresh_items()
+        await interaction.response.edit_message(view=self)
+
+
+class SamplesEditItemSelectView(discord.ui.View):
+    def __init__(self, dj, category):
+        super().__init__(timeout=300)
+        items = SYSTEM.items(dj, category)[:25]
+        if items:
+            self.add_item(SamplesEditItemSelect(type("Parent", (), {"dj": dj, "category": category})()))
+
+
+class SamplesAdminButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Gerenciar estoque", emoji="🗃️", style=discord.ButtonStyle.primary, custom_id="ccbot:samples:manage")
+
+    async def callback(self, interaction):
+        if not SYSTEM.is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
+            return
+        await interaction.response.send_message(view=SamplesAdminView(), ephemeral=True)
+
+
+def samples_admin_view():
+    return SamplesAdminView()
+
+
+def samples_panel_view():
+    return SamplesPanelView()
