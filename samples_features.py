@@ -656,6 +656,16 @@ class SamplesClearConfirmView(discord.ui.View):
         await interaction.response.edit_message(content="Operação cancelada.", view=None)
 
 
+class SamplesAdminActionButton(discord.ui.Button):
+    def __init__(self, parent, action, label, emoji, style):
+        self.parent_view = parent
+        self.action = action
+        super().__init__(label=label, emoji=emoji, style=style, custom_id=f"ccbot:samples:admin:{action}")
+
+    async def callback(self, interaction):
+        await self.parent_view.handle_action(interaction, self.action)
+
+
 class SamplesAdminView(discord.ui.LayoutView):
     def __init__(self, dj=None, category="continuas"):
         super().__init__(timeout=300)
@@ -680,49 +690,44 @@ class SamplesAdminView(discord.ui.LayoutView):
             rows.append(discord.ui.ActionRow(SamplesDJSelect(self)))
         rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
         buttons = [
-            discord.ui.Button(label="Adicionar", emoji="➕", style=discord.ButtonStyle.success, custom_id="ccbot:samples:admin_add"),
-            discord.ui.Button(label="Editar item", emoji="✏️", style=discord.ButtonStyle.secondary, custom_id="ccbot:samples:admin_edit"),
-            discord.ui.Button(label="Apagar item", emoji="🗑️", style=discord.ButtonStyle.secondary, custom_id="ccbot:samples:admin_delete"),
-            discord.ui.Button(label="Apagar estoque", emoji="⚠️", style=discord.ButtonStyle.danger, custom_id="ccbot:samples:admin_clear"),
-            discord.ui.Button(label="Exportar TXT", emoji="📄", style=discord.ButtonStyle.primary, custom_id="ccbot:samples:admin_txt"),
-            discord.ui.Button(label="Exportar ZIP", emoji="📦", style=discord.ButtonStyle.primary, custom_id="ccbot:samples:admin_zip"),
-            discord.ui.Button(label="Importar/substituir", emoji="🔄", style=discord.ButtonStyle.primary, custom_id="ccbot:samples:admin_import"),
+            SamplesAdminActionButton(self, "add", "Adicionar", "➕", discord.ButtonStyle.success),
+            SamplesAdminActionButton(self, "edit", "Editar item", "✏️", discord.ButtonStyle.secondary),
+            SamplesAdminActionButton(self, "delete", "Apagar item", "🗑️", discord.ButtonStyle.secondary),
+            SamplesAdminActionButton(self, "clear", "Apagar estoque", "⚠️", discord.ButtonStyle.danger),
+            SamplesAdminActionButton(self, "txt", "Exportar TXT", "📄", discord.ButtonStyle.primary),
+            SamplesAdminActionButton(self, "zip", "Exportar ZIP", "📦", discord.ButtonStyle.primary),
+            SamplesAdminActionButton(self, "import", "Importar/substituir", "🔄", discord.ButtonStyle.primary),
         ]
         rows.append(discord.ui.ActionRow(*buttons[:3]))
         rows.append(discord.ui.ActionRow(*buttons[3:6]))
         rows.append(discord.ui.ActionRow(buttons[6]))
         self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=text), *rows))
-        # Bind actions explicitly so controls stay usable after rebuilding the view.
-        for button, action in zip(buttons, ("add", "edit", "delete", "clear", "txt", "zip", "import")):
-            button.callback = self._action_callback(action)
 
-    def _action_callback(self, action):
-        async def callback(interaction):
-            if not SYSTEM.is_admin(interaction):
-                await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
-                return
-            if not self.dj:
-                await interaction.response.send_message("Cadastre um DJ primeiro.", ephemeral=True)
-                return
-            if action == "add":
-                await interaction.response.send_modal(SamplesAddModal(self.dj, self.category))
-            elif action in ("delete", "edit"):
-                items = SYSTEM.items(self.dj, self.category)
-                if not items:
-                    await interaction.response.send_message("Esse estoque está vazio.", ephemeral=True)
-                else:
-                    await interaction.response.send_message(
-                        "Escolha o item que deseja " + ("editar:" if action == "edit" else "remover:"),
-                        view=SamplesEditItemSelectView(self.dj, self.category, action),
-                        ephemeral=True
-                    )
-            elif action == "clear":
-                await interaction.response.send_message(f"Confirma apagar os **{len(SYSTEM.items(self.dj, self.category))}** itens de **{self.dj} / {SAMPLE_TYPES[self.category]}**?", view=SamplesClearConfirmView(self.dj, self.category), ephemeral=True)
-            elif action == "import":
-                await interaction.response.send_modal(SamplesImportModal(self.dj, self.category))
+    async def handle_action(self, interaction, action):
+        if not SYSTEM.is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
+            return
+        if not self.dj:
+            await interaction.response.send_message("Cadastre um DJ primeiro.", ephemeral=True)
+            return
+        if action == "add":
+            await interaction.response.send_modal(SamplesAddModal(self.dj, self.category))
+        elif action in ("delete", "edit"):
+            items = SYSTEM.items(self.dj, self.category)
+            if not items:
+                await interaction.response.send_message("Esse estoque está vazio.", ephemeral=True)
             else:
-                await SYSTEM.admin_export(interaction, self.dj, self.category, action)
-        return callback
+                await interaction.response.send_message(
+                    "Escolha o item que deseja " + ("editar:" if action == "edit" else "remover:"),
+                    view=SamplesEditItemSelectView(self.dj, self.category, action),
+                    ephemeral=True
+                )
+        elif action == "clear":
+            await interaction.response.send_message(f"Confirma apagar os **{len(SYSTEM.items(self.dj, self.category))}** itens de **{self.dj} / {SAMPLE_TYPES[self.category]}**?", view=SamplesClearConfirmView(self.dj, self.category), ephemeral=True)
+        elif action == "import":
+            await interaction.response.send_modal(SamplesImportModal(self.dj, self.category))
+        else:
+            await SYSTEM.admin_export(interaction, self.dj, self.category, action)
 
     async def refresh(self, interaction):
         self.refresh_items()
