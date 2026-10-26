@@ -86,16 +86,28 @@ class SamplesSystem:
             return []
 
     def _migrate_stock_types(self):
-        # Mantém estoques existentes, sem criar os três padrões para todo DJ.
+        # Nenhum stock é criado automaticamente. Remove apenas os rótulos
+        # padrão antigos que possam ter sido gerados por versões anteriores.
         changed = False
-        for key in self.stock:
-            parts = key.rsplit("::", 1)
-            if len(parts) != 2:
+        for dj, types in list(self.stock_types.items()):
+            if not isinstance(types, list):
+                self.stock_types.pop(dj, None)
+                changed = True
                 continue
-            dj, category = parts
-            types = self.stock_types.setdefault(dj, [])
-            if not any(isinstance(x, dict) and x.get("id") == category for x in types):
-                types.append({"id": category, "name": SAMPLE_TYPES.get(category, category.replace("_", " ").replace("-", " ").title())})
+            filtered = [
+                item for item in types
+                if not (
+                    isinstance(item, dict)
+                    and item.get("id") in SAMPLE_TYPES
+                    and item.get("name") == SAMPLE_TYPES.get(item.get("id"))
+                )
+            ]
+            if filtered != types:
+                changed = True
+            if filtered:
+                self.stock_types[dj] = filtered
+            else:
+                self.stock_types.pop(dj, None)
                 changed = True
         if changed:
             self.save_stock_types()
