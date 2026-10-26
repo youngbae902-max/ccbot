@@ -22,3 +22,6 @@ config/pix_pedidos.json
 pix_pedidos.json
 evopay_pending.json
 uploads/emojis/
+config/samples_stock.json
+config/samples_history.json
+config/samples_stock_files/
