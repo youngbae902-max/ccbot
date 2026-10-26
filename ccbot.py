@@ -3863,11 +3863,9 @@ class PainelAdminV2View(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(discord.ui.Container(
-            discord.ui.TextDisplay(content="# 🛠️ Central administrativa\nSelecione uma área para acessar as ferramentas.\n\nUse o botão abaixo para publicar uma nova mensagem de regras em Components V2, sem barra lateral colorida."),
+            discord.ui.TextDisplay(content="# 🛠️ Central administrativa\nSelecione uma área para acessar as ferramentas."),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-            discord.ui.ActionRow(PainelGrupoSelect()),
-            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-            discord.ui.ActionRow(AtualizarRegrasPainelButton())
+            discord.ui.ActionRow(PainelGrupoSelect())
         ))
 
 class PainelConfirmacaoV2(discord.ui.LayoutView):
