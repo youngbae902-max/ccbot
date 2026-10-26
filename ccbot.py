@@ -3415,7 +3415,7 @@ class GarimpadorPublicarButton(discord.ui.Button):
             canal = await guild.create_text_channel("garimpador-de-packs", category=categoria, reason="Criar aba Garimpador de Packs no Mercado")
         mensagem = None
         async for msg in canal.history(limit=30):
-            if msg.author.id == bot.user.id and msg.content and "GARIMPADOR DE PACKS" in msg.content:
+            if msg.author.id == bot.user.id and msg.components and "cc:garimpador_packs:gerar" in str(msg.components):
                 mensagem = msg
                 break
         texto = "## 🎲 GARIMPADOR DE PACKS\nClique no botão para sortear um link."
