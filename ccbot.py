@@ -3617,7 +3617,7 @@ OPCOES_CATEGORIAS_PAINEL = [
 ]
 
 async def atualizar_embed_regras(interaction: discord.Interaction):
-    """Atualiza a mensagem de regras existente no canal #regras usando Components V2."""
+    """Atualiza a mensagem existente de regras, sem barra lateral nem rodapé de embed."""
     message_id = 1563928985241526362
     rules_channel_id = 1561513274737168414
     guild = interaction.guild
@@ -3646,7 +3646,10 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
         )
         return
 
-    regras = (
+    conteudo = (
+        "# 📜 REGRAS DA COMUNIDADE\n"
+        "**Uma comunidade criativa, segura e transparente.**\n"
+        "-# LEIA ANTES DE PARTICIPAR OU COMPRAR\n\n"
         "**01 · Respeito**\n"
         "Racismo, preconceito, assédio, ameaças e discriminação não serão tolerados. "
         "Racismo e preconceito geram **banimento permanente**.\n\n"
@@ -3676,32 +3679,31 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
         "advertência, restrição ou banimento conforme a gravidade.\n\n"
         "**09 · Segurança nas vendas**\n"
         "Mantenha a conversa no canal privado do pedido. Se algo parecer estranho, pare e fale com "
-        "o suporte antes de continuar."
+        "o suporte antes de continuar.\n\n"
+        "> Ao permanecer no servidor, você concorda em seguir estas regras.\n"
+        "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
     )
 
+    # TextDisplay direto no LayoutView: sem Container (barra lateral) e sem rodapé de embed.
     view = discord.ui.LayoutView(timeout=None)
-    view.add_item(discord.ui.Container(
-        discord.ui.TextDisplay(content=(
-            "# 📜 REGRAS DA COMUNIDADE\n"
-            "**Uma comunidade criativa, segura e transparente.**\n"
-            "-# LEIA ANTES DE PARTICIPAR OU COMPRAR"
-        )),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-        discord.ui.TextDisplay(content=regras),
-        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-        discord.ui.TextDisplay(content=(
-            "> Ao permanecer no servidor, você concorda em seguir estas regras.\n"
-            "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
-        )),
-    ))
+    view.add_item(discord.ui.TextDisplay(content=conteudo))
 
     try:
-        await mensagem.edit(content=None, embeds=[], attachments=[], view=view, allowed_mentions=discord.AllowedMentions.none())
+        await mensagem.edit(
+            content=None,
+            embeds=[],
+            attachments=[],
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none()
+        )
         await interaction.followup.send(
             f"✅ Aba de regras atualizada em {canal.mention}. A mensagem existente foi editada; nenhuma duplicata foi criada.",
             ephemeral=True
         )
-        log.info("Regras Components V2 atualizadas: canal=%s mensagem=%s por=%s", canal.id, mensagem.id, interaction.user.id)
+        log.info(
+            "Regras Components V2 atualizadas: canal=%s mensagem=%s por=%s",
+            canal.id, mensagem.id, interaction.user.id
+        )
     except discord.HTTPException as exc:
         log.exception("Falha ao atualizar a mensagem de regras")
         await interaction.followup.send(
