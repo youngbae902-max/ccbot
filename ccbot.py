@@ -3323,24 +3323,39 @@ if not isinstance(garimpador_links, list):
     garimpador_links = []
     save_json(GARIMPADOR_FILE, garimpador_links)
 
-class GarimpadorPacksView(discord.ui.View):
+class GarimpadorGerarButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(timeout=None)
+        super().__init__(
+            label="Gerar Pack",
+            emoji="🎲",
+            style=discord.ButtonStyle.success,
+            custom_id="cc:garimpador_packs:gerar"
+        )
 
-    @discord.ui.button(
-        label="Gerar Pack", style=discord.ButtonStyle.success,
-        emoji="🎲", custom_id="cc:garimpador_packs:gerar"
-    )
-    async def gerar_pack(self, interaction: discord.Interaction, button: discord.ui.Button):
-        links = [u for u in garimpador_links if isinstance(u, str) and u.startswith(("https://", "http://"))]
+    async def callback(self, interaction: discord.Interaction):
+        links = [
+            u for u in garimpador_links
+            if isinstance(u, str) and u.startswith(("https://", "http://"))
+        ]
         if not links:
             await interaction.response.send_message(
                 "Ainda não há links cadastrados.", ephemeral=True
             )
             return
-        # A resposta contém somente o link sorteado.
+        # Mostra somente o link sorteado, sem nome ou imagem.
         await interaction.response.send_message(random.choice(links), ephemeral=True)
 
+
+class GarimpadorPacksView(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(
+                content="# 🎲 Garimpador de Packs\nClique no botão abaixo para sortear um pack aleatório."
+            ),
+            discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+            discord.ui.ActionRow(GarimpadorGerarButton())
+        ))
 
 class GarimpadorLinksModal(discord.ui.Modal, title="Adicionar links de packs"):
     links = discord.ui.TextInput(
@@ -3407,9 +3422,9 @@ class GarimpadorPublicarButton(discord.ui.Button):
         view = GarimpadorPacksView()
         try:
             if mensagem:
-                await mensagem.edit(content=texto, embed=None, view=view)
+                await mensagem.edit(content=None, embeds=[], attachments=[], view=view)
             else:
-                await canal.send(texto, view=view)
+                await canal.send(view=view)
             await interaction.followup.send(f"Painel disponível em {canal.mention}. Links cadastrados: **{len(garimpador_links)}**.", ephemeral=True)
         except discord.HTTPException:
             log.exception("Falha ao publicar o painel Garimpador de Packs")
