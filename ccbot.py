@@ -3504,21 +3504,25 @@ class AbrirPainelAdminButton(discord.ui.Button):
                 "Apenas o administrador pode usar este painel.", ephemeral=True
             )
             return
-        await interaction.response.edit_message(
+        # Mantém a tela V2 intacta e abre as ferramentas sem misturar formatos.
+        await interaction.response.send_message(
             embed=criar_embed_painel(),
-            view=PainelAdminView()
+            view=PainelAdminView(),
+            ephemeral=True
         )
 
 
-class PainelEntradaView(discord.ui.View):
+class PainelEntradaView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(AbrirPainelAdminButton())
-
-
-def texto_entrada_painel():
-    # Mensagem simples: sem embed, barra lateral ou rodapé.
-    return "🟢 **C.C — PAINEL**\nAcesse as ferramentas administrativas do servidor."
+        self.add_item(
+            discord.ui.Container(
+                discord.ui.TextDisplay(
+                    content="# 🟢 C.C — PAINEL\nAcesse as ferramentas administrativas do servidor."
+                ),
+                discord.ui.ActionRow(AbrirPainelAdminButton())
+            )
+        )
 
 
 @bot.tree.command(name="painel", description="Abrir o painel administrativo do CC BOT")
@@ -3536,7 +3540,6 @@ async def painel(interaction: discord.Interaction):
 
     try:
         await interaction.response.send_message(
-            content=texto_entrada_painel(),
             view=PainelEntradaView(),
             ephemeral=True
         )
