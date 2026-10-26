@@ -4279,9 +4279,13 @@ async def painel_acapellas(interaction: discord.Interaction):
             await canal.send(embed=embed, view=AcapellasActivityView())
             resultado = f"Painel Acapelas publicado em {canal.mention}."
         await interaction.response.send_message(resultado, ephemeral=True)
-    except Exception:
+    except Exception as exc:
         log.exception("Falha ao publicar painel Acapelas")
-        msg = "Não consegui publicar o painel. Confira as permissões do bot no canal."
+        msg = (
+            f"❌ Falha ao publicar Acapelas ({type(exc).__name__}: {str(exc)[:180]}).\n"
+            "Confira no canal: Ver canal, Enviar mensagens, Incorporar links e "
+            "Ler histórico de mensagens. O bot também precisa estar no servidor."
+        )
         if interaction.response.is_done():
             await interaction.followup.send(msg, ephemeral=True)
         else:
