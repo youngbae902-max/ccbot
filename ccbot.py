@@ -3734,7 +3734,7 @@ class PainelGrupoSelect(discord.ui.Select):
             return
         grupo = self.values[0]
         info = PAINEL_GRUPOS[grupo]
-        # O seletor está numa mensagem Components V2; abre a área numa resposta própria.
+        # Atualiza a mesma mensagem para evitar empilhar respostas efêmeras.
         await interaction.response.edit_message(
             content=None,
             embed=criar_embed_estetico(
