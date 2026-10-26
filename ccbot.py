@@ -1330,9 +1330,7 @@ class Cargos(app_commands.Group):
         except discord.HTTPException:
             log.exception("Falha ao atribuir %s a %s", nome, membro.id)
             await interaction.response.send_message("O Discord não aceitou a alteração. Tente novamente.", ephemeral=True)
-
-bot.tree.add_command(Cargos())
-
+# Grupo mantido no código, mas não registrado como comando slash.
 # Checkout Pix direto: QR Code por compra e registro local de cada pedido.
 PIX_ORDERS_FILE = CONFIG / "pix_pedidos.json"
 pix_orders = load_json(PIX_ORDERS_FILE, {})
@@ -1983,10 +1981,7 @@ class Pix(app_commands.Group):
             f"Pedido {identificador.upper()} marcado como pago. Confira o recebimento no Nubank antes de confirmar.",
             ephemeral=True
         )
-
-bot.tree.add_command(Pix())
-
-@bot.tree.command(name="status", description="Verificar se o CC BOT está funcionando")
+# Grupo mantido no código, mas não registrado como comando slash.
 async def status(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
@@ -3548,7 +3543,6 @@ async def painel(interaction: discord.Interaction):
                 ephemeral=True
             )
 
-@bot.tree.command(name="hierarquia", description="Abrir o painel para atualizar a hierarquia do servidor")
 async def hierarquia(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message("Apenas o administrador pode usar este comando.", ephemeral=True)
@@ -6200,7 +6194,6 @@ async def anexar_comprovantes_ao_pedido(pedido, canal_admin, arquivos, nomes_arq
     return mensagem_admin
 
 
-@bot.tree.command(name="comprovante", description="Enviar o arquivo do comprovante Pix sem publicar no chat")
 @app_commands.describe(arquivo="Imagem ou PDF do comprovante (até 10 MB)")
 async def enviar_comprovante_pix(interaction: discord.Interaction, arquivo: discord.Attachment):
     if interaction.guild is None:
@@ -6676,7 +6669,6 @@ async def criar_regras(interaction: discord.Interaction, canal: discord.TextChan
             )
 
 
-@bot.tree.command(name="atualizar-painel", description="Atualizar um painel existente em qualquer canal")
 @app_commands.describe(
     canal="Canal onde a mensagem já está publicada",
     mensagem_id="ID da mensagem do painel que será atualizada",
@@ -6926,7 +6918,6 @@ async def atualizar_paineis(interaction: discord.Interaction):
     )
 
 
-@bot.tree.command(name="parcerias", description="Criar ou atualizar a aba de Parcerias automaticamente")
 async def comando_parcerias(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
@@ -7006,7 +6997,6 @@ async def comando_parcerias(interaction: discord.Interaction):
         )
 
 
-@bot.tree.command(name="diagnostico", description="Analisar os canais do servidor e enviar um relatório")
 async def diagnostico(interaction: discord.Interaction):
     if not is_admin(interaction):
         await interaction.response.send_message(
