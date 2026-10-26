@@ -750,10 +750,11 @@ class SamplesAdminView(discord.ui.LayoutView):
             SamplesAdminActionButton(self, "txt", "Exportar TXT", "📄", discord.ButtonStyle.primary),
             SamplesAdminActionButton(self, "zip", "Exportar ZIP", "📦", discord.ButtonStyle.primary),
             SamplesAdminActionButton(self, "import", "Importar/substituir", "🔄", discord.ButtonStyle.primary),
+            SamplesAdminActionButton(self, "history", "Histórico", "📜", discord.ButtonStyle.secondary),
         ]
         rows.append(discord.ui.ActionRow(*buttons[:3]))
         rows.append(discord.ui.ActionRow(*buttons[3:6]))
-        rows.append(discord.ui.ActionRow(buttons[6]))
+        rows.append(discord.ui.ActionRow(buttons[6], buttons[7]))
         if self.publish_callback:
             rows.append(discord.ui.ActionRow(SamplesPublishButton(self)))
         self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=text), *rows))
@@ -781,6 +782,25 @@ class SamplesAdminView(discord.ui.LayoutView):
             await interaction.response.send_message(f"Confirma apagar os **{len(SYSTEM.items(self.dj, self.category))}** itens de **{self.dj} / {SAMPLE_TYPES[self.category]}**?", view=SamplesClearConfirmView(self.dj, self.category), ephemeral=True)
         elif action == "import":
             await interaction.response.send_modal(SamplesImportModal(self.dj, self.category))
+        elif action == "history":
+            records = []
+            prefix = "::" + self.dj + "::" + self.category
+            for key, sent in SYSTEM.history.items():
+                if key.endswith(prefix):
+                    user_id = key.split("::", 1)[0]
+                    records.append((user_id, len(sent) if isinstance(sent, list) else 0))
+            records.sort(key=lambda item: item[1], reverse=True)
+            if not records:
+                await interaction.response.send_message("Ainda não há entregas registradas para este DJ e tipo de estoque.", ephemeral=True)
+                return
+            lines = [f"• <@{user_id}> (ID {user_id}): **{count}** item(ns)" for user_id, count in records[:40]]
+            content = (
+                f"## 📜 HISTÓRICO INDIVIDUAL\n**{discord.utils.escape_markdown(self.dj)}** · "
+                f"**{SAMPLE_TYPES[self.category]}**\n\n" + "\n".join(lines)
+            )
+            if len(records) > 40:
+                content += f"\n\nMostrando 40 de {len(records)} usuários."
+            await interaction.response.send_message(content, ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
         else:
             await SYSTEM.admin_export(interaction, self.dj, self.category, action)
 
