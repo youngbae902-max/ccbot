@@ -374,14 +374,29 @@ class SamplesTypeSelect(discord.ui.Select):
         selected = getattr(parent, "category", None)
         for option in options:
             option.default = option.value == selected
+        descriptions = {
+            "continuas": "Samples contínuas no estilo do DJ escolhido.",
+            "ia": "Samples feitas por IA, inspiradas no DJ escolhido.",
+            "packs": "Samples aleatórias de outros packs, mantendo a temática do DJ."
+        }
+        options = [
+            discord.SelectOption(
+                label=label,
+                value=key,
+                description=descriptions.get(key),
+                default=key == selected
+            )
+            for key, label in SAMPLE_TYPES.items()
+        ]
         super().__init__(
-            placeholder="Escolha um tipo de estoque...",
+            placeholder="Qual estilo de sample você quer?",
             min_values=1, max_values=1, options=options,
             custom_id="ccbot:samples:type"
         )
 
     async def callback(self, interaction):
         self.parent_view.category = self.values[0]
+        self.parent_view.step = "quantity"
         await self.parent_view.refresh(interaction)
 
 
@@ -391,13 +406,15 @@ class SamplesDJSelect(discord.ui.Select):
         djs = SYSTEM.djs()[:25]
         options = [discord.SelectOption(label=dj[:100], value=dj, default=dj == getattr(parent, "dj", None)) for dj in djs]
         super().__init__(
-            placeholder="Escolha um DJ...",
+            placeholder="Qual DJ você quer como inspiração?",
             min_values=1, max_values=1, options=options,
             custom_id="ccbot:samples:dj"
         )
 
     async def callback(self, interaction):
         self.parent_view.dj = self.values[0]
+        self.parent_view.category = None
+        self.parent_view.step = "type"
         await self.parent_view.refresh(interaction)
 
 
@@ -438,27 +455,39 @@ class SamplesPurchaseView(discord.ui.LayoutView):
         super().__init__(timeout=300)
         self.dj = dj
         self.category = category
+        self.step = "dj" if not dj else ("type" if not category else "quantity")
         self.refresh_items()
 
     def refresh_items(self):
         djs = SYSTEM.djs()
-        content = (
-            "## 🎧 ESCOLHA SUAS SAMPLES\n"
-            "Selecione um DJ, escolha **um tipo por pedido** e informe a quantidade. "
-            "O histórico é individual e o estoque original permanece guardado.\n\n"
-            f"**DJs cadastrados:** {len(djs)}"
-        )
-        if self.dj:
-            content += f"\n**DJ:** {discord.utils.escape_markdown(self.dj)}"
-        if self.category:
-            content += f"\n**Tipo:** {SAMPLE_TYPES[self.category]} · {SYSTEM.stock_summary(self.dj, self.category)}"
         rows = []
-        if djs:
-            rows.append(discord.ui.ActionRow(SamplesDJSelect(self)))
+        if self.step == "dj":
+            content = (
+                "## 🎧 ESTILO DE SAMPLE\n"
+                "**Qual DJ você quer que inspire suas samples?**\n\n"
+                "Escolha um DJ na lista abaixo para continuar."
+            )
+            if djs:
+                rows.append(discord.ui.ActionRow(SamplesDJSelect(self)))
+            else:
+                content += "\n\nNenhum DJ cadastrado ainda."
+        elif self.step == "type":
+            content = (
+                "## 🎧 ESTILO DE SAMPLE\n"
+                f"**DJ escolhido:** {discord.utils.escape_markdown(self.dj)}\n\n"
+                "**Qual estilo de sample você quer?**\n"
+                "Escolha uma opção. As opções de IA e de outros packs continuam inspiradas na temática desse DJ."
+            )
             rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
-            rows.append(discord.ui.ActionRow(SamplesChooseQuantityButton(self)))
         else:
-            content += "\n\nNenhum DJ cadastrado ainda."
+            content = (
+                "## 📦 QUANTAS SAMPLES VOCÊ QUER?\n"
+                f"**DJ:** {discord.utils.escape_markdown(self.dj)}\n"
+                f"**Estilo:** {SAMPLE_TYPES[self.category]}\n"
+                f"_{SYSTEM.stock_summary(self.dj, self.category)}_\n\n"
+                "Informe a quantidade para receber as samples por mensagem privada."
+            )
+            rows.append(discord.ui.ActionRow(SamplesChooseQuantityButton(self)))
         self.clear_items()
         self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=content), *rows))
 
@@ -484,9 +513,9 @@ class SamplesPanelView(discord.ui.LayoutView):
         self.add_item(discord.ui.Container(
             discord.ui.TextDisplay(content=(
                 "## 🎧 GERADOR DE SAMPLES\n"
-                "**Escolha seu DJ e monte seu lote de samples.**\n\n"
-                "Selecione um tipo por pedido: samples contínuas, samples de outros packs ou samples feitas por IA. "
-                "Escolha a quantidade e receba os itens disponíveis por mensagem privada.\n\n"
+                "**Escolha uma opção por vez e monte seu lote de samples.**\n\n"
+                "Primeiro escolha o DJ que vai inspirar as samples. Depois selecione o estilo e a quantidade. "
+                "Você recebe os itens disponíveis por mensagem privada.\n\n"
                 "-# O estoque é permanente. O bot registra o que cada pessoa já recebeu para evitar repetições."
             )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
