@@ -7091,6 +7091,148 @@ async def diagnostico(interaction: discord.Interaction):
         file=arquivo
     )
 
+
+@bot.tree.command(name="exportar-servidor", description="Exportar IDs, canais e histórico acessível para diagnóstico")
+async def exportar_servidor(interaction: discord.Interaction):
+    """Gera um arquivo privado com a estrutura do servidor e todas as mensagens acessíveis."""
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Apenas o administrador pode exportar os dados do servidor.", ephemeral=True
+        )
+        return
+    guild = interaction.guild
+    if guild is None or guild.id != 1561513043886743562:
+        await interaction.response.send_message(
+            "Use este comando dentro do servidor oficial do CC BOT.", ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    exportado_em = datetime.now().astimezone().isoformat()
+    dados_canais = []
+    alvos_mensagens = {}
+    for canal in sorted(guild.channels, key=lambda x: (getattr(x, "position", 0), x.id)):
+        item = {
+            "id": canal.id,
+            "nome": canal.name,
+            "tipo": str(canal.type),
+            "categoria_id": getattr(canal, "category_id", None),
+            "categoria": getattr(getattr(canal, "category", None), "name", None),
+            "posicao": getattr(canal, "position", None),
+            "topico": getattr(canal, "topic", None),
+            "nsfw": getattr(canal, "nsfw", None),
+            "permissoes": []
+        }
+        try:
+            for alvo, overwrite in canal.overwrites.items():
+                item["permissoes"].append({
+                    "alvo_id": getattr(alvo, "id", None),
+                    "alvo_nome": str(alvo),
+                    "alvo_tipo": type(alvo).__name__,
+                    "allow": [p for p, v in overwrite if v is True],
+                    "deny": [p for p, v in overwrite if v is False]
+                })
+        except Exception:
+            pass
+        dados_canais.append(item)
+        if isinstance(canal, (discord.TextChannel, discord.ForumChannel, discord.VoiceChannel, discord.StageChannel)):
+            if isinstance(canal, (discord.TextChannel, discord.ForumChannel)):
+                alvos_mensagens[canal.id] = canal
+
+    # Inclui threads ativas; threads arquivadas são adicionadas quando o Discord permite consultá-las.
+    for thread in list(getattr(guild, "threads", [])):
+        alvos_mensagens[thread.id] = thread
+        dados_canais.append({
+            "id": thread.id, "nome": thread.name, "tipo": "thread",
+            "categoria_id": getattr(getattr(thread.parent, "category", None), "id", None),
+            "categoria": getattr(getattr(thread.parent, "category", None), "name", None),
+            "canal_pai_id": getattr(thread, "parent_id", None),
+            "arquivada": getattr(thread, "archived", None)
+        })
+    for parent in list(guild.text_channels) + list(guild.forum_channels):
+        for tipo in ("public", "private"):
+            try:
+                archived = parent.archived_threads(limit=None, private=(tipo == "private")) if isinstance(parent, discord.TextChannel) else (
+                    parent.archived_threads(limit=None) if tipo == "public" else None
+                )
+                if archived is not None:
+                    async for thread in archived:
+                        alvos_mensagens[thread.id] = thread
+                        dados_canais.append({
+                            "id": thread.id, "nome": thread.name, "tipo": "thread",
+                            "canal_pai_id": getattr(thread, "parent_id", None),
+                            "arquivada": getattr(thread, "archived", None)
+                        })
+            except (discord.Forbidden, discord.HTTPException, AttributeError, TypeError):
+                continue
+
+    roles = [{
+        "id": role.id, "nome": role.name, "posicao": role.position,
+        "cor": role.colour.value, "hoist": role.hoist, "mentionable": role.mentionable,
+        "permissoes": [p for p, v in role.permissions if v]
+    } for role in guild.roles]
+    membros_resumo = [{
+        "id": member.id, "nome": str(member), "apelido": member.nick,
+        "cargos_ids": [role.id for role in member.roles]
+    } for member in guild.members]
+
+    erros = []
+    total_mensagens = 0
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as pacote:
+        pacote.writestr("servidor.json", json.dumps({
+            "servidor": {"id": guild.id, "nome": guild.name, "criado_em": guild.created_at.isoformat(),
+                         "exportado_em": exportado_em},
+            "cargos": roles,
+            "membros_em_cache": membros_resumo,
+            "canais": dados_canais
+        }, ensure_ascii=False, indent=2))
+        for canal_id, canal in alvos_mensagens.items():
+            registros = []
+            try:
+                async for msg in canal.history(limit=None, oldest_first=True):
+                    registros.append({
+                        "id": msg.id,
+                        "canal_id": canal_id,
+                        "canal_nome": getattr(canal, "name", ""),
+                        "autor_id": getattr(msg.author, "id", None),
+                        "autor": str(msg.author),
+                        "autor_bot": getattr(msg.author, "bot", False),
+                        "criada_em": msg.created_at.isoformat(),
+                        "editada_em": msg.edited_at.isoformat() if msg.edited_at else None,
+                        "conteudo": msg.content,
+                        "anexos": [{"id": a.id, "nome": a.filename, "url": a.url, "tamanho": a.size} for a in msg.attachments],
+                        "embeds": [e.to_dict() for e in msg.embeds],
+                        "componentes": [component.to_dict() for component in msg.components],
+                        "referencia_id": getattr(msg.reference, "message_id", None),
+                        "fixada": msg.pinned
+                    })
+                total_mensagens += len(registros)
+                pacote.writestr(f"mensagens/{canal_id}.json", json.dumps(registros, ensure_ascii=False, indent=2))
+            except (discord.Forbidden, discord.HTTPException) as exc:
+                erros.append({"canal_id": canal_id, "canal": getattr(canal, "name", ""),
+                              "erro": type(exc).__name__, "detalhe": str(exc)[:300]})
+        pacote.writestr("erros_acesso.json", json.dumps(erros, ensure_ascii=False, indent=2))
+
+    buffer.seek(0)
+    tamanho_mb = len(buffer.getvalue()) / (1024 * 1024)
+    if tamanho_mb > 24:
+        await interaction.followup.send(
+            f"Exportação interrompida no envio: o arquivo compactado ficou com {tamanho_mb:.1f} MB, acima do limite seguro de anexo. "
+            f"Foram lidas {total_mensagens} mensagens. Precisa dividir a exportação em partes; nenhum canal ou mensagem foi alterado.",
+            ephemeral=True
+        )
+        return
+
+    arquivo = discord.File(buffer, filename=f"ccbot_servidor_{guild.id}.zip")
+    await interaction.followup.send(
+        f"Exportação concluída. Canais/threads no inventário: **{len(dados_canais)}** · "
+        f"Mensagens lidas: **{total_mensagens}** · Falhas de acesso: **{len(erros)}**. "
+        "O ZIP é privado nesta resposta. Envie-o aqui no ChatGPT para eu analisar os IDs e localizar a mensagem desejada.",
+        file=arquivo, ephemeral=True
+    )
+
+
 # CCBOT_PROCESS_LOCK: impede múltiplas instâncias de iniciar sessões Discord concorrentes.
 # O descritor fica aberto durante toda a execução; o kernel libera o lock ao encerrar o processo.
 _lock_path = CONFIG / "ccbot-process.lock"
