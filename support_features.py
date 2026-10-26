@@ -88,7 +88,7 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
         def __init__(self):
             super().__init__(timeout=None)
 
-        @discord.ui.button(label="Abrir ticket", emoji="🎫", style=discord.ButtonStyle.primary, custom_id="ccbot:support:open")
+        @discord.ui.button(label="Abrir atendimento", emoji="🎫", style=discord.ButtonStyle.primary, custom_id="ccbot:support:open")
         async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
             guild = interaction.guild
             if guild is None:
@@ -122,26 +122,15 @@ def configure_support(bot, admin_id, whatsapp_number, is_admin, log):
 
     def criar_embed_suporte():
         em = criar_embed_estetico(
-            title="🛟  SUPORTE C.C ©",
+            title="❓ Precisa de ajuda?",
             description=(
-                "## Precisa de ajuda?\n"
-                "Abra um atendimento privado e explique o que aconteceu. "
-                "A administração continuará a conversa diretamente com você.\n\n"
-                "-# ATENDIMENTO HUMANO • RESPOSTA EM ATÉ 24H"
+                "👤 **Atendimento humano**\n"
+                "⏱️ **Resposta em até 24 horas**"
             ),
             color=discord.Color.from_rgb(35, 37, 42)
         )
-        em.add_field(
-            name="🎫  Atendimento privado",
-            value="Use **Abrir ticket** para falar com a administração sem expor seu problema no chat público.",
-            inline=False
-        )
-        em.add_field(
-            name="📱  Contato alternativo",
-            value=f"[Conversar pelo WhatsApp](https://wa.me/{whatsapp_number})",
-            inline=False
-        )
-        em.set_footer(text="C.C ©  •  SUPORTE E ATENDIMENTO")
+        # Este painel segue o padrão simples dos demais: sem rodapé nem campos extras.
+        em.set_footer(text=None)
         return em
 
     async def garantir_painel_suporte(guild):
