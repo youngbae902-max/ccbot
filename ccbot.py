@@ -3760,6 +3760,9 @@ class PublicarPainelButton(discord.ui.Button):
             return
 
         # Reutiliza os fluxos originais, sem duplicar a lógica dos sistemas.
+        if self.action == "garimpador":
+            await GarimpadorPublicarButton().callback(interaction)
+            return
         handlers = {
             "emojis": adicionar_emojis,
             "arrumador": arrumador,
@@ -3778,7 +3781,8 @@ class PainelPublicarView(discord.ui.LayoutView):
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
             discord.ui.ActionRow(PublicarPainelButton("Arrumador", "🧰", "arrumador"), PublicarPainelButton("Acapellas", "🎙️", "acapellas")),
             discord.ui.ActionRow(PublicarPainelButton("Samples", "🎧", "samples"), PublicarPainelButton("Venda de beats", "💿", "beats")),
-            discord.ui.ActionRow(PublicarPainelButton("Pack personalizado", "📦", "pack"), VoltarPainelButton())
+            discord.ui.ActionRow(PublicarPainelButton("Pack personalizado", "📦", "pack"), PublicarPainelButton("Garimpador de Packs", "🎲", "garimpador")),
+            discord.ui.ActionRow(VoltarPainelButton())
         ))
 
 class PainelSubcategoriasView(discord.ui.LayoutView):
