@@ -2399,24 +2399,31 @@ class BackupPainelButton(discord.ui.Button):
             await notify_admin(f"Falha ao criar backup pelo painel: {exc}")
             await interaction.followup.send("Não consegui criar o backup. Verifique os avisos do bot.", ephemeral=True)
 
-class PainelFerramentasView(discord.ui.View):
+class PainelFerramentasView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(BackupPainelButton("termux"))
-        self.add_item(BackupPainelButton("discord"))
-        self.add_item(VoltarPainelButton())
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 💾 Backups\nEscolha onde salvar uma cópia de segurança do projeto."),
+            discord.ui.ActionRow(BackupPainelButton("termux"), BackupPainelButton("discord")),
+            discord.ui.ActionRow(VoltarPainelButton())
+        ))
 
-class PainelEmojisView(discord.ui.View):
+class PainelEmojisView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(AdicionarEmojisPainelButton())
-        self.add_item(VoltarPainelButton())
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 🎨 Personalização • Emojis\nEnvie um ZIP ou imagens para adicionar emojis ao servidor."),
+            discord.ui.ActionRow(AdicionarEmojisPainelButton(), VoltarPainelButton())
+        ))
 
-class PainelCanalAvisosView(discord.ui.View):
+class PainelCanalAvisosView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(DefinirCanalAvisosSelect())
-        self.add_item(VoltarPainelButton())
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content=f"# 📨 Canal de avisos\nCanal atual: <#{settings.get('notice_channel', DEFAULT_NOTICE_CHANNEL)}>"),
+            discord.ui.ActionRow(DefinirCanalAvisosSelect()),
+            discord.ui.ActionRow(VoltarPainelButton())
+        ))
 
 class ConfirmarLimpezaPVButton(discord.ui.Button):
     def __init__(self):
@@ -2853,11 +2860,13 @@ class IconEnviarZipButton(discord.ui.Button):
         ICON_ZIP_PENDING.pop(interaction.user.id, None)
         await interaction.response.send_modal(IconUploadModal())
 
-class PainelIconesView(discord.ui.View):
+class PainelIconesView(discord.ui.LayoutView):
     def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(IconEnviarZipButton())
-        self.add_item(VoltarPainelButton())
+        super().__init__(timeout=300)
+        self.add_item(discord.ui.Container(
+            discord.ui.TextDisplay(content="# 🖼️ Central de ícones\nEnvie ZIPs ou imagens, informe o nome e escolha como publicar."),
+            discord.ui.ActionRow(IconEnviarZipButton(), VoltarPainelButton())
+        ))
 
 def criar_embed_painel_icones():
     embed = criar_embed_estetico(
