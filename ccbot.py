@@ -204,7 +204,6 @@ class CCBot(commands.Bot):
             ("Gerador de Samples", SamplesPanelView),
             ("Pack Personalizado", PackPersonalizadoView),
             ("Arrumador de Projetos", ArrumadorPainelView),
-            ("Acapellas", AcapellasActivityView),
             ("Trampar Conosco", TramparConoscoView),
             ("Comprar Beats", lambda: VendaBeatView("", "", "")),
             ("Garimpador de Packs", GarimpadorPacksView),
