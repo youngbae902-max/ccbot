@@ -4022,11 +4022,6 @@ async def samples(interaction: discord.Interaction):
         return
     try:
         await interaction.response.send_message(
-            content=(
-                "## 🛠️ CONFIGURAR GERADOR DE SAMPLES\n"
-                "Gerencie o estoque e os DJs nesta área privada. Quando estiver tudo pronto, "
-                "clique em **Publicar painel**. Os clientes não verão as opções administrativas."
-            ),
             view=SamplesAdminView(publish_callback=publicar_painel_samples),
             ephemeral=True
         )
