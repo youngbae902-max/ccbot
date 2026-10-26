@@ -370,10 +370,7 @@ def configure_samples(bot, config_dir, djs_file, admin_id):
 class SamplesTypeSelect(discord.ui.Select):
     def __init__(self, parent, admin=False):
         self.parent_view = parent
-        options = [discord.SelectOption(label=label, value=key) for key, label in SAMPLE_TYPES.items()]
         selected = getattr(parent, "category", None)
-        for option in options:
-            option.default = option.value == selected
         descriptions = {
             "continuas": "Samples contínuas no estilo do DJ escolhido.",
             "ia": "Samples feitas por IA, inspiradas no DJ escolhido.",
