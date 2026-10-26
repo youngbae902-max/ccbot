@@ -3952,7 +3952,8 @@ class PainelManutencaoView(discord.ui.View):
         self.add_item(VoltarPainelButton())
 
 def criar_embed_painel():
-    return criar_embed_estetico(
+    # Embed do painel sem rodapé automático.
+    return discord.Embed(
         title="CC BOT | Administração",
         description=(
             "Central de controle do servidor.\n\n"
