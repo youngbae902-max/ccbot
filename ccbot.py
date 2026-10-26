@@ -3670,8 +3670,7 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
             embed.title = "📜 REGRAS DA COMUNIDADE"
         if not embed.description and not embed.fields:
             embed.description = "Leia as regras abaixo e siga as orientações para manter a comunidade organizada."
-        if not embed.footer.text:
-            embed.set_footer(text="C.C ©  •  REGRAS DA COMUNIDADE")
+        embed.remove_footer()
         if not embed.thumbnail.url and not embed.image.url and guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
         novos_embeds.append(embed)
@@ -3689,6 +3688,7 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
             description=conteudo,
             color=discord.Color.from_rgb(43, 45, 49)
         )
+        embed.remove_footer()
         if guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
         novos_embeds = [embed]
