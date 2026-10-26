@@ -527,13 +527,18 @@ class SamplesPurchaseView(discord.ui.LayoutView):
             else:
                 content += "\n\nNenhum DJ cadastrado ainda."
         elif self.step == "type":
+            categories = SYSTEM.stock_categories(self.dj)
             content = (
                 "## 🎧 ESTILO DE SAMPLE\n"
                 f"**DJ escolhido:** {discord.utils.escape_markdown(self.dj)}\n\n"
                 "**Qual estilo de sample você quer?**\n"
-                "Escolha uma opção. As opções de IA e de outros packs continuam inspiradas na temática desse DJ."
+                "Escolha uma opção. Todos os stocks abaixo são exclusivos deste DJ."
             )
-            rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
+            if categories:
+                rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
+            else:
+                content += "\n\nEsse DJ ainda não tem stocks cadastrados."
+
         else:
             content = (
                 "## 📦 QUANTAS SAMPLES VOCÊ QUER?\n"
