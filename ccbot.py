@@ -4143,9 +4143,20 @@ def _load_acapellas():
         return []
 
 def _publish_acapellas_data():
-    token = ACAPELLAS_GITHUB_TOKEN_FILE.read_text(encoding="utf-8").strip()
+    token = ""
+    try:
+        token = subprocess.check_output(
+            ["gh", "auth", "token"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    if not token and ACAPELLAS_GITHUB_TOKEN_FILE.exists():
+        token = ACAPELLAS_GITHUB_TOKEN_FILE.read_text(encoding="utf-8").strip()
     if not token:
-        raise RuntimeError("Token do GitHub vazio.")
+        raise RuntimeError("GitHub CLI não autenticado e arquivo de token não encontrado.")
     api_base = f"https://api.github.com/repos/{ACAPELLAS_REPO}/contents/docs/acapellas.json"
     headers = {
         "Accept": "application/vnd.github+json",
