@@ -175,12 +175,15 @@ class SamplesSystem:
             log.exception("Não consegui remover arquivo do estoque: %s", item.get("name"))
 
     def rename_dj(self, old, new):
-        for category in SAMPLE_TYPES:
-            old_key = self._key(old, category)
-            new_key = self._key(new, category)
-            if old_key in self.stock:
-                self.stock[new_key] = self.stock.pop(old_key)
+        prefix = old + "::"
+        for old_key in list(self.stock):
+            if old_key.startswith(prefix):
+                category = old_key[len(prefix):]
+                self.stock[self._key(new, category)] = self.stock.pop(old_key)
         self.save_stock()
+        if old in self.stock_types:
+            self.stock_types[new] = self.stock_types.pop(old)
+            self.save_stock_types()
         # Migra as chaves de histórico sem apagar entregas anteriores.
         for key, sent in list(self.history.items()):
             parts = key.split("::", 2)
@@ -296,7 +299,7 @@ class SamplesSystem:
         lines = [
             "# CC BOT — Exportação do estoque de samples",
             f"DJ: {dj}",
-            f"Tipo: {SAMPLE_TYPES[category]}",
+            f"Tipo: {self.stock_label(dj, category)}",
             f"Exportado em: {datetime.now().isoformat(timespec='seconds')}",
             "# Cada item começa com ITEM; tipo=file/zip/link; nome=...; link=... (quando for link)",
             ""
@@ -314,7 +317,7 @@ class SamplesSystem:
 
     def export_zip(self, dj, category):
         buffer = io.BytesIO()
-        manifest = {"dj": dj, "category": category, "type_label": SAMPLE_TYPES[category], "items": []}
+        manifest = {"dj": dj, "category": category, "type_label": self.stock_label(dj, category), "items": []}
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
             for item in self.items(dj, category):
                 record = {k: v for k, v in item.items() if k != "path"}
@@ -338,7 +341,7 @@ class SamplesSystem:
                 return
             filename = f"estoque_{_slug(dj)}_{category}.{kind}"
             await interaction.followup.send(
-                f"Exportação do estoque de **{dj}** — **{SAMPLE_TYPES[category]}**.",
+                f"Exportação do estoque de **{dj}** — **{self.stock_label(dj, category)}**.",
                 file=discord.File(io.BytesIO(data), filename=filename),
                 ephemeral=True
             )
@@ -543,7 +546,7 @@ class SamplesPurchaseView(discord.ui.LayoutView):
             content = (
                 "## 📦 QUANTAS SAMPLES VOCÊ QUER?\n"
                 f"**DJ:** {discord.utils.escape_markdown(self.dj)}\n"
-                f"**Estilo:** {SAMPLE_TYPES[self.category]}\n"
+                f"**Estilo:** {SYSTEM.stock_label(self.dj, self.category)}\n"
                 f"_{SYSTEM.stock_summary(self.dj, self.category)}_\n\n"
                 "Informe a quantidade para receber as samples por mensagem privada."
             )
@@ -632,7 +635,7 @@ class SamplesAddModal(discord.ui.Modal, title="Adicionar ao estoque"):
             for url in links:
                 SYSTEM.add_item(self.dj, self.category, {"id": uuid.uuid4().hex, "kind": "link", "name": url[:100], "url": url})
                 added += 1
-            await interaction.followup.send(f"Adicionados **{added}** item(ns) ao estoque de **{self.dj} / {SAMPLE_TYPES[self.category]}**.", ephemeral=True)
+            await interaction.followup.send(f"Adicionados **{added}** item(ns) ao estoque de **{self.dj} / {SYSTEM.stock_label(self.dj, self.category)}**.", ephemeral=True)
         except (OSError, ValueError, discord.HTTPException) as exc:
             await interaction.followup.send(f"Não consegui concluir o envio: {str(exc)[:300]}", ephemeral=True)
         except Exception:
@@ -867,7 +870,7 @@ class SamplesAdminView(discord.ui.LayoutView):
                     ephemeral=True
                 )
         elif action == "clear":
-            await interaction.response.send_message(f"Confirma apagar os **{len(SYSTEM.items(self.dj, self.category))}** itens de **{self.dj} / {SAMPLE_TYPES[self.category]}**?", view=SamplesClearConfirmView(self.dj, self.category), ephemeral=True)
+            await interaction.response.send_message(f"Confirma apagar os **{len(SYSTEM.items(self.dj, self.category))}** itens de **{self.dj} / {SYSTEM.stock_label(self.dj, self.category)}**?", view=SamplesClearConfirmView(self.dj, self.category), ephemeral=True)
         elif action == "import":
             await interaction.response.send_modal(SamplesImportModal(self.dj, self.category))
         elif action == "history":
@@ -884,7 +887,7 @@ class SamplesAdminView(discord.ui.LayoutView):
             lines = [f"• <@{user_id}> (ID {user_id}): **{count}** item(ns)" for user_id, count in records[:40]]
             content = (
                 f"## 📜 HISTÓRICO INDIVIDUAL\n**{discord.utils.escape_markdown(self.dj)}** · "
-                f"**{SAMPLE_TYPES[self.category]}**\n\n" + "\n".join(lines)
+                f"**{SYSTEM.stock_label(self.dj, self.category)}**\n\n" + "\n".join(lines)
             )
             if len(records) > 40:
                 content += f"\n\nMostrando 40 de {len(records)} usuários."
