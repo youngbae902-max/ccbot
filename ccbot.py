@@ -3689,10 +3689,8 @@ class CategoriaPainelSelect(discord.ui.Select):
                 embed=criar_embed_estetico(
                     title="🧰 Ferramentas administrativas",
                     description=(
-                        "**Emojis:** envie um ZIP ou imagens diretamente pelo formulário do Discord.\n\n"
-                        "**Backup:** salva uma cópia no Termux ou envia o ZIP por mensagem privada.\n\n"
-                        f"**Canal de avisos atual:** <#{settings.get('notice_channel', DEFAULT_NOTICE_CHANNEL)}>\n"
-                        "Escolha o canal no seletor abaixo para alterar onde os erros e avisos são enviados."
+                        "**Backup:** salve uma cópia do projeto no Termux ou receba o ZIP por mensagem privada.\n\n"
+                        "Esta área é exclusiva para cópias de segurança."
                     ),
                     color=discord.Color.green()
                 ),
