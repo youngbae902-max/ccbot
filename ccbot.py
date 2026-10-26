@@ -3800,16 +3800,37 @@ class PainelPublicarView(discord.ui.LayoutView):
             discord.ui.ActionRow(VoltarPainelButton())
         ))
 
+class AtualizarRegrasPainelButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Atualizar regras sem lateral",
+            emoji="📜",
+            style=discord.ButtonStyle.success,
+            custom_id="ccbot:painel_atualizar_regras"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            await interaction.response.send_message(
+                "Apenas o administrador pode usar este painel.", ephemeral=True
+            )
+            return
+        await atualizar_embed_regras(interaction)
+
+
 class PainelSubcategoriasView(discord.ui.LayoutView):
     def __init__(self, grupo):
         super().__init__(timeout=300)
         info = PAINEL_GRUPOS[grupo]
-        self.add_item(discord.ui.Container(
+        itens = [
             discord.ui.TextDisplay(content=f"# {info['titulo']}\n{info['descricao']}"),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
             discord.ui.ActionRow(CategoriaPainelSelect(grupo)),
-            discord.ui.ActionRow(VoltarPainelButton())
-        ))
+        ]
+        if grupo == "mensagens":
+            itens.append(discord.ui.ActionRow(AtualizarRegrasPainelButton()))
+        itens.append(discord.ui.ActionRow(VoltarPainelButton()))
+        self.add_item(discord.ui.Container(*itens))
 
 class AplicarPermissoesV2Button(discord.ui.Button):
     def __init__(self):
