@@ -2494,11 +2494,6 @@ class LimparPVView(discord.ui.LayoutView):
             discord.ui.ActionRow(ConfirmarLimpezaPVButton(), CancelarLimpezaPVButton())
         ))
 
-class VoltarPainelButtonView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=180)
-        self.add_item(VoltarPainelButton())
-
 # Sistema de ícones: importação manual por ZIP, sem monitoramento de pastas.
 ICONS_CHANNEL_ID = 1561513290473934998
 ICON_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
@@ -3662,12 +3657,6 @@ class PainelSubcategoriasView(discord.ui.LayoutView):
             discord.ui.ActionRow(CategoriaPainelSelect(grupo)),
             discord.ui.ActionRow(VoltarPainelButton())
         ))
-
-class PainelAdminView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=300)
-        self.add_item(PainelGrupoSelect())
-
 
 class AplicarPermissoesV2Button(discord.ui.Button):
     def __init__(self):
