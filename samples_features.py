@@ -49,11 +49,11 @@ class SamplesSystem:
         self.stock_types = self._load(self.types_file, {})
         if not isinstance(self.stock_types, dict):
             self.stock_types = {}
-        self._migrate_stock_types()
         if not isinstance(self.stock, dict):
             self.stock = {}
         if not isinstance(self.history, dict):
             self.history = {}
+        self._migrate_stock_types()
 
     def _load(self, path, default):
         try:
