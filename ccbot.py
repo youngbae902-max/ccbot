@@ -3617,90 +3617,96 @@ OPCOES_CATEGORIAS_PAINEL = [
 ]
 
 async def atualizar_embed_regras(interaction: discord.Interaction):
-    """Converte a mensagem de regras existente para Components V2, sem duplicá-la."""
+    """Atualiza a mensagem de regras existente no canal #regras usando Components V2."""
     message_id = 1563670149150547999
+    rules_channel_id = 1561513274737168414
     guild = interaction.guild
     if guild is None:
         await interaction.response.send_message("Abra o painel dentro do servidor.", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True, thinking=True)
-    canais = list(guild.text_channels)
-    canais.extend(thread for thread in getattr(guild, "threads", []) if thread not in canais)
-
-    mensagem_alvo = None
-    canal_alvo = None
-    for canal in canais:
+    canal = guild.get_channel(rules_channel_id)
+    if canal is None:
         try:
-            mensagem_alvo = await canal.fetch_message(message_id)
-            canal_alvo = canal
-            break
-        except (discord.NotFound, discord.Forbidden):
-            continue
-        except discord.HTTPException:
-            log.warning("Não foi possível verificar mensagens no canal %s ao localizar as regras.", canal.id)
+            canal = await guild.fetch_channel(rules_channel_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as exc:
+            await interaction.followup.send(
+                f"❌ Não consegui acessar o canal de regras ({type(exc).__name__}). Nenhuma mensagem foi criada.",
+                ephemeral=True
+            )
+            return
 
-    if mensagem_alvo is None:
+    try:
+        mensagem = await canal.fetch_message(message_id)
+    except (discord.NotFound, discord.Forbidden, discord.HTTPException) as exc:
         await interaction.followup.send(
-            "Não encontrei a mensagem de regras configurada. Nenhuma mensagem foi criada.",
+            f"❌ Não consegui localizar a mensagem de regras existente ({type(exc).__name__}). Nenhuma mensagem foi criada.",
             ephemeral=True
         )
         return
 
-    # Transforma o conteúdo antigo em texto para o layout Components V2.
-    blocos = []
-    for original in mensagem_alvo.embeds:
-        if original.title and original.title != "📜 REGRAS DA COMUNIDADE":
-            blocos.append(f"## {original.title}")
-        if original.description:
-            blocos.append(original.description)
-        for field in original.fields:
-            blocos.append(f"**{field.name}**\n{field.value}")
-    texto_antigo = (mensagem_alvo.content or "").strip()
-    if texto_antigo:
-        blocos.insert(0, texto_antigo)
-    corpo = "\n\n".join(bloco for bloco in blocos if bloco).strip()
-    if not corpo:
-        await interaction.followup.send(
-            "A mensagem existente não contém texto de regras que eu consiga converter. Não alterei nada.",
-            ephemeral=True
-        )
-        return
+    regras = (
+        "**01 · Respeito**\\n"
+        "Racismo, preconceito, assédio, ameaças e discriminação não serão tolerados. "
+        "Racismo e preconceito geram **banimento permanente**.\\n\\n"
+        "**02 · Conteúdo proibido**\\n"
+        "É proibido divulgar bets/apostas, pornografia, conteúdo sexual explícito/adulto, "
+        "golpes, links maliciosos ou conteúdo ilegal. A divulgação de conteúdo adulto, "
+        "racista ou preconceituoso gera **banimento permanente**.\\n\\n"
+        "**03 · Divulgação**\\n"
+        "O canal de divulgações é exclusivo para **beats**. Não divulgue lojas, grupos, "
+        "servidores, serviços ou produtos fora dos espaços autorizados. Spam pode ser removido.\\n\\n"
+        "**04 · Compras**\\n"
+        "Antes de pagar, leia **como funcionam as vendas**, confira produto, preço e condições. "
+        "O pagamento é conferido manualmente; comprovante não significa aprovação automática. "
+        "Não abra pedidos duplicados.\\n\\n"
+        "**05 · Golpes**\\n"
+        "Tentativa de golpe, fraude, comprovante falso ou tentativa de enganar clientes/equipe "
+        "gera **banimento imediato**. Nunca compartilhe senhas ou dados bancários completos.\\n\\n"
+        "**06 · Suporte**\\n"
+        "Se houver problema com compra, entrega ou acesso, abra um ticket no **Suporte Dedicado**. "
+        "A equipe busca responder em até **24 horas** e também oferece contato por WhatsApp.\\n\\n"
+        "**07 · Materiais**\\n"
+        "Respeite as condições de cada produto e material gratuito. Não revenda ou redistribua "
+        "conteúdo contrariando as condições informadas.\\n\\n"
+        "**08 · Moderação**\\n"
+        "As regras valem para todos, inclusive clientes. Cada compra ajuda a manter o projeto ativo, "
+        "mas não dá privilégios nem muda as regras. A equipe pode remover conteúdo e aplicar "
+        "advertência, restrição ou banimento conforme a gravidade.\\n\\n"
+        "**09 · Segurança nas vendas**\\n"
+        "Mantenha a conversa no canal privado do pedido. Se algo parecer estranho, pare e fale com "
+        "o suporte antes de continuar."
+    )
 
     view = discord.ui.LayoutView(timeout=None)
     view.add_item(discord.ui.Container(
         discord.ui.TextDisplay(content=(
-            "# 📜 REGRAS DA COMUNIDADE\n"
-            "**Uma comunidade criativa, segura e transparente.**\n"
+            "# 📜 REGRAS DA COMUNIDADE\\n"
+            "**Uma comunidade criativa, segura e transparente.**\\n"
             "-# LEIA ANTES DE PARTICIPAR OU COMPRAR"
         )),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
-        discord.ui.TextDisplay(content=corpo[:4000]),
+        discord.ui.TextDisplay(content=regras),
         discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
         discord.ui.TextDisplay(content=(
-            "> Ao permanecer no servidor, você concorda em seguir estas regras.\n"
+            "> Ao permanecer no servidor, você concorda em seguir estas regras.\\n"
             "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
         )),
         accent_color=0x57E3A7
     ))
 
     try:
-        await mensagem_alvo.edit(
-            content=None,
-            embeds=[],
-            view=view,
-            allowed_mentions=discord.AllowedMentions.none()
-        )
+        await mensagem.edit(content=None, embeds=[], attachments=[], view=view, allowed_mentions=discord.AllowedMentions.none())
         await interaction.followup.send(
-            f"✅ Converti a mensagem de regras existente para **Components V2** em {canal_alvo.mention}. "
-            "Não criei uma mensagem duplicada.",
+            f"✅ Aba de regras atualizada em {canal.mention}. A mensagem existente foi editada; nenhuma duplicata foi criada.",
             ephemeral=True
         )
-        log.info("Regras convertidas para Components V2: canal=%s mensagem=%s", canal_alvo.id, message_id)
+        log.info("Regras Components V2 atualizadas: canal=%s mensagem=%s por=%s", canal.id, mensagem.id, interaction.user.id)
     except discord.HTTPException as exc:
-        log.exception("Falha ao converter regras para Components V2")
+        log.exception("Falha ao atualizar a mensagem de regras")
         await interaction.followup.send(
-            f"❌ Não consegui converter as regras ({type(exc).__name__}). Confira os logs do bot.",
+            f"❌ Não consegui atualizar as regras ({type(exc).__name__}). Confira as permissões do bot.",
             ephemeral=True
         )
 
