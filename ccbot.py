@@ -2355,7 +2355,7 @@ class DefinirCanalAvisosSelect(discord.ui.ChannelSelect):
         settings["notice_channel"] = canal.id
         save_json(DATA_FILE, settings)
         await interaction.response.send_message(
-            f"Canal de avisos definido para {canal.mention}.",
+            view=PainelResultadoV2(f"# ✅ Canal de avisos atualizado\nCanal definido: {canal.mention}"),
             ephemeral=True
         )
 
@@ -3355,18 +3355,16 @@ async def hierarquia(interaction: discord.Interaction):
         await interaction.response.send_message("Use este comando dentro do servidor.", ephemeral=True)
         return
 
-    embed = criar_embed_estetico(
-        title="🗂️ Hierarquia do servidor",
-        description=(
-            "O CC BOT vai organizar as categorias e os canais conhecidos, padronizar os nomes e ordenar os cargos principais.\n\n"
-            "A estrutura prioriza Status, Customização, Sites, Mercado/Vendas, Comunidade e Grátis.\n\n"
-            "Canais e mensagens existentes serão preservados; nenhuma categoria ou canal será apagado."
-        ),
-        color=discord.Color.dark_grey()
+    texto = (
+        "# 🗂️ Hierarquia do servidor\nO CC BOT vai organizar categorias/canais conhecidos, padronizar nomes e ordenar cargos.\n\n"
+        "A estrutura prioriza Status, Customização, Sites, Mercado/Vendas, Comunidade e Grátis.\n\n"
+        "Canais e mensagens existentes serão preservados; nenhum canal será apagado. Confirme para continuar."
     )
     await interaction.response.send_message(
-        embed=embed,
-        view=ConfirmarOrganizacaoHierarquiaView(interaction.guild.id),
+        view=PainelConfirmacaoV2(texto, [
+            AplicarOrganizacaoV2Button(interaction.guild.id),
+            CancelarOrganizacaoV2Button(interaction.guild.id)
+        ]),
         ephemeral=True
     )
 
@@ -3761,7 +3759,7 @@ class VerificarBotButton(discord.ui.Button):
 
         latency_ms = round(bot.latency * 1000)
         await interaction.response.send_message(
-            f"✅ **CC BOT está online.**\nLatência: **{latency_ms} ms**",
+            view=PainelResultadoV2(f"# ✅ CC BOT online\nLatência: **{latency_ms} ms**"),
             ephemeral=True
         )
 
