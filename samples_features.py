@@ -555,6 +555,11 @@ class SamplesAddModal(discord.ui.Modal, title="Adicionar ao estoque"):
 class SamplesEditItemModal(discord.ui.Modal, title="Editar item do estoque"):
     nome = discord.ui.TextInput(label="Nome do item", max_length=180, required=True)
     link = discord.ui.TextInput(label="Link (somente para links)", max_length=1000, required=False)
+    arquivo = discord.ui.Label(
+        text="Substituir arquivo (opcional)",
+        description="Anexe um arquivo para substituir o arquivo atual. ZIPs e outros formatos são aceitos.",
+        component=discord.ui.FileUpload(custom_id="ccbot_samples_replace_file", min_values=0, max_values=1, required=False)
+    )
 
     def __init__(self, dj, category, item):
         super().__init__()
@@ -573,14 +578,42 @@ class SamplesEditItemModal(discord.ui.Modal, title="Editar item do estoque"):
             await interaction.response.send_message("Esse item não está mais no estoque.", ephemeral=True)
             return
         url = str(self.link.value or "").strip()
-        if item.get("kind") == "link" and not url.startswith(("https://", "http://")):
-            await interaction.response.send_message("Para itens do tipo link, informe um endereço http:// ou https:// válido.", ephemeral=True)
+        if item.get("kind") == "link" and not (url.startswith("https://") or url.startswith("http://")) and not list(self.arquivo.component.values or []):
+            await interaction.response.send_message("Informe um link válido ou anexe o arquivo que substituirá este item.", ephemeral=True)
             return
+        replacements = list(self.arquivo.component.values or [])
+        old_item = dict(item)
         item["name"] = _safe_name(str(self.nome.value).strip())
-        if item.get("kind") == "link":
+        if replacements:
+            attachment = replacements[0]
+            if attachment.size > MAX_ITEM_BYTES:
+                await interaction.response.send_message("O arquivo ultrapassa 24 MB. Para arquivos grandes, use um link.", ephemeral=True)
+                return
+            data = await attachment.read(use_cached=True)
+            new_id = uuid.uuid4().hex
+            name = _safe_name(attachment.filename)
+            rel = f"{_slug(self.dj)}/{self.category}/{new_id}_{name}"
+            dest = (SYSTEM.files_dir / rel).resolve()
+            if SYSTEM.files_dir.resolve() not in dest.parents:
+                await interaction.response.send_message("Nome de arquivo inválido.", ephemeral=True)
+                return
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+            item.update({
+                "id": new_id,
+                "kind": "zip" if Path(name).suffix.lower() == ".zip" else "file",
+                "name": _safe_name(str(self.nome.value).strip()) or name,
+                "path": rel
+            })
+            item.pop("url", None)
+            SYSTEM.save_stock()
+            SYSTEM.remove_item_file(old_item)
+        elif item.get("kind") == "link":
             item["url"] = url
-        SYSTEM.save_stock()
-        await interaction.response.send_message("Item atualizado.", ephemeral=True)
+            SYSTEM.save_stock()
+        else:
+            SYSTEM.save_stock()
+        await interaction.response.send_message("Item atualizado/substituído.", ephemeral=True)
 
 
 class SamplesEditItemSelect(discord.ui.Select):
