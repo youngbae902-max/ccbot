@@ -3392,29 +3392,44 @@ async def hierarquia(interaction: discord.Interaction):
 PAINEL_ADMIN_COLOR = discord.Color.from_rgb(35, 37, 42)
 
 PAINEL_GRUPOS = {
-    "publicacoes": {
-        "titulo": "Publicações e produtos",
-        "descricao": "Painéis publicados no servidor e cadastros usados por eles.",
-        "categorias": ["publicar", "djs", "parcerias", "trampar_conosco"],
+    "paineis": {
+        "titulo": "Painéis",
+        "descricao": "Somente publicação e atualização dos painéis de produtos. Sem configurações de outras áreas.",
+        "categorias": ["publicar"],
     },
-    "bot": {
-        "titulo": "Central do bot",
-        "descricao": "Tudo que o bot envia, administra ou usa para comunicar-se: boas-vindas, avisos, limpeza de mensagens e funcionamento.",
-        "categorias": ["boas_vindas", "trabalhos_on", "limpar_pv", "manutencao", "canal_avisos", "regras"],
+    "djs": {
+        "titulo": "DJs e estoque",
+        "descricao": "Cadastros de DJs e gerenciamento dos estoques de samples.",
+        "categorias": ["djs"],
+    },
+    "equipe": {
+        "titulo": "Parcerias e equipe",
+        "descricao": "Ferramentas de parcerias e recrutamento, separadas dos painéis de produtos.",
+        "categorias": ["parcerias", "trampar_conosco"],
+    },
+    "mensagens": {
+        "titulo": "Mensagens e avisos",
+        "descricao": "Boas-vindas, regras e canais de comunicação do bot.",
+        "categorias": ["boas_vindas", "trabalhos_on", "canal_avisos", "regras"],
+    },
+    "manutencao": {
+        "titulo": "Manutenção",
+        "descricao": "Verificação do bot e limpeza das mensagens privadas enviadas por ele.",
+        "categorias": ["manutencao", "limpar_pv"],
     },
     "personalizacao": {
         "titulo": "Personalização",
-        "descricao": "Emojis, ícones e imagens usados para personalizar o servidor.",
+        "descricao": "Emojis e ícones do servidor.",
         "categorias": ["emojis", "icones"],
     },
-    "sistema": {
-        "titulo": "Sistema e backups",
-        "descricao": "Faça cópias de segurança e acesse ferramentas técnicas do bot.",
+    "backups": {
+        "titulo": "Backups",
+        "descricao": "Crie cópias de segurança do projeto.",
         "categorias": ["ferramentas"],
     },
     "servidor": {
         "titulo": "Estrutura do servidor",
-        "descricao": "Consulte permissões e organize a hierarquia de canais.",
+        "descricao": "Permissões, análise e organização da hierarquia de canais.",
         "categorias": ["permissoes_categorias", "analisar_hierarquia", "organizar_hierarquia"],
     },
 }
@@ -3542,11 +3557,14 @@ class PainelGrupoSelect(discord.ui.Select):
             max_values=1,
             custom_id="ccbot:painel_grupo",
             options=[
-                discord.SelectOption(label="Publicações e produtos", description="Painéis e DJs", emoji="📋", value="publicacoes"),
-                discord.SelectOption(label="Central do bot", description="Mensagens, avisos e funcionamento do bot", emoji="🤖", value="bot"),
-                discord.SelectOption(label="Personalização", description="Emojis, ícones e imagens", emoji="🎨", value="personalizacao"),
-                discord.SelectOption(label="Sistema e backups", description="Cópias de segurança e ferramentas técnicas", emoji="💾", value="sistema"),
-                discord.SelectOption(label="Estrutura do servidor", description="Permissões e organização dos canais", emoji="🗂️", value="servidor"),
+                discord.SelectOption(label="Painéis", description="Publicar ou abrir painéis de produtos", emoji="📋", value="paineis"),
+                discord.SelectOption(label="DJs e estoque", description="Cadastros e estoque de samples", emoji="🎧", value="djs"),
+                discord.SelectOption(label="Parcerias e equipe", description="Parcerias e recrutamento", emoji="🤝", value="equipe"),
+                discord.SelectOption(label="Mensagens e avisos", description="Boas-vindas, regras e avisos", emoji="📨", value="mensagens"),
+                discord.SelectOption(label="Manutenção", description="Saúde do bot e limpeza de PV", emoji="🛠️", value="manutencao"),
+                discord.SelectOption(label="Personalização", description="Emojis e ícones", emoji="🎨", value="personalizacao"),
+                discord.SelectOption(label="Backups", description="Cópias de segurança", emoji="💾", value="backups"),
+                discord.SelectOption(label="Estrutura do servidor", description="Permissões e hierarquia", emoji="🗂️", value="servidor"),
             ]
         )
 
@@ -3721,7 +3739,6 @@ class PublicarPainelButton(discord.ui.Button):
 class PainelPublicarView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(PublicarPainelButton("Enviar ZIP ou imagens", "😀", "emojis"))
         self.add_item(PublicarPainelButton("Arrumador", "🧰", "arrumador"))
         self.add_item(PublicarPainelButton("Acapellas", "🎙️", "acapellas"))
         self.add_item(PublicarPainelButton("Samples", "🎧", "samples"))
