@@ -5191,7 +5191,7 @@ async def restaurar_paineis_existentes():
         return
 
     conhecidos = [
-        ("Gerador de Samples", SAMPLES_PANEL_CHANNEL_ID, SAMPLES_PANEL_MESSAGE_ID, GeradorSamplesView),
+        ("Gerador de Samples", SAMPLES_PANEL_CHANNEL_ID, SAMPLES_PANEL_MESSAGE_ID, SamplesPanelView),
         ("Pack Personalizado", PACK_PANEL_CHANNEL_ID, PACK_PANEL_MESSAGE_ID, PackPersonalizadoView),
     ]
     atualizados = 0
@@ -6537,7 +6537,7 @@ async def atualizar_painel(
             return
 
         tipos = {
-            "samples": (GeradorSamplesView, True),
+            "samples": (SamplesPanelView, True),
             "pack": (PackPersonalizadoView, True),
             "arrumador": (ArrumadorPainelView, True),
             "acapellas": (AcapellasActivityView, False),
@@ -6663,7 +6663,7 @@ async def atualizar_paineis(interaction: discord.Interaction):
         if "ccbot:pack:v2:basico" in texto:
             return "Pack Personalizado", PackPersonalizadoView, True
         if "gerador de samples" in texto and ("painel atualizado" in texto or "ccbot" in texto):
-            return "Gerador de Samples", GeradorSamplesView, True
+            return "Gerador de Samples", SamplesPanelView, True
         if "trampar conosco" in texto or "central de oportunidades" in texto:
             return "Trampar Conosco", TramparConoscoView, True
         if "conecte com o c.c" in texto or "apresentar meu grupo" in texto:
