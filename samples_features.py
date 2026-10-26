@@ -802,10 +802,11 @@ class SamplesPublishButton(discord.ui.Button):
 
 
 class SamplesAdminView(discord.ui.LayoutView):
-    def __init__(self, dj=None, category="continuas", publish_callback=None):
+    def __init__(self, dj=None, category=None, publish_callback=None):
         super().__init__(timeout=300)
         self.dj = dj or (SYSTEM.djs()[0] if SYSTEM.djs() else None)
-        self.category = category
+        categories = SYSTEM.stock_categories(self.dj) if self.dj else []
+        self.category = category if any(x["id"] == category for x in categories) else (categories[0]["id"] if categories else None)
         self.publish_callback = publish_callback
         self.refresh_items()
 
