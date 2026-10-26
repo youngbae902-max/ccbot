@@ -3567,15 +3567,7 @@ class PainelGrupoSelect(discord.ui.Select):
         grupo = self.values[0]
         info = PAINEL_GRUPOS[grupo]
         # Abre o formulário da área selecionada em uma resposta efêmera.
-        await interaction.response.send_message(
-            embed=criar_embed_estetico(
-                title=info["titulo"],
-                description=info["descricao"] + "\n\nSelecione uma função abaixo.",
-                color=PAINEL_ADMIN_COLOR
-            ),
-            view=PainelSubcategoriasView(grupo),
-            ephemeral=True
-        )
+        await interaction.response.send_message(view=PainelSubcategoriasView(grupo), ephemeral=True)
 
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self, grupo):
@@ -3597,23 +3589,9 @@ class CategoriaPainelSelect(discord.ui.Select):
 
         categoria = self.values[0]
         if categoria == "djs":
-            await interaction.response.edit_message(
-                embed=criar_embed_estetico(
-                    title="🎧 Gerenciamento de DJs e estoque",
-                    description="Cadastre os DJs e gerencie os três estoques de samples de cada um.",
-                    color=discord.Color.green()
-                ),
-                view=PainelDJsView()
-            )
+            await interaction.response.edit_message(view=PainelDJsView())
         elif categoria == "boas_vindas":
-            await interaction.response.edit_message(
-                embed=criar_embed_estetico(
-                    title="👋 Boas-vindas",
-                    description=f"Canal configurado: <#{WELCOME_CHANNEL_ID}>\n\nUse o botão para publicar uma mensagem de teste nesse canal.",
-                    color=discord.Color.green()
-                ),
-                view=PainelBoasVindasView()
-            )
+            await interaction.response.edit_message(view=PainelBoasVindasView())
         elif categoria == "regras":
             await atualizar_embed_regras(interaction)
         elif categoria == "parcerias":
@@ -3621,17 +3599,7 @@ class CategoriaPainelSelect(discord.ui.Select):
         elif categoria == "trampar_conosco":
             await atualizar_painel_trampar(interaction)
         elif categoria == "publicar":
-            await interaction.response.edit_message(
-                embed=criar_embed_estetico(
-                    title="📋 Publicar painéis",
-                    description=(
-                        "Escolha uma função abaixo. Os sistemas continuam ativos; "
-                        "esta central apenas reúne os acessos em um só lugar."
-                    ),
-                    color=discord.Color.green()
-                ),
-                view=PainelPublicarView()
-            )
+            await interaction.response.edit_message(view=PainelPublicarView())
         elif categoria == "permissoes_categorias":
             await abrir_permissoes_categorias(interaction)
         elif categoria == "trabalhos_on":
@@ -3641,62 +3609,22 @@ class CategoriaPainelSelect(discord.ui.Select):
         elif categoria == "organizar_hierarquia":
             await abrir_organizacao_hierarquia(interaction)
         elif categoria == "emojis":
-            await interaction.response.edit_message(
-                embed=criar_embed_estetico(
-                    title="🎨 Personalização • Emojis",
-                    description="Envie um ZIP ou imagens para adicionar emojis personalizados ao servidor.",
-                    color=PAINEL_ADMIN_COLOR
-                ),
-                view=PainelEmojisView()
-            )
+            await interaction.response.edit_message(view=PainelEmojisView())
         elif categoria == "icones":
-            await interaction.response.edit_message(
-                embed=criar_embed_painel_icones(),
-                view=PainelIconesView()
-            )
+            await interaction.response.edit_message(view=PainelIconesView())
         elif categoria == "canal_avisos":
-            await interaction.response.edit_message(
-                embed=criar_embed_estetico(
-                    title="📨 Canal de avisos do bot",
-                    description=f"Canal atual: <#{settings.get('notice_channel', DEFAULT_NOTICE_CHANNEL)}>\n\nEscolha abaixo onde o bot deve enviar erros e avisos técnicos.",
-                    color=PAINEL_ADMIN_COLOR
-                ),
-                view=PainelCanalAvisosView()
-            )
+            await interaction.response.edit_message(view=PainelCanalAvisosView())
         elif categoria == "limpar_pv":
             await interaction.response.edit_message(
-                embed=criar_embed_estetico(
-                    title="🧹 Limpar mensagens do PV",
-                    description=(
-                        "Esta função apaga **somente mensagens enviadas pelo CC BOT** na conversa privada com você.\n\n"
-                        "Suas mensagens não serão apagadas. A limpeza analisa até as **500 mensagens mais recentes** "
-                        "e pede confirmação antes de começar."
-                    ),
-                    color=discord.Color.orange()
-                ),
-                view=LimparPVView()
+                view=PainelConfirmacaoV2(
+                    "# 🧹 Limpar mensagens do PV\nApaga somente mensagens enviadas pelo CC BOT na sua conversa privada. Suas mensagens não serão apagadas. Analisa até 500 mensagens recentes e pede confirmação.",
+                    [ConfirmarLimpezaPVButton(), CancelarLimpezaPVButton()]
+                )
             )
         elif categoria == "ferramentas":
-            await interaction.response.edit_message(
-                embed=criar_embed_estetico(
-                    title="🧰 Ferramentas administrativas",
-                    description=(
-                        "**Backup:** salve uma cópia do projeto no Termux ou receba o ZIP por mensagem privada.\n\n"
-                        "Esta área é exclusiva para cópias de segurança."
-                    ),
-                    color=discord.Color.green()
-                ),
-                view=PainelFerramentasView()
-            )
+            await interaction.response.edit_message(view=PainelFerramentasView())
         else:
-            await interaction.response.edit_message(
-                embed=criar_embed_estetico(
-                    title="🛠️ Testes e manutenção",
-                    description="Use a opção abaixo para conferir se o bot está online e respondendo às interações.",
-                    color=discord.Color.green()
-                ),
-                view=PainelManutencaoView()
-            )
+            await interaction.response.edit_message(view=PainelManutencaoView())
 
 class PublicarPainelButton(discord.ui.Button):
     def __init__(self, label, emoji, action):
