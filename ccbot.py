@@ -6669,10 +6669,6 @@ async def criar_regras(interaction: discord.Interaction, canal: discord.TextChan
         )),
         accent_color=5763719
     ))
-    view.add_item(discord.ui.TextDisplay(
-        content="-# C.C ©  •  COMUNIDADE E PRODUÇÃO MUSICAL"
-    ))
-
     try:
         await canal.send(view=view, allowed_mentions=discord.AllowedMentions.none())
         await interaction.response.send_message(
