@@ -339,6 +339,8 @@ class SamplesSystem:
             else:
                 raise ValueError("Envie um .txt ou .zip exportado pelo painel.")
             old = self.items(dj, category)
+            if not incoming and old:
+                raise ValueError("O arquivo não contém itens válidos. Use Apagar estoque se quiser limpar tudo.")
             self.stock[self._key(dj, category)] = incoming
             self.save_stock()
             incoming_paths = {item.get("path") for item in incoming if item.get("path")}
