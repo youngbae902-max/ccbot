@@ -125,14 +125,14 @@ class SamplesSystem:
     def add_stock_type(self, dj, name):
         name = str(name).strip()
         if not name:
-            raise ValueError("Digite um nome para o stock.")
+            raise ValueError("Digite um nome para o estoque.")
         if len(name) > 90:
             raise ValueError("O nome deve ter até 90 caracteres.")
         types = self.stock_types.setdefault(dj, [])
         if len(types) >= 25:
-            raise ValueError("Cada DJ pode ter até 25 stocks.")
+            raise ValueError("Cada DJ pode ter até 25 estoques.")
         if any(str(x.get("name", "")).casefold() == name.casefold() for x in types if isinstance(x, dict)):
-            raise ValueError("Esse DJ já tem um stock com esse nome.")
+            raise ValueError("Esse DJ já tem um estoque com esse nome.")
         category = "custom_" + uuid.uuid4().hex[:12]
         types.append({"id": category, "name": name})
         self.save_stock_types()
@@ -149,7 +149,7 @@ class SamplesSystem:
         types = self.stock_types.get(dj, [])
         target = next((x for x in types if isinstance(x, dict) and x.get("id") == category), None)
         if target is None:
-            raise ValueError("Esse stock não existe mais.")
+            raise ValueError("Esse estoque não existe mais.")
         if any(x is not target and str(x.get("name", "")).casefold() == name.casefold() for x in types if isinstance(x, dict)):
             raise ValueError("Esse DJ já tem um stock com esse nome.")
         target["name"] = name
@@ -549,7 +549,7 @@ class SamplesPurchaseView(discord.ui.LayoutView):
             if categories:
                 rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
             else:
-                content += "\n\nEsse DJ ainda não tem stocks cadastrados."
+                content += "\n\nEsse DJ ainda não tem estoques cadastrados."
 
         else:
             content = (
@@ -822,7 +822,7 @@ class SamplesStockNameModal(discord.ui.Modal):
     name = discord.ui.TextInput(label="Nome do stock", placeholder="Ex.: Samples por IA", min_length=1, max_length=90)
 
     def __init__(self, parent, rename=False):
-        super().__init__(title="Renomear stock" if rename else "Criar stock")
+        super().__init__(title="Renomear estoque" if rename else "Criar estoque")
         self.parent_view = parent
         self.rename = rename
         if rename and parent.dj and parent.category:
@@ -847,6 +847,25 @@ class SamplesStockNameModal(discord.ui.Modal):
             await interaction.response.send_message(str(exc), ephemeral=True)
 
 
+class SamplesAdminMoreSelect(discord.ui.Select):
+    def __init__(self, parent):
+        self.parent_view = parent
+        options = [
+            discord.SelectOption(label="Renomear estoque", value="rename_stock", emoji="✏️"),
+            discord.SelectOption(label="Editar item", value="edit", emoji="📝"),
+            discord.SelectOption(label="Remover item", value="delete", emoji="🗑️"),
+            discord.SelectOption(label="Apagar todos os itens", value="clear", emoji="⚠️"),
+            discord.SelectOption(label="Importar estoque", value="import", emoji="📤"),
+            discord.SelectOption(label="Exportar TXT", value="txt", emoji="📄"),
+            discord.SelectOption(label="Exportar ZIP", value="zip", emoji="📦"),
+            discord.SelectOption(label="Ver histórico", value="history", emoji="📜"),
+        ]
+        super().__init__(placeholder="Mais opções…", min_values=1, max_values=1, options=options, custom_id="ccbot:samples:admin:more")
+
+    async def callback(self, interaction):
+        await self.parent_view.handle_action(interaction, self.values[0])
+
+
 class SamplesAdminView(discord.ui.LayoutView):
     def __init__(self, dj=None, category=None, publish_callback=None):
         super().__init__(timeout=300)
@@ -864,13 +883,14 @@ class SamplesAdminView(discord.ui.LayoutView):
         items = SYSTEM.items(self.dj, self.category) if self.dj and self.category else []
         label = SYSTEM.stock_label(self.dj, self.category) if self.dj and self.category else "Nenhum criado"
         text = (
-            "## 🗃️ ADMINISTRAÇÃO DO ESTOQUE DE SAMPLES\n"
-            "Cada DJ pode ter seus próprios stocks e nomes. Crie ou renomeie cada um separadamente.\n\n"
-            f"**DJ:** {discord.utils.escape_markdown(self.dj or 'Nenhum cadastrado')}\n"
-            f"**Stock:** {discord.utils.escape_markdown(label)}\n"
-            f"**Itens:** {len(items)}\n\n"
-            "Adicione arquivos, ZIPs ou links ao stock selecionado.\n\n"
-            "A pessoa verá somente os stocks cadastrados para o DJ escolhido."
+            "## 🗂️ ADMINISTRAÇÃO DO ESTOQUE DE SAMPLES\n"
+            "Gerencie um DJ por vez. Primeiro escolha o DJ e o estoque; depois use uma das ações abaixo.\n\n"
+            f"**DJ selecionado:** {discord.utils.escape_markdown(self.dj or 'Nenhum cadastrado')}\n"
+            f"**Estoque selecionado:** {discord.utils.escape_markdown(label)}\n"
+            f"**Itens cadastrados:** {len(items)}\n\n"
+            "📥 **Adicionar itens** para enviar arquivos, ZIPs ou links.\n"
+            "🆕 **Criar estoque** para cadastrar uma nova opção para esse DJ.\n"
+            "Outras tarefas ficam reunidas no menu **Mais opções**."
         )
         self.clear_items()
         rows = []
@@ -879,21 +899,10 @@ class SamplesAdminView(discord.ui.LayoutView):
         if categories:
             rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
         rows.append(discord.ui.ActionRow(
-            SamplesAdminActionButton(self, "create_stock", "Criar stock", "🆕", discord.ButtonStyle.success),
-            SamplesAdminActionButton(self, "rename_stock", "Renomear stock", "✏️", discord.ButtonStyle.secondary)
+            SamplesAdminActionButton(self, "add", "Adicionar itens", "📥", discord.ButtonStyle.success),
+            SamplesAdminActionButton(self, "create_stock", "Criar estoque", "🆕", discord.ButtonStyle.primary),
         ))
-        buttons = [
-            SamplesAdminActionButton(self, "add", "Adicionar", "➕", discord.ButtonStyle.success),
-            SamplesAdminActionButton(self, "edit", "Editar item", "✏️", discord.ButtonStyle.secondary),
-            SamplesAdminActionButton(self, "delete", "Apagar item", "🗑️", discord.ButtonStyle.secondary),
-            SamplesAdminActionButton(self, "clear", "Apagar estoque", "⚠️", discord.ButtonStyle.danger),
-            SamplesAdminActionButton(self, "txt", "Exportar TXT", "📄", discord.ButtonStyle.primary),
-            SamplesAdminActionButton(self, "zip", "Exportar ZIP", "📦", discord.ButtonStyle.primary),
-            SamplesAdminActionButton(self, "import", "Importar/substituir", "🔄", discord.ButtonStyle.primary),
-            SamplesAdminActionButton(self, "history", "Histórico", "📜", discord.ButtonStyle.secondary),
-        ]
-        rows.append(discord.ui.ActionRow(*buttons[:4]))
-        rows.append(discord.ui.ActionRow(*buttons[4:8]))
+        rows.append(discord.ui.ActionRow(SamplesAdminActionButton(self, "more", "Mais opções", "⚙️", discord.ButtonStyle.secondary)))
         if self.publish_callback:
             rows.append(discord.ui.ActionRow(SamplesPublishButton(self)))
         self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=text), *rows))
@@ -905,16 +914,22 @@ class SamplesAdminView(discord.ui.LayoutView):
         if not self.dj:
             await interaction.response.send_message("Cadastre um DJ primeiro.", ephemeral=True)
             return
-        if action == "create_stock":
+        if action == "more":
+            await interaction.response.send_message(
+                "Escolha uma ação para o estoque selecionado:",
+                view=SamplesAdminMoreSelectView(self),
+                ephemeral=True
+            )
+        elif action == "create_stock":
             await interaction.response.send_modal(SamplesStockNameModal(self, rename=False))
         elif action == "rename_stock":
             if not self.category:
-                await interaction.response.send_message("Crie um stock primeiro.", ephemeral=True)
+                await interaction.response.send_message("Crie um estoque primeiro.", ephemeral=True)
             else:
                 await interaction.response.send_modal(SamplesStockNameModal(self, rename=True))
         elif action == "add":
             if not self.category:
-                await interaction.response.send_message("Crie um stock para esse DJ primeiro.", ephemeral=True)
+                await interaction.response.send_message("Crie um estoque para esse DJ primeiro.", ephemeral=True)
                 return
             await interaction.response.send_modal(SamplesAddModal(self.dj, self.category))
         elif action in ("delete", "edit"):
@@ -971,6 +986,12 @@ class SamplesAdminView(discord.ui.LayoutView):
     async def refresh(self, interaction):
         self.refresh_items()
         await interaction.response.edit_message(view=self)
+
+
+class SamplesAdminMoreSelectView(discord.ui.View):
+    def __init__(self, parent):
+        super().__init__(timeout=180)
+        self.add_item(SamplesAdminMoreSelect(parent))
 
 
 class SamplesEditItemSelectView(discord.ui.View):
