@@ -2306,14 +2306,14 @@ class TestarBoasVindasButton(discord.ui.Button):
             embed.set_thumbnail(url=member.display_avatar.url)
             await channel.send(embed=embed)
             await interaction.response.send_message(
-                f"Teste enviado em <#{WELCOME_CHANNEL_ID}>.",
+                view=PainelResultadoV2(f"# ✅ Teste enviado\nMensagem publicada em <#{WELCOME_CHANNEL_ID}>."),
                 ephemeral=True
             )
         except Exception as exc:
             log.exception("Falha no teste de boas-vindas")
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    f"Não consegui enviar o teste: {exc}",
+                    view=PainelResultadoV2(f"# ❌ Falha no teste\n{type(exc).__name__}: {str(exc)[:250]}"),
                     ephemeral=True
                 )
 
@@ -2386,18 +2386,18 @@ class BackupPainelButton(discord.ui.Button):
                     z.write(path, relative.as_posix())
 
             if self.destino == "termux":
-                await interaction.followup.send(f"Backup criado no Termux: {arquivo}", ephemeral=True)
+                await interaction.followup.send(view=PainelResultadoV2(f"# ✅ Backup criado\nLocal: {arquivo}"), ephemeral=True)
             else:
                 user = await bot.fetch_user(ADMIN_ID)
                 await user.send(
                     f"Backup do CC BOT — {timestamp}. O token não está incluído.",
                     file=discord.File(arquivo)
                 )
-                await interaction.followup.send("Backup enviado por mensagem privada.", ephemeral=True)
+                await interaction.followup.send(view=PainelResultadoV2("# ✅ Backup enviado\nO ZIP foi enviado por mensagem privada."), ephemeral=True)
         except Exception as exc:
             log.exception("Falha ao criar backup pelo painel")
             await notify_admin(f"Falha ao criar backup pelo painel: {exc}")
-            await interaction.followup.send("Não consegui criar o backup. Verifique os avisos do bot.", ephemeral=True)
+            await interaction.followup.send(view=PainelResultadoV2(f"# ❌ Falha no backup\n{type(exc).__name__}. Confira os avisos do bot."), ephemeral=True)
 
 class PainelFerramentasView(discord.ui.LayoutView):
     def __init__(self):
@@ -3187,18 +3187,18 @@ async def analisar_hierarquia(interaction: discord.Interaction):
             file=arquivo
         )
         await interaction.followup.send(
-            "✅ Relatório enviado ao seu PV. Não alterei nenhuma categoria, canal, cargo ou permissão.",
+            view=PainelResultadoV2("# ✅ Relatório enviado\nO relatório foi enviado ao PV. Nenhuma categoria, canal, cargo ou permissão foi alterada."),
             ephemeral=True
         )
     except discord.Forbidden:
         await interaction.followup.send(
-            "❌ Não consegui enviar o relatório no PV. Ative mensagens diretas do servidor e tente novamente.",
+            view=PainelResultadoV2("# ❌ Não consegui enviar o relatório\nAtive as mensagens diretas do servidor e tente novamente."),
             ephemeral=True
         )
     except Exception as exc:
         log.exception("Falha ao gerar relatório de hierarquia")
         await interaction.followup.send(
-            f"❌ Não consegui gerar o relatório ({type(exc).__name__}). Confira os avisos do bot.",
+            view=PainelResultadoV2(f"# ❌ Falha no relatório\n{type(exc).__name__}. Confira os avisos do bot."),
             ephemeral=True
         )
 
