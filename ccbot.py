@@ -4129,169 +4129,141 @@ async def samples(interaction: discord.Interaction):
         else:
             await interaction.response.send_message(msg, ephemeral=True)
 
-ACAPELLAS_SITE_URL = "https://youngbae902-max.github.io/ccbot/acapellas.html"
-ACAPELLAS_DATA_FILE = CONFIG / "acapellas.json"
-ACAPELLAS_GITHUB_TOKEN_FILE = Path("/sdcard/Download/CC/github_token.txt")
-ACAPELLAS_REPO = "youngbae902-max/ccbot"
-ACAPELLAS_BRANCH = "master"
+ACAPELLAS_DISCORD_FILE = CONFIG / "acapellas_discord.json"
 
-def _load_acapellas():
-    try:
-        data = json.loads(ACAPELLAS_DATA_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
-    except (OSError, json.JSONDecodeError):
-        return []
+def _load_acapellas_discord():
+    dados = load_json(ACAPELLAS_DISCORD_FILE, {})
+    return dados if isinstance(dados, dict) else {}
 
-def _publish_acapellas_data():
-    token = ""
-    try:
-        token = subprocess.check_output(
-            ["gh", "auth", "token"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-            timeout=10,
-        ).strip()
-    except (OSError, subprocess.SubprocessError):
-        pass
-    if not token and ACAPELLAS_GITHUB_TOKEN_FILE.exists():
-        token = ACAPELLAS_GITHUB_TOKEN_FILE.read_text(encoding="utf-8").strip()
-    if not token:
-        raise RuntimeError("GitHub CLI não autenticado e arquivo de token não encontrado.")
-    api_base = f"https://api.github.com/repos/{ACAPELLAS_REPO}/contents/docs/acapellas.json"
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": "Bearer " + token,
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "CCBOT-Acapellas",
-    }
-    request = urllib.request.Request(api_base + "?ref=" + ACAPELLAS_BRANCH, headers=headers)
-    with urllib.request.urlopen(request, timeout=15) as response:
-        current = json.loads(response.read().decode("utf-8"))
-    payload = {
-        "message": "Atualizar catálogo de acapellas pelo CC BOT",
-        "branch": ACAPELLAS_BRANCH,
-        "sha": current["sha"],
-        "content": base64.b64encode((json.dumps(_load_acapellas(), ensure_ascii=False, indent=2) + "\n").encode("utf-8")).decode("ascii"),
-    }
-    request = urllib.request.Request(
-        api_base,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={**headers, "Content-Type": "application/json"},
-        method="PUT",
-    )
-    with urllib.request.urlopen(request, timeout=20) as response:
-        response.read()
-
-class AcapellaCadastroModal(discord.ui.Modal, title="Cadastrar MC"):
-    nome = discord.ui.TextInput(label="Nome do MC", placeholder="Nome que aparecerá na página", max_length=80)
-    foto = discord.ui.TextInput(label="Link da foto", placeholder="https://...", max_length=500)
-    link = discord.ui.TextInput(label="Link da acapella", placeholder="https://...", max_length=500)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode cadastrar MCs.", ephemeral=True)
-            return
-        nome = str(self.nome).strip()
-        foto = str(self.foto).strip()
-        link = str(self.link).strip()
-        for value, label in ((foto, "foto"), (link, "link")):
-            parsed = urlparse(value)
-            if parsed.scheme not in ("http", "https") or not parsed.netloc:
-                await interaction.response.send_message(f"O link da {label} precisa ser uma URL válida (http/https).", ephemeral=True)
-                return
-        itens = _load_acapellas()
-        registro = {"nome": nome, "foto": foto, "link": link}
-        atualizado = False
-        for i, item in enumerate(itens):
-            if str(item.get("nome", "")).casefold() == nome.casefold():
-                itens[i] = registro
-                atualizado = True
-                break
-        if not atualizado:
-            itens.append(registro)
-        save_json(ACAPELLAS_DATA_FILE, itens)
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        try:
-            await asyncio.to_thread(_publish_acapellas_data)
-            await interaction.followup.send(
-                f"✅ **{nome}** {'atualizado' if atualizado else 'cadastrado'} no catálogo. A página será atualizada após a publicação do GitHub Pages.",
-                ephemeral=True,
-            )
-        except Exception as exc:
-            log.exception("Falha ao publicar catálogo de acapellas")
-            await interaction.followup.send(
-                f"⚠️ Salvei **{nome}** localmente, mas não consegui enviar para o site ({type(exc).__name__}). Confira github_token.txt e a permissão Contents do token.",
-                ephemeral=True,
-            )
-
-class AcapellaCadastrarButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Cadastrar MC", emoji="➕", style=discord.ButtonStyle.primary, custom_id="ccbot:acapellas:cadastrar")
-    async def callback(self, interaction: discord.Interaction):
-        if not is_admin(interaction):
-            await interaction.response.send_message("Apenas o administrador pode usar este painel.", ephemeral=True)
-            return
-        await interaction.response.send_modal(AcapellaCadastroModal())
-
-class AcapellaAbrirSiteButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Abrir catálogo", emoji="🌐", style=discord.ButtonStyle.link, url=ACAPELLAS_SITE_URL)
+class AcapellaLinkView(discord.ui.View):
+    def __init__(self, link: str):
+        super().__init__(timeout=None)
+        self.add_item(discord.ui.Button(
+            label="Abrir acapella",
+            emoji="🎧",
+            style=discord.ButtonStyle.link,
+            url=link
+        ))
 
 class AcapellasAdminView(discord.ui.LayoutView):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(discord.ui.Container(
-            discord.ui.TextDisplay(content="# 🎙️ Catálogo de Acapellas\nCadastre o nome do MC, a foto e o link. Se cadastrar novamente o mesmo nome, os dados serão atualizados."),
+            discord.ui.TextDisplay(content=(
+                "# 🎙️ LISTA DE ACAPELLAS\n"
+                "Para adicionar um MC, use o comando /acapella neste canal e preencha o nome, "
+                "a foto e o link da acapella. Cada MC aparecerá como uma publicação com a foto "
+                "e um botão para abrir o áudio."
+            )),
             discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
-            discord.ui.ActionRow(AcapellaCadastrarButton(), AcapellaAbrirSiteButton()),
-            discord.ui.ActionRow(VoltarPainelButton()),
+            discord.ui.ActionRow(VoltarPainelButton())
         ))
-
-class AcapellasActivityView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(AcapellaAbrirSiteButton())
 
 async def painel_acapellas(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
+    canal = interaction.channel
+    if not isinstance(canal, (discord.TextChannel, discord.Thread)):
+        await interaction.response.send_message("Use essa opção dentro de um canal de texto.", ephemeral=True)
+        return
     try:
-        # Publica no canal em que o administrador acionou o painel, evitando ID fixo inválido.
-        canal = interaction.channel
-        if canal is None or not hasattr(canal, "send") or not hasattr(canal, "history"):
-            await interaction.response.send_message(
-                "Não consegui identificar um canal de texto para publicar. Use o painel em um canal de texto.",
-                ephemeral=True
-            )
-            return
         embed = discord.Embed(
-            title="🎙️ PAINEL ACAPELAS",
-            description="Escolha o MC e abra o link da acapella na página.",
+            title="🎙️ LISTA DE ACAPELLAS",
+            description=(
+                "Cada MC aparece com sua foto e um botão para abrir a acapella.\n"
+                "Administrador: use /acapella para adicionar ou atualizar um MC."
+            ),
+            color=discord.Color.from_rgb(43, 45, 49)
         )
-        painel_existente = None
+        mensagem_existente = None
         async for mensagem in canal.history(limit=100):
-            if mensagem.author.id == bot.user.id and mensagem.embeds and mensagem.embeds[0].title == "🎙️ PAINEL ACAPELAS":
-                painel_existente = mensagem
+            if mensagem.author.id == bot.user.id and mensagem.embeds and mensagem.embeds[0].title == "🎙️ LISTA DE ACAPELLAS":
+                mensagem_existente = mensagem
                 break
-        if painel_existente:
-            await painel_existente.edit(embed=embed, view=AcapellasActivityView())
-            resultado = f"Painel Acapelas atualizado em {canal.mention}."
+        if mensagem_existente:
+            await mensagem_existente.edit(embed=embed, view=None)
+            resultado = f"Lista de Acapellas atualizada em {canal.mention}."
         else:
-            await canal.send(embed=embed, view=AcapellasActivityView())
-            resultado = f"Painel Acapelas publicado em {canal.mention}."
+            await canal.send(embed=embed)
+            resultado = f"Lista de Acapellas publicada em {canal.mention}."
         await interaction.response.send_message(resultado, ephemeral=True)
     except Exception as exc:
-        log.exception("Falha ao publicar painel Acapelas")
-        msg = (
-            f"❌ Falha ao publicar Acapelas ({type(exc).__name__}: {str(exc)[:180]}).\n"
-            "Confira no canal: Ver canal, Enviar mensagens, Incorporar links e "
-            "Ler histórico de mensagens. O bot também precisa estar no servidor."
-        )
+        log.exception("Falha ao publicar cabeçalho da lista de Acapellas")
+        msg = f"❌ Não consegui publicar a lista ({type(exc).__name__}: {str(exc)[:160]})."
         if interaction.response.is_done():
             await interaction.followup.send(msg, ephemeral=True)
         else:
             await interaction.response.send_message(msg, ephemeral=True)
 
+@bot.tree.command(name="acapella", description="Adicionar ou atualizar um MC na lista de acapellas")
+@app_commands.describe(nome="Nome do MC", foto="Foto do MC", link="Link da acapella")
+async def cadastrar_acapella(interaction: discord.Interaction, nome: str, foto: discord.Attachment, link: str):
+    if not is_admin(interaction):
+        await interaction.response.send_message("Apenas o administrador autorizado pode cadastrar MCs.", ephemeral=True)
+        return
+    nome = nome.strip()
+    parsed = urlparse(link.strip())
+    if not nome:
+        await interaction.response.send_message("Digite o nome do MC.", ephemeral=True)
+        return
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        await interaction.response.send_message("O link da acapella precisa ser uma URL válida (http/https).", ephemeral=True)
+        return
+    if not (foto.content_type or "").lower().startswith("image/"):
+        await interaction.response.send_message("O arquivo enviado precisa ser uma imagem.", ephemeral=True)
+        return
+    canal = interaction.channel
+    if not isinstance(canal, (discord.TextChannel, discord.Thread)):
+        await interaction.response.send_message("Use /acapella dentro do canal onde ficará a lista.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    registros = _load_acapellas_discord()
+    chave = nome.casefold()
+    registro_antigo = registros.get(chave)
+    extensao = Path(foto.filename).suffix.lower()
+    if extensao not in (".png", ".jpg", ".jpeg", ".webp", ".gif"):
+        extensao = ".png"
+    nome_arquivo = "foto-mc" + extensao
+    try:
+        arquivo = discord.File(io.BytesIO(await foto.read()), filename=nome_arquivo)
+        embed = discord.Embed(
+            title=f"🎤 {nome}",
+            description="Acapella disponível para ouvir ou baixar.",
+            color=discord.Color.from_rgb(43, 45, 49)
+        )
+        embed.set_image(url=f"attachment://{nome_arquivo}")
+        embed.set_footer(text="C.C © • Lista de Acapellas")
+        mensagem = None
+        if isinstance(registro_antigo, dict):
+            try:
+                canal_antigo = bot.get_channel(int(registro_antigo.get("channel_id", 0)))
+                if canal_antigo is None:
+                    canal_antigo = await bot.fetch_channel(int(registro_antigo.get("channel_id", 0)))
+                mensagem = await canal_antigo.fetch_message(int(registro_antigo.get("message_id", 0)))
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException, ValueError, TypeError):
+                mensagem = None
+        view = AcapellaLinkView(link.strip())
+        if mensagem is not None:
+            await mensagem.edit(embed=embed, attachments=[arquivo], view=view)
+            canal_publicado = mensagem.channel
+            acao = "atualizado"
+        else:
+            mensagem = await canal.send(embed=embed, file=arquivo, view=view)
+            canal_publicado = canal
+            acao = "adicionado"
+        registros[chave] = {
+            "nome": nome, "link": link.strip(),
+            "channel_id": canal_publicado.id, "message_id": mensagem.id
+        }
+        save_json(ACAPELLAS_DISCORD_FILE, registros)
+        await interaction.followup.send(f"✅ MC **{nome}** {acao} na lista em {canal_publicado.mention}.", ephemeral=True)
+    except Exception as exc:
+        log.exception("Falha ao cadastrar MC na lista de Acapellas")
+        await interaction.followup.send(
+            f"❌ Não consegui publicar a foto do MC ({type(exc).__name__}: {str(exc)[:160]}). Confira se o bot pode enviar mensagens e anexos nesse canal.",
+            ephemeral=True
+        )
 
 class ArrumadorModal(discord.ui.Modal, title="Arrumador de Projetos"):
     mudancas = discord.ui.TextInput(
@@ -5402,8 +5374,6 @@ async def restaurar_paineis_existentes():
 
                 if "arrumador de projetos" in rodape or "arrumador de arquivos" in titulo:
                     view, nome = ArrumadorPainelView(), "Arrumador de Projetos"
-                elif "busca de acapellas" in rodape or "acapellas de mcs famosos" in titulo:
-                    view, nome = AcapellasActivityView(), "Acapellas"
                 elif "c.c © • trampar conosco" in rodape:
                     view, nome = TramparConoscoView(), "Trampar Conosco"
                 elif "venda de beats" in rodape:
@@ -6675,7 +6645,6 @@ async def criar_regras(interaction: discord.Interaction, canal: discord.TextChan
     app_commands.Choice(name="Gerador de Samples", value="samples"),
     app_commands.Choice(name="Pack Personalizado", value="pack"),
     app_commands.Choice(name="Arrumador", value="arrumador"),
-    app_commands.Choice(name="Acapellas", value="acapellas"),
     app_commands.Choice(name="Parcerias", value="parcerias"),
     app_commands.Choice(name="Trampar Conosco", value="trampar"),
 ])
@@ -6716,7 +6685,6 @@ async def atualizar_painel(
             "samples": (SamplesPanelView, True),
             "pack": (PackPersonalizadoView, True),
             "arrumador": (ArrumadorPainelView, True),
-            "acapellas": (AcapellasActivityView, False),
             "parcerias": (ParceriasView, True),
             "trampar": (TramparConoscoView, True),
         }
@@ -6849,8 +6817,6 @@ async def atualizar_paineis(interaction: discord.Interaction):
         # O ID do botão permite recuperar o painel mesmo quando seu embed já foi apagado.
         if "ccbot:arrumador_mandar" in texto or titulos.intersection({"🧰 arrumador de arquivos", "🧰 arrumador de projetos", "🧩 arrumador"}):
             return "Arrumador", ArrumadorPainelView, True
-        if titulos.intersection({"🎤 acapellas de mcs famosos", "busca de acapellas"}):
-            return "Acapellas", AcapellasActivityView, False
         return None
 
     canais = list(guild.text_channels)
