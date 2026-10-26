@@ -4255,13 +4255,14 @@ class AcapellasActivityView(discord.ui.View):
 async def painel_acapellas(interaction: discord.Interaction):
     if await deny_unauthorized(interaction):
         return
-    canal_id = 1561794460617277511
     try:
-        canal = bot.get_channel(canal_id)
-        if canal is None:
-            canal = await bot.fetch_channel(canal_id)
-        if not isinstance(canal, discord.TextChannel):
-            await interaction.response.send_message("O canal configurado não é um canal de texto.", ephemeral=True)
+        # Publica no canal em que o administrador acionou o painel, evitando ID fixo inválido.
+        canal = interaction.channel
+        if canal is None or not hasattr(canal, "send") or not hasattr(canal, "history"):
+            await interaction.response.send_message(
+                "Não consegui identificar um canal de texto para publicar. Use o painel em um canal de texto.",
+                ephemeral=True
+            )
             return
         embed = discord.Embed(
             title="🎙️ PAINEL ACAPELAS",
