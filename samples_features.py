@@ -521,9 +521,13 @@ class SamplesAddModal(discord.ui.Modal, title="Adicionar ao estoque"):
         await interaction.response.defer(ephemeral=True, thinking=True)
         added = 0
         try:
-            for attachment in list(self.arquivos.component.values or []):
-                if attachment.size > MAX_ITEM_BYTES:
-                    raise ValueError(f"{attachment.filename} ultrapassa 24 MB. Para arquivos grandes, adicione um link.")
+            attachments = list(self.arquivos.component.values or [])
+            links = [line.strip() for line in str(self.links.value or "").splitlines() if line.strip()]
+            if any(not url.startswith(("https://", "http://")) for url in links):
+                raise ValueError("Cada link precisa começar com http:// ou https://.")
+            if any(attachment.size > MAX_ITEM_BYTES for attachment in attachments):
+                raise ValueError("Um ou mais arquivos ultrapassam 24 MB. Para arquivos grandes, adicione links.")
+            for attachment in attachments:
                 data = await attachment.read(use_cached=True)
                 item_id = uuid.uuid4().hex
                 name = _safe_name(attachment.filename)
@@ -536,12 +540,7 @@ class SamplesAddModal(discord.ui.Modal, title="Adicionar ao estoque"):
                 kind = "zip" if Path(name).suffix.lower() == ".zip" else "file"
                 SYSTEM.add_item(self.dj, self.category, {"id": item_id, "kind": kind, "name": name, "path": rel})
                 added += 1
-            for url in str(self.links.value or "").splitlines():
-                url = url.strip()
-                if not url:
-                    continue
-                if not url.startswith(("https://", "http://")):
-                    raise ValueError("Cada link precisa começar com http:// ou https://.")
+            for url in links:
                 SYSTEM.add_item(self.dj, self.category, {"id": uuid.uuid4().hex, "kind": "link", "name": url[:100], "url": url})
                 added += 1
             await interaction.followup.send(f"Adicionados **{added}** item(ns) ao estoque de **{self.dj} / {SAMPLE_TYPES[self.category]}**.", ephemeral=True)
@@ -583,7 +582,7 @@ class SamplesEditItemModal(discord.ui.Modal, title="Editar item do estoque"):
             return
         replacements = list(self.arquivo.component.values or [])
         old_item = dict(item)
-        item["name"] = _safe_name(str(self.nome.value).strip())
+        new_name = _safe_name(str(self.nome.value).strip())
         if replacements:
             attachment = replacements[0]
             if attachment.size > MAX_ITEM_BYTES:
@@ -602,16 +601,18 @@ class SamplesEditItemModal(discord.ui.Modal, title="Editar item do estoque"):
             item.update({
                 "id": new_id,
                 "kind": "zip" if Path(name).suffix.lower() == ".zip" else "file",
-                "name": _safe_name(str(self.nome.value).strip()) or name,
+                "name": new_name or name,
                 "path": rel
             })
             item.pop("url", None)
             SYSTEM.save_stock()
             SYSTEM.remove_item_file(old_item)
         elif item.get("kind") == "link":
+            item["name"] = new_name
             item["url"] = url
             SYSTEM.save_stock()
         else:
+            item["name"] = new_name
             SYSTEM.save_stock()
         await interaction.response.send_message("Item atualizado/substituído.", ephemeral=True)
 
