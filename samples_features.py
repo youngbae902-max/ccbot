@@ -519,27 +519,84 @@ class SamplesAddModal(discord.ui.Modal, title="Adicionar ao estoque"):
             await interaction.followup.send("Erro inesperado ao adicionar itens.", ephemeral=True)
 
 
+class SamplesEditItemModal(discord.ui.Modal, title="Editar item do estoque"):
+    nome = discord.ui.TextInput(label="Nome do item", max_length=180, required=True)
+    link = discord.ui.TextInput(label="Link (somente para links)", max_length=1000, required=False)
+
+    def __init__(self, dj, category, item):
+        super().__init__()
+        self.dj = dj
+        self.category = category
+        self.item_id = item["id"]
+        self.nome.default = str(item.get("name", ""))[:180]
+        self.link.default = str(item.get("url", ""))[:1000]
+
+    async def on_submit(self, interaction):
+        if not SYSTEM.is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
+            return
+        item = next((x for x in SYSTEM.items(self.dj, self.category) if x.get("id") == self.item_id), None)
+        if item is None:
+            await interaction.response.send_message("Esse item não está mais no estoque.", ephemeral=True)
+            return
+        item["name"] = _safe_name(str(self.nome.value).strip())
+        if item.get("kind") == "link":
+            url = str(self.link.value or "").strip()
+            if not url.startswith(("https://", "http://")):
+                await interaction.response.send_message("Para itens do tipo link, informe um endereço http:// ou https:// válido.", ephemeral=True)
+                return
+            item["url"] = url
+        SYSTEM.save_stock()
+        await interaction.response.send_message("Item atualizado.", ephemeral=True)
+
+
 class SamplesEditItemSelect(discord.ui.Select):
-    def __init__(self, parent):
+    def __init__(self, parent, action):
         self.parent_view = parent
+        self.action = action
         items = SYSTEM.items(parent.dj, parent.category)[:25]
         options = [discord.SelectOption(label=f"{i+1}. {item.get('name', 'Item')}"[:100], value=item["id"]) for i, item in enumerate(items)]
-        super().__init__(placeholder="Selecione um item para apagar", min_values=1, max_values=1, options=options, custom_id="ccbot:samples:delete_item")
+        super().__init__(placeholder="Selecione um item...", min_values=1, max_values=1, options=options, custom_id="ccbot:samples:select_item")
 
     async def callback(self, interaction):
         if not SYSTEM.is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador pode gerenciar o estoque.", ephemeral=True)
             return
         item_id = self.values[0]
-        key = SYSTEM._key(self.parent_view.dj, self.parent_view.category)
         items = SYSTEM.items(self.parent_view.dj, self.parent_view.category)
         item = next((x for x in items if x.get("id") == item_id), None)
         if item is None:
             await interaction.response.send_message("Esse item não está mais no estoque.", ephemeral=True)
             return
+        if self.action == "edit":
+            await interaction.response.send_modal(SamplesEditItemModal(self.parent_view.dj, self.parent_view.category, item))
+            return
         items.remove(item)
         SYSTEM.save_stock()
         await interaction.response.edit_message(content="Item removido do estoque.", view=None)
+
+
+class SamplesImportModal(discord.ui.Modal, title="Importar/substituir estoque"):
+    arquivo = discord.ui.Label(
+        text="Arquivo TXT ou ZIP exportado pelo CC BOT",
+        description="Substitui o estoque atual. O histórico de entregas será mantido.",
+        component=discord.ui.FileUpload(custom_id="ccbot_samples_import_file", min_values=1, max_values=1, required=True)
+    )
+
+    def __init__(self, dj, category):
+        super().__init__()
+        self.dj = dj
+        self.category = category
+
+    async def on_submit(self, interaction):
+        if not SYSTEM.is_admin(interaction):
+            await interaction.response.send_message("Apenas o administrador pode importar estoque.", ephemeral=True)
+            return
+        files = list(self.arquivo.component.values or [])
+        if not files:
+            await interaction.response.send_message("Anexe um .txt ou .zip.", ephemeral=True)
+            return
+        await SYSTEM.import_replace(interaction, self.dj, self.category, files[0])
 
 
 class SamplesClearConfirmView(discord.ui.View):
@@ -589,16 +646,19 @@ class SamplesAdminView(discord.ui.LayoutView):
         rows.append(discord.ui.ActionRow(SamplesTypeSelect(self)))
         buttons = [
             discord.ui.Button(label="Adicionar", emoji="➕", style=discord.ButtonStyle.success, custom_id="ccbot:samples:admin_add"),
+            discord.ui.Button(label="Editar item", emoji="✏️", style=discord.ButtonStyle.secondary, custom_id="ccbot:samples:admin_edit"),
             discord.ui.Button(label="Apagar item", emoji="🗑️", style=discord.ButtonStyle.secondary, custom_id="ccbot:samples:admin_delete"),
             discord.ui.Button(label="Apagar estoque", emoji="⚠️", style=discord.ButtonStyle.danger, custom_id="ccbot:samples:admin_clear"),
             discord.ui.Button(label="Exportar TXT", emoji="📄", style=discord.ButtonStyle.primary, custom_id="ccbot:samples:admin_txt"),
             discord.ui.Button(label="Exportar ZIP", emoji="📦", style=discord.ButtonStyle.primary, custom_id="ccbot:samples:admin_zip"),
+            discord.ui.Button(label="Importar/substituir", emoji="🔄", style=discord.ButtonStyle.primary, custom_id="ccbot:samples:admin_import"),
         ]
         rows.append(discord.ui.ActionRow(*buttons[:3]))
-        rows.append(discord.ui.ActionRow(*buttons[3:]))
+        rows.append(discord.ui.ActionRow(*buttons[3:6]))
+        rows.append(discord.ui.ActionRow(buttons[6]))
         self.add_item(discord.ui.Container(discord.ui.TextDisplay(content=text), *rows))
         # Bind actions explicitly so controls stay usable after rebuilding the view.
-        for button, action in zip(buttons, ("add", "delete", "clear", "txt", "zip")):
+        for button, action in zip(buttons, ("add", "edit", "delete", "clear", "txt", "zip", "import")):
             button.callback = self._action_callback(action)
 
     def _action_callback(self, action):
@@ -611,14 +671,20 @@ class SamplesAdminView(discord.ui.LayoutView):
                 return
             if action == "add":
                 await interaction.response.send_modal(SamplesAddModal(self.dj, self.category))
-            elif action == "delete":
+            elif action in ("delete", "edit"):
                 items = SYSTEM.items(self.dj, self.category)
                 if not items:
                     await interaction.response.send_message("Esse estoque está vazio.", ephemeral=True)
                 else:
-                    await interaction.response.send_message("Escolha o item para remover:", view=SamplesEditItemSelectView(self.dj, self.category), ephemeral=True)
+                    await interaction.response.send_message(
+                        "Escolha o item que deseja " + ("editar:" if action == "edit" else "remover:"),
+                        view=SamplesEditItemSelectView(self.dj, self.category, action),
+                        ephemeral=True
+                    )
             elif action == "clear":
                 await interaction.response.send_message(f"Confirma apagar os **{len(SYSTEM.items(self.dj, self.category))}** itens de **{self.dj} / {SAMPLE_TYPES[self.category]}**?", view=SamplesClearConfirmView(self.dj, self.category), ephemeral=True)
+            elif action == "import":
+                await interaction.response.send_modal(SamplesImportModal(self.dj, self.category))
             else:
                 await SYSTEM.admin_export(interaction, self.dj, self.category, action)
         return callback
@@ -629,11 +695,11 @@ class SamplesAdminView(discord.ui.LayoutView):
 
 
 class SamplesEditItemSelectView(discord.ui.View):
-    def __init__(self, dj, category):
+    def __init__(self, dj, category, action):
         super().__init__(timeout=300)
         items = SYSTEM.items(dj, category)[:25]
         if items:
-            self.add_item(SamplesEditItemSelect(type("Parent", (), {"dj": dj, "category": category})()))
+            self.add_item(SamplesEditItemSelect(type("Parent", (), {"dj": dj, "category": category})(), action))
 
 
 class SamplesAdminButton(discord.ui.Button):
