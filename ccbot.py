@@ -3399,33 +3399,29 @@ class GarimpadorAdicionarButton(discord.ui.Button):
 
 class GarimpadorPublicarButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="Publicar no Mercado", emoji="🎲", style=discord.ButtonStyle.success, custom_id="ccbot:garimpador:publicar")
+        super().__init__(label="Publicar neste canal", emoji="🎲", style=discord.ButtonStyle.success, custom_id="ccbot:garimpador:publicar")
+
     async def callback(self, interaction: discord.Interaction):
         if not is_admin(interaction):
             await interaction.response.send_message("Apenas o administrador autorizado pode usar este painel.", ephemeral=True)
             return
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        guild = interaction.guild
-        if guild is None:
-            await interaction.followup.send("Use este painel dentro do servidor.", ephemeral=True)
+        canal = interaction.channel
+        if canal is None or not hasattr(canal, "send") or not hasattr(canal, "history"):
+            await interaction.response.send_message("Não consegui identificar o canal atual.", ephemeral=True)
             return
-        categoria = discord.utils.get(guild.categories, name="MERCADO") or discord.utils.get(guild.categories, name="cc store") or discord.utils.get(guild.categories, name="Mercado")
-        canal = discord.utils.get(guild.text_channels, name="garimpador-de-packs")
-        if canal is None:
-            canal = await guild.create_text_channel("garimpador-de-packs", category=categoria, reason="Criar aba Garimpador de Packs no Mercado")
+        await interaction.response.defer(ephemeral=True, thinking=True)
         mensagem = None
-        async for msg in canal.history(limit=30):
+        async for msg in canal.history(limit=50):
             if msg.author.id == bot.user.id and msg.components and "cc:garimpador_packs:gerar" in str(msg.components):
                 mensagem = msg
                 break
-        texto = "## 🎲 GARIMPADOR DE PACKS\nClique no botão para sortear um link."
         view = GarimpadorPacksView()
         try:
             if mensagem:
                 await mensagem.edit(content=None, embeds=[], attachments=[], view=view)
             else:
                 await canal.send(view=view)
-            await interaction.followup.send(f"Painel disponível em {canal.mention}. Links cadastrados: **{len(garimpador_links)}**.", ephemeral=True)
+            await interaction.followup.send(f"Garimpador publicado neste canal. Links cadastrados: **{len(garimpador_links)}**.", ephemeral=True)
         except discord.HTTPException:
             log.exception("Falha ao publicar o painel Garimpador de Packs")
             await interaction.followup.send("Não consegui publicar. Confira as permissões do bot.", ephemeral=True)
