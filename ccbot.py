@@ -3530,10 +3530,9 @@ async def painel(interaction: discord.Interaction):
         return
 
     try:
-        # Abre diretamente o seletor de áreas administrativas, sem tela intermediária.
+        # Abre diretamente a central administrativa em Components V2.
         await interaction.response.send_message(
-            embed=criar_embed_painel(),
-            view=PainelAdminView(),
+            view=PainelAdminV2View(),
             ephemeral=True
         )
         log.info("Comando /painel aberto por %s (%s).", interaction.user, interaction.user.id)
@@ -3727,13 +3726,15 @@ class PainelGrupoSelect(discord.ui.Select):
             return
         grupo = self.values[0]
         info = PAINEL_GRUPOS[grupo]
-        await interaction.response.edit_message(
+        # O seletor está numa mensagem Components V2; abre a área numa resposta própria.
+        await interaction.response.send_message(
             embed=criar_embed_estetico(
                 title=info["titulo"],
                 description=info["descricao"] + "\n\nSelecione uma função abaixo.",
                 color=PAINEL_ADMIN_COLOR
             ),
-            view=PainelSubcategoriasView(grupo)
+            view=PainelSubcategoriasView(grupo),
+            ephemeral=True
         )
 
 class CategoriaPainelSelect(discord.ui.Select):
@@ -3908,6 +3909,23 @@ class PainelAdminView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
         self.add_item(PainelGrupoSelect())
+
+
+class PainelAdminV2View(discord.ui.LayoutView):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(
+            discord.ui.Container(
+                discord.ui.TextDisplay(
+                    content=(
+                        "# 🛠️ Central administrativa\n"
+                        "Selecione uma área administrativa para acessar as ferramentas."
+                    )
+                ),
+                discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+                discord.ui.ActionRow(PainelGrupoSelect())
+            )
+        )
 
 class PainelDJsView(discord.ui.View):
     def __init__(self):
