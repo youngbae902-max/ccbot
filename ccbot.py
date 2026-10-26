@@ -3617,7 +3617,7 @@ OPCOES_CATEGORIAS_PAINEL = [
 ]
 
 async def atualizar_embed_regras(interaction: discord.Interaction):
-    """Restiliza a mensagem de regras existente sem recriá-la nem apagar seu conteúdo."""
+    """Converte a mensagem de regras existente para Components V2, sem duplicá-la."""
     message_id = 1563670149150547999
     guild = interaction.guild
     if guild is None:
@@ -3626,9 +3626,7 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
 
     await interaction.response.defer(ephemeral=True, thinking=True)
     canais = list(guild.text_channels)
-    for thread in getattr(guild, "threads", []):
-        if thread not in canais:
-            canais.append(thread)
+    canais.extend(thread for thread in getattr(guild, "threads", []) if thread not in canais)
 
     mensagem_alvo = None
     canal_alvo = None
@@ -3637,69 +3635,72 @@ async def atualizar_embed_regras(interaction: discord.Interaction):
             mensagem_alvo = await canal.fetch_message(message_id)
             canal_alvo = canal
             break
-        except discord.NotFound:
-            continue
-        except discord.Forbidden:
+        except (discord.NotFound, discord.Forbidden):
             continue
         except discord.HTTPException:
-            log.warning("Não foi possível verificar mensagens no canal %s ao localizar o painel de regras.", canal.id)
-            continue
+            log.warning("Não foi possível verificar mensagens no canal %s ao localizar as regras.", canal.id)
 
     if mensagem_alvo is None:
         await interaction.followup.send(
-            "Não encontrei a mensagem de regras com o ID configurado. Nenhuma mensagem foi criada. "
-            "Confira se o bot consegue ler o canal e se esse ID é da mensagem correta.",
+            "Não encontrei a mensagem de regras configurada. Nenhuma mensagem foi criada.",
             ephemeral=True
         )
         return
 
-    novos_embeds = []
+    # Transforma o conteúdo antigo em texto para o layout Components V2.
+    blocos = []
     for original in mensagem_alvo.embeds:
-        embed = original.copy()
-        embed.color = discord.Color.from_rgb(43, 45, 49)
-        if not embed.title:
-            embed.title = "📜 REGRAS DA COMUNIDADE"
-        if not embed.description and not embed.fields:
-            embed.description = "Leia as regras abaixo e siga as orientações para manter a comunidade organizada."
-        embed.remove_footer()
-        if not embed.thumbnail.url and not embed.image.url and guild.icon:
-            embed.set_thumbnail(url=guild.icon.url)
-        novos_embeds.append(embed)
-
-    if not novos_embeds:
-        conteudo = (mensagem_alvo.content or "").strip()
-        if not conteudo:
-            await interaction.followup.send(
-                "A mensagem não tem embed nem texto para estilizar. Não alterei nada.",
-                ephemeral=True
-            )
-            return
-        embed = criar_embed_estetico(
-            title="📜 REGRAS DA COMUNIDADE",
-            description=conteudo,
-            color=discord.Color.from_rgb(43, 45, 49)
+        if original.title and original.title != "📜 REGRAS DA COMUNIDADE":
+            blocos.append(f"## {original.title}")
+        if original.description:
+            blocos.append(original.description)
+        for field in original.fields:
+            blocos.append(f"**{field.name}**\n{field.value}")
+    texto_antigo = (mensagem_alvo.content or "").strip()
+    if texto_antigo:
+        blocos.insert(0, texto_antigo)
+    corpo = "\n\n".join(bloco for bloco in blocos if bloco).strip()
+    if not corpo:
+        await interaction.followup.send(
+            "A mensagem existente não contém texto de regras que eu consiga converter. Não alterei nada.",
+            ephemeral=True
         )
-        embed.remove_footer()
-        if guild.icon:
-            embed.set_thumbnail(url=guild.icon.url)
-        novos_embeds = [embed]
+        return
+
+    view = discord.ui.LayoutView(timeout=None)
+    view.add_item(discord.ui.Container(
+        discord.ui.TextDisplay(content=(
+            "# 📜 REGRAS DA COMUNIDADE\n"
+            "**Uma comunidade criativa, segura e transparente.**\n"
+            "-# LEIA ANTES DE PARTICIPAR OU COMPRAR"
+        )),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
+        discord.ui.TextDisplay(content=corpo[:4000]),
+        discord.ui.Separator(visible=True, spacing=discord.SeparatorSpacing.small),
+        discord.ui.TextDisplay(content=(
+            "> Ao permanecer no servidor, você concorda em seguir estas regras.\n"
+            "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
+        )),
+        accent_color=0x57E3A7
+    ))
 
     try:
         await mensagem_alvo.edit(
-            content=mensagem_alvo.content if mensagem_alvo.embeds else None,
-            embeds=novos_embeds,
+            content=None,
+            embeds=[],
+            view=view,
             allowed_mentions=discord.AllowedMentions.none()
         )
         await interaction.followup.send(
-            f"✅ Aparência da mensagem de regras atualizada em {canal_alvo.mention}. "
-            "Editei a mensagem existente e preservei o texto, os campos e as imagens que já estavam no embed.",
+            f"✅ Converti a mensagem de regras existente para **Components V2** em {canal_alvo.mention}. "
+            "Não criei uma mensagem duplicada.",
             ephemeral=True
         )
-        log.info("Embed de regras atualizado pelo /painel: canal=%s mensagem=%s", canal_alvo.id, message_id)
+        log.info("Regras convertidas para Components V2: canal=%s mensagem=%s", canal_alvo.id, message_id)
     except discord.HTTPException as exc:
-        log.exception("Falha ao atualizar embed de regras")
+        log.exception("Falha ao converter regras para Components V2")
         await interaction.followup.send(
-            f"❌ Não consegui atualizar o embed de regras ({type(exc).__name__}). Confira os logs do bot.",
+            f"❌ Não consegui converter as regras ({type(exc).__name__}). Confira os logs do bot.",
             ephemeral=True
         )
 
@@ -6667,7 +6668,7 @@ async def criar_regras(interaction: discord.Interaction, canal: discord.TextChan
             "> Ao permanecer no servidor, você concorda em seguir estas regras.\n"
             "> A equipe pode aplicar advertência, restrição ou banimento conforme a gravidade."
         )),
-        accent_color=0x2B2D31
+        accent_color=0x57E3A7
     ))
     try:
         await canal.send(view=view, allowed_mentions=discord.AllowedMentions.none())
