@@ -3448,18 +3448,30 @@ async def painel(interaction: discord.Interaction):
         )
         return
 
+    # Reconhece a interação imediatamente para evitar "O aplicativo não respondeu".
+    await interaction.response.defer(ephemeral=True, thinking=True)
     try:
-        # Abre diretamente a central administrativa em Components V2.
-        await interaction.response.send_message(
-            view=PainelAdminV2View(),
-            ephemeral=True
-        )
+        await interaction.followup.send(view=PainelAdminV2View(), ephemeral=True)
         log.info("Comando /painel aberto por %s (%s).", interaction.user, interaction.user.id)
     except Exception as exc:
-        log.exception("Falha ao abrir /painel")
-        if not interaction.response.is_done():
-            await interaction.response.send_message(
-                f"Não consegui abrir o painel ({type(exc).__name__}). O erro foi registrado no log.",
+        log.exception("Falha ao abrir /painel em Components V2; tentando painel compatível.")
+        try:
+            # Fallback sem LayoutView para instalações/API que não aceitem Components V2.
+            fallback = discord.ui.View(timeout=300)
+            fallback.add_item(PainelGrupoSelect())
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="🛠️ Central administrativa",
+                    description="Selecione uma área para acessar as ferramentas.",
+                    color=discord.Color.from_rgb(43, 45, 49)
+                ),
+                view=fallback,
+                ephemeral=True
+            )
+        except Exception as fallback_exc:
+            log.exception("Falha também no painel compatível.")
+            await interaction.followup.send(
+                f"Não consegui abrir o painel ({type(fallback_exc).__name__}). Confira o log do bot.",
                 ephemeral=True
             )
 
