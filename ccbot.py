@@ -3554,7 +3554,7 @@ class PainelGrupoSelect(discord.ui.Select):
         grupo = self.values[0]
         info = PAINEL_GRUPOS[grupo]
         # Abre o formulário da área selecionada em uma resposta efêmera.
-        await interaction.response.send_message(view=PainelSubcategoriasView(grupo), ephemeral=True)
+        await interaction.response.edit_message(view=PainelSubcategoriasView(grupo))
 
 class CategoriaPainelSelect(discord.ui.Select):
     def __init__(self, grupo):
